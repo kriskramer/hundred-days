@@ -8,7 +8,7 @@ export * from './EventSystem';
 export { TurnEngine }  from './TurnEngine';
 export type { ActionParams } from './TurnEngine';
 export { saveEngine }  from './SaveEngine';
-export { CombatEngine, ENEMY_DEFINITIONS, buildEnemiesForLocation } from './CombatEngine';
+export { CombatEngine, ENEMY_DEFINITIONS, buildEnemiesForLocation, buildBossEnemy } from './CombatEngine';
 export type {
   CombatState, CombatAction, CombatLogEntry,
   EnemyCombatant, CompanionCombatant, PlayerCombatant,

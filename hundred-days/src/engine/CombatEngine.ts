@@ -347,6 +347,26 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     defeatText: 'The Horseman dissolves with a sound like wind through a keyhole.',
     victoryText: 'The Horseman\'s chill finds every weakness.',
   },
+
+  // ── Final boss ───────────────────────────────────────────
+
+  {
+    id: 'dread_sovereign', name: 'The Dread Sovereign',
+    description: 'Ancient evil made manifest. The reason this journey began.',
+    baseHP: 200, baseAttack: 28, baseDefense: 16, baseSpeed: 7,
+    behavior: EnemyBehavior.Aggressive, minLocationId: 125, scaling: 1.0,
+    abilities: [
+      { id: 'dark_smite',          name: 'Dark Smite',          probability: 0.30, damageMultiplier: 2.0 },
+      { id: 'terrifying_presence', name: 'Terrifying Presence', probability: 0.25, damageMultiplier: 0.4, specialEffect: SpecialEffect.Terrify },
+      { id: 'soul_drain',          name: 'Soul Drain',          probability: 0.20, damageMultiplier: 0.8, specialEffect: SpecialEffect.DrainHealth },
+      { id: 'dread_shout',         name: 'Dread Shout',         probability: 0.25, damageMultiplier: 0.5, specialEffect: SpecialEffect.MoraleDamage, effectMagnitude: 20 },
+    ],
+    immuneToNegotiate: true, physicalResistance: 0.25, moraleDamageOnSight: 25,
+    xpReward: 500, goldReward: 0, foodReward: 0,
+    encounterText: 'The Dread Sovereign rises from its throne of shadow. The air turns cold. This is what the world feared.',
+    defeatText: 'The Sovereign collapses, its form unravelling into dark smoke. It is over.',
+    victoryText: 'Your strength was not enough. The world falls into shadow.',
+  },
 ];
 
 // ─────────────────────────────────────────
@@ -383,6 +403,35 @@ export function buildEnemiesForLocation(
       } satisfies EnemyCombatant;
     })
     .filter((e): e is EnemyCombatant => e !== null);
+}
+
+// ─────────────────────────────────────────
+// Build boss combatant — scales with player level
+// ─────────────────────────────────────────
+
+export function buildBossEnemy(game: GameState): EnemyCombatant[] {
+  const def   = ENEMY_DEFINITIONS.find(e => e.id === 'dread_sovereign')!;
+  const level = game.player.level;
+  // Scale boss HP/attack/defense with player level so the fight is
+  // always meaningful regardless of when location 125 is reached.
+  const hp      = def.baseHP   + level * 15;
+  const attack  = def.baseAttack  + level * 2;
+  const defense = def.baseDefense + level;
+
+  return [{
+    enemyId:            def.id,
+    name:               def.name,
+    currentHP:          hp,
+    maxHP:              hp,
+    attack,
+    defense,
+    speed:              def.baseSpeed,
+    behavior:           def.behavior,
+    abilities:          def.abilities,
+    isFleeing:          false,
+    physicalResistance: def.physicalResistance,
+    statusEffects:      [],
+  }];
 }
 
 // ─────────────────────────────────────────

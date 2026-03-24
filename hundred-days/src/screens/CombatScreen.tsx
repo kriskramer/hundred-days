@@ -29,6 +29,7 @@ import {
   CompanionCombatant,
   ENEMY_DEFINITIONS,
   buildEnemiesForLocation,
+  buildBossEnemy,
 } from '@engine/CombatEngine';
 
 import { getLocation } from '@data/locations';
@@ -496,6 +497,7 @@ function ResultOverlay({
 function buildEnemiesFromContext(event: GameEvent | null, game: GameState) {
   const location = getLocation(game.currentLocationId);
 
+  if (event?.tags?.includes('boss'))   return buildBossEnemy(game);
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'],  game.currentLocationId);
 

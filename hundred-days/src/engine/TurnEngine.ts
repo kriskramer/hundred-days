@@ -35,6 +35,7 @@ import {
 import {
   sampleEventsForTurn,
   passiveOutcomeToDelta,
+  EVENT_DEFINITIONS,
 } from './EventSystem';
 
 import { saveEngine } from './SaveEngine';
@@ -65,6 +66,7 @@ export class TurnEngine {
   private onStateChange:  (state: GameState) => void;
   private onAwaitInput:   (event: GameEvent)  => void;
   private onLevelUp:      (choices: LevelUpChoice[]) => void;
+  private bossFightResult: CombatResult | null = null;
 
   constructor(
     initialState:   GameState,
@@ -91,6 +93,10 @@ export class TurnEngine {
   /** Called after an interactive event (combat / dialogue) resolves. */
   async resolveInteractiveEvent(result: CombatResult): Promise<void> {
     if (this.state.currentTurn?.phase !== TurnPhase.AwaitingPlayer) return;
+    // Record boss fight result so checkWinLoss can use it
+    if (this.state.currentTurn.activeInteractiveEvent?.id === 'boss_dread_sovereign') {
+      this.bossFightResult = result;
+    }
     this.applyEventResult(result);
     await this.continueFromPhase(TurnPhase.ResolvingEvents);
   }
@@ -390,6 +396,14 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private sampleAndQueueEvents(): void {
+    // At location 125, force the boss fight instead of normal events
+    if (this.state.currentLocationId >= 125 && !this.bossFightResult) {
+      const bossEvent = EVENT_DEFINITIONS.find(e => e.id === 'boss_dread_sovereign');
+      if (bossEvent) {
+        this.updateTurn({ eventsQueue: [bossEvent] });
+        return;
+      }
+    }
     const events = sampleEventsForTurn(this.state);
     this.updateTurn({ eventsQueue: events });
   }
@@ -598,17 +612,15 @@ export class TurnEngine {
     const { currentLocationId, dayNumber } = this.state;
 
     if (currentLocationId >= 125) {
-      const power = calculateCombatPower(this.state);
-      if (power >= BOSS_POWER_THRESHOLD) {
-        // TODO: Trigger boss combat event
-        // For now resolve as victory if power is high enough
-        this.endRun('victory', 'You stand before the Dread Sovereign — and you are ready.');
+      if (!this.bossFightResult) {
+        // Boss fight hasn't happened yet — sampleAndQueueEvents will queue it
+        // on the next turn. Nothing to do here.
+        return;
+      }
+      if (this.bossFightResult.outcome === 'victory') {
+        this.endRun('victory', 'The Dread Sovereign falls. The shadow lifts. The world breathes again.');
       } else {
-        this.endRun(
-          'defeat',
-          `You reach the Inner Castle, but your power (${power}) is not enough. `
-        + 'The Dread Sovereign sweeps you aside like leaves.',
-        );
+        this.endRun('defeat', 'The Dread Sovereign was too powerful. The world falls into shadow.');
       }
       return;
     }

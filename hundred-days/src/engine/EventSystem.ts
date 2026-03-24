@@ -248,6 +248,23 @@ export const EVENT_DEFINITIONS: GameEvent[] = [
     tags: ['morale', 'dread'],
   },
 
+  // ── Final boss ────────────────────────────────────────────
+
+  {
+    id: 'boss_dread_sovereign',
+    type: EventType.BossEncounter,
+    resolutionType: ResolutionType.Interactive,
+    name: 'The Dread Sovereign',
+    description: 'The final confrontation at the Inner Castle.',
+    conditions: {
+      probability: 1.0,   // always fires — force-queued by TurnEngine at loc 125
+      minLocationId: 125,
+    },
+    interactiveHandlerId: 'combat_handler',
+    repeatable: false,
+    tags: ['boss', 'combat'],
+  },
+
   // ── Interactive — placeholder wires ──────────────────────
 
   {
