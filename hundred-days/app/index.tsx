@@ -14,6 +14,7 @@ export default function TitleScreen() {
   const [history, setHistory]           = useState<RunHistoryEntry[]>([]);
   const [showHistory, setShowHistory]   = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showSplash, setShowSplash]     = useState(false);
   const initGame                        = useGameStore(s => s.initGame);
 
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function TitleScreen() {
           )}
 
           <TouchableOpacity
-            onPress={handleNewGame}
+            onPress={() => setShowSplash(true)}
             activeOpacity={0.75}
             style={{
               width: '100%',
@@ -177,6 +178,60 @@ export default function TitleScreen() {
       </ScrollView>
 
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Prologue splash — shown before a new game begins */}
+      {showSplash && (
+        <View style={{
+          position:        'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: '#1A1208',
+          justifyContent:  'center',
+          alignItems:      'center',
+          padding:         32,
+        }}>
+          <ScrollView
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={{ width: 60, height: 1, backgroundColor: '#8B1A1A', marginBottom: 32, alignSelf: 'center' }} />
+
+            <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#C8B89A', fontSize: 17, lineHeight: 28, textAlign: 'center', marginBottom: 24 }}>
+              High Priest Roachak has retreated to the Blasted Lands with knowledge that should not exist. In one hundred days, what he is building there will be finished — and the world with it.
+            </Text>
+            <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#C8B89A', fontSize: 17, lineHeight: 28, textAlign: 'center', marginBottom: 24 }}>
+              The East Senin Road runs from Okuna to his gates. One hundred and twenty-five locations of wilderness, ruin, and danger. You will need companions, supplies, and the strength to face whatever waits at the end.
+            </Text>
+            <Text style={{ fontFamily: 'CrimsonText_600SemiBold', color: '#F5EAD6', fontSize: 17, lineHeight: 28, textAlign: 'center', marginBottom: 24 }}>
+              Nobody asked if you were ready.
+            </Text>
+            <Text style={{ fontFamily: 'CrimsonText_600SemiBold', color: '#F5EAD6', fontSize: 17, lineHeight: 28, textAlign: 'center', marginBottom: 48 }}>
+              The road is east. The clock is running.
+            </Text>
+
+            <View style={{ width: 60, height: 1, backgroundColor: '#8B1A1A', marginBottom: 40, alignSelf: 'center' }} />
+
+            <TouchableOpacity
+              onPress={handleNewGame}
+              activeOpacity={0.75}
+              style={{
+                backgroundColor: '#8B1A1A',
+                borderWidth:     1.5,
+                borderColor:     '#C94040',
+                borderRadius:    3,
+                alignItems:      'center',
+                paddingVertical: 16,
+                paddingHorizontal: 40,
+                alignSelf:       'center',
+              }}
+            >
+              <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 2 }}>
+                BEGIN
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

@@ -13,7 +13,7 @@ import {
 // Schema version — increment when GameState
 // structure changes to trigger migration
 // ─────────────────────────────────────────
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // ─────────────────────────────────────────
 // XP thresholds per level (index = level)
@@ -135,6 +135,7 @@ export function createNewGameState(playerName = 'The Traveler'): GameState {
     companions:         [],
     firedEventIds:      new Set<string>(),
     visitedLocationIds: new Set<number>([1]),
+    starvationTurns:    0,
     currentTurn:        null,
     turnHistory:        [],
   };

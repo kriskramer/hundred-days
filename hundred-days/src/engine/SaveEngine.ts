@@ -225,6 +225,15 @@ class SaveEngine {
       current = { ...current, schemaVersion: 2 };
     }
 
+    // v2 → v3: add starvationTurns if missing
+    if (current.schemaVersion === 2) {
+      const state = current.gameState as Record<string, unknown>;
+      if (state['starvationTurns'] === undefined) {
+        state['starvationTurns'] = 0;
+      }
+      current = { ...current, schemaVersion: 3 };
+    }
+
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
     return current;
   }

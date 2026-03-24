@@ -552,14 +552,25 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private checkStarvation(): void {
-    if (this.state.resources.food <= 0) {
-      this.addDelta({
-        source:    'starvation',
-        health:    -10,
-        morale:    -8,
-        narrative: 'There is nothing left to eat. The party suffers.',
-      });
+    if (this.state.resources.food > 0) {
+      if (this.state.starvationTurns > 0) {
+        this.setState({ starvationTurns: 0 });
+      }
+      return;
     }
+
+    const turns      = this.state.starvationTurns + 1;
+    const healthLost = Math.min(10 + (turns - 1) * 5, 40);
+    this.setState({ starvationTurns: turns });
+
+    this.addDelta({
+      source:    'starvation',
+      health:    -healthLost,
+      morale:    -8,
+      narrative: turns === 1
+        ? 'There is nothing left to eat. The party suffers.'
+        : `Day ${turns} without food. The party is wasting away (−${healthLost} HP).`,
+    });
   }
 
   // ─────────────────────────────────────────

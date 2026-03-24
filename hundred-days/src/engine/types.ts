@@ -412,6 +412,7 @@ export interface GameState {
   firedEventIds:      Set<string>;
   visitedLocationIds: Set<number>;
 
+  starvationTurns:    number;
   currentTurn:        TurnState | null;
   turnHistory:        TurnRecord[];
 }
