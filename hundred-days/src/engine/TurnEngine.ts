@@ -46,6 +46,7 @@ import {
 } from './ItemSystem';
 
 import { COMPANION_REQUIREMENTS } from '@data/companions';
+import { getLocation } from '@data/locations';
 
 // ─────────────────────────────────────────
 // Action param types
@@ -305,15 +306,22 @@ export class TurnEngine {
     // ── Item passive bonuses ─────────────────────────────────
     const itemBonuses = computeEquippedBonuses(inventoryFromResources(resources));
 
-    // Base yield
-    let foodGained = method === 'forage'
-      ? 1 + Math.floor(Math.random() * 3)   // 1–3
-      : 2 + Math.floor(Math.random() * 4);  // 2–5
+    // Location forage modifier (huntYield: 0.0 barren → 2.0 excellent)
+    const location       = getLocation(this.state.currentLocationId);
+    const forageModifier = location.actions.huntYield ?? 1.0;
+
+    // Base yield — scaled by location modifier before any other bonuses
+    let foodGained = Math.max(0, Math.round(
+      (method === 'forage'
+        ? 1 + Math.floor(Math.random() * 3)   // 1–3 base
+        : 2 + Math.floor(Math.random() * 4))  // 2–5 base
+      * forageModifier
+    ));
 
     // Morale modifier
     if (morale.tier === MoraleTier.Inspired)              foodGained += 1;
     if (morale.tier === MoraleTier.Desperate ||
-        morale.tier === MoraleTier.Broken)                foodGained = Math.max(1, foodGained - 1);
+        morale.tier === MoraleTier.Broken)                foodGained = Math.max(0, foodGained - 1);
 
     // Companion + item foraging bonuses (Hunter's Bow, Forager's Satchel, Scout Kit)
     const foragingBonus = companions.reduce(
@@ -325,11 +333,17 @@ export class TurnEngine {
     const companionFoodCost = companions.reduce((sum, c) => sum + c.foodCostPerTurn, 0);
     const dayCost           = 0.5 + companionFoodCost;
 
+    const yieldDesc = forageModifier >= 1.5 ? 'The land is generous here.'
+                    : forageModifier >= 1.0 ? ''
+                    : forageModifier >= 0.5 ? 'The pickings are slim.'
+                    : 'There is almost nothing to find here.';
+
     this.addDelta({
       source:    'hunt',
       food:      foodGained - dayCost,
       xp:        3,
       narrative: `You spend the day ${method === 'forage' ? 'foraging' : 'hunting'}. `
+               + (yieldDesc ? yieldDesc + ' ' : '')
                + `Net food gain: ${(foodGained - dayCost).toFixed(1)}.`,
     });
   }

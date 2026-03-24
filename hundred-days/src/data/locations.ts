@@ -104,7 +104,7 @@ export const REGIONS: RegionDefinition[] = [
   {
     name:          'The Blasted Lands',
     locationRange: [107, 125],
-    description:   'Roachak's domain. Every step is contested. The final confrontation awaits.',
+    description:   'Roachak\'s domain. Every step is contested. The final confrontation awaits.',
     dangerLevel:   10,
   },
 ];
@@ -115,7 +115,7 @@ export function getLocation(id: number): Location {
     return {
       id, name: `Location ${id}`, type: "wilderness",
       region: getRegion(id).name, isTown: false, hasShop: false, mobs: [],
-      actions: { canSteal: false, huntYield: 0.5, restQuality: 0.6, travelDifficulty: 1, hasBossFight: false },
+      actions: { canSteal: false, huntYield: 1.0, restQuality: 0.6, travelDifficulty: 1, hasBossFight: false },
       bossLevel: null, locationText: "The road continues.", randomTexts: [],
     };
   }
@@ -146,7 +146,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        0.3,
+      huntYield:        0.2,
       restQuality:      1.0,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -173,7 +173,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        0.5,
+      huntYield:        0.6,
       restQuality:      0.8,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -198,7 +198,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.6,
+      huntYield:        1.5,
       restQuality:      0.6,
       travelDifficulty: 0.8,
       hasBossFight:     false,
@@ -220,7 +220,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        0.5,
+      huntYield:        0.3,
       restQuality:      1.0,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -246,7 +246,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.4,
+      huntYield:        1.8,
       restQuality:      0.6,
       travelDifficulty: 0.8,
       hasBossFight:     false,
@@ -267,7 +267,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        0.3,
+      huntYield:        0.5,
       restQuality:      1.0,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -293,7 +293,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.5,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -314,7 +314,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        null,
+      huntYield:        2,
       restQuality:      null,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -338,7 +338,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: 1.0,
       hasBossFight:     false,
@@ -365,7 +365,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: 0.5,
       hasBossFight:     false,
@@ -387,7 +387,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -408,7 +408,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -430,7 +430,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.1,
+      huntYield:        0.3,
       restQuality:      0.3,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -452,7 +452,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.1,
+      huntYield:        0.3,
       restQuality:      0.3,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -496,7 +496,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.4,
+      huntYield:        1.5,
       restQuality:      0.6,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -518,7 +518,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.4,
+      huntYield:        1.5,
       restQuality:      0.6,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -540,7 +540,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        0.2,
+      huntYield:        0.5,
       restQuality:      0.4,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -561,7 +561,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         true,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      1.0,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -588,7 +588,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -610,7 +610,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -632,7 +632,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -654,7 +654,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -676,7 +676,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -698,7 +698,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -720,7 +720,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -742,7 +742,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -768,7 +768,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -791,7 +791,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -812,7 +812,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -838,7 +838,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -860,7 +860,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -883,7 +883,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -905,7 +905,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -927,7 +927,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -954,7 +954,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -976,7 +976,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -999,7 +999,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1021,7 +1021,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1043,7 +1043,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1067,7 +1067,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1089,7 +1089,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1111,7 +1111,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1133,7 +1133,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1158,7 +1158,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1180,7 +1180,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1202,7 +1202,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1224,7 +1224,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1249,7 +1249,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1271,7 +1271,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1293,7 +1293,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1315,7 +1315,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1338,7 +1338,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1360,7 +1360,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1382,7 +1382,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1406,7 +1406,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1432,7 +1432,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1454,7 +1454,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1478,7 +1478,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1500,7 +1500,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1522,7 +1522,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1545,7 +1545,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1568,7 +1568,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1590,7 +1590,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1616,7 +1616,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1638,7 +1638,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1661,7 +1661,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1683,7 +1683,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1705,7 +1705,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1727,7 +1727,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1752,7 +1752,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1774,7 +1774,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1797,7 +1797,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1820,7 +1820,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1843,7 +1843,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -1865,7 +1865,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1888,7 +1888,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1911,7 +1911,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1934,7 +1934,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1957,7 +1957,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -1980,7 +1980,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2002,7 +2002,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2026,7 +2026,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2049,7 +2049,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2072,7 +2072,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2094,7 +2094,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2117,7 +2117,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2139,7 +2139,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2164,7 +2164,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2187,7 +2187,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2209,7 +2209,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2233,7 +2233,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2260,7 +2260,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2283,7 +2283,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2305,7 +2305,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2328,7 +2328,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        1.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2351,7 +2351,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2373,7 +2373,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2396,7 +2396,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2418,7 +2418,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2446,7 +2446,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.9,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2469,7 +2469,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.9,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2492,7 +2492,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.7,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2517,7 +2517,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2539,7 +2539,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2562,7 +2562,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2585,7 +2585,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2608,7 +2608,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2631,7 +2631,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2654,7 +2654,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2677,7 +2677,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.8,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2700,7 +2700,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -2722,7 +2722,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2745,7 +2745,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.4,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2767,7 +2767,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2790,7 +2790,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2813,7 +2813,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.2,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -2832,7 +2832,7 @@ export const LOCATIONS: Location[] = [
     mobs: [],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.5,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2858,7 +2858,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2881,7 +2881,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.6,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2904,7 +2904,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.3,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2927,7 +2927,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -2950,7 +2950,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     false,
@@ -2973,7 +2973,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0.1,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
@@ -2995,7 +2995,7 @@ export const LOCATIONS: Location[] = [
     ],
     actions: {
       canSteal:         false,
-      huntYield:        null,
+      huntYield:        0,
       restQuality:      null,
       travelDifficulty: null,
       hasBossFight:     true,
