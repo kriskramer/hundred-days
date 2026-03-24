@@ -2,6 +2,7 @@ import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
 import { GameState, PlayerAction, WeatherType } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationFlavor } from '@data/locations';
+import { hasEligibleDialogue } from '@engine/EventSystem';
 
 interface Props {
   gameState:   GameState;
@@ -19,8 +20,9 @@ const WEATHER_LABEL: Record<WeatherType, string> = {
 };
 
 export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
-  const location = getLocation(gameState.currentLocationId);
-  const flavor   = getLocationFlavor(location);
+  const location      = getLocation(gameState.currentLocationId);
+  const flavor        = getLocationFlavor(location);
+  const dialogueNearby = hasEligibleDialogue(gameState);
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
@@ -58,6 +60,13 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
               {WEATHER_LABEL[gameState.weather]}
             </Text>
           </View>
+          {dialogueNearby && (
+            <View style={{ backgroundColor: '#2A1A08', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+              <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C8A020' }}>
+                ◇ STRANGER NEARBY
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -124,14 +133,12 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
             onPress={() => submit({ action: PlayerAction.Rest, atInn: true })}
           />
         )}
-        {location.actions.huntYield !== null && (
-          <ActionButton
-            label="Forage"
-            sub="Gain food · 1 turn"
-            variant="default"
-            onPress={() => submit({ action: PlayerAction.Hunt, method: 'forage' })}
-          />
-        )}
+        <ActionButton
+          label="Forage"
+          sub="Gain food · 1 turn"
+          variant="default"
+          onPress={() => submit({ action: PlayerAction.Hunt, method: 'forage' })}
+        />
         <ActionButton
           label="Rally"
           sub="Boost morale · 1 turn"

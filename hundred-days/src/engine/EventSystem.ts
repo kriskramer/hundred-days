@@ -419,6 +419,39 @@ export function sampleEventsForTurn(
 }
 
 // ─────────────────────────────────────────
+// Check if any dialogue/companion events are eligible this turn
+// (used to show a visual indicator on the Road screen)
+// ─────────────────────────────────────────
+export function hasEligibleDialogue(state: GameState): boolean {
+  const location = LOCATIONS.find(l => l.id === state.currentLocationId);
+  if (!location) return false;
+
+  const activeEffectIds = state.player.statusEffects.map(e => e.id);
+
+  return EVENT_DEFINITIONS.some(event => {
+    if (event.type !== EventType.Dialogue && event.type !== EventType.CompanionMeet) return false;
+    if (!event.repeatable && state.firedEventIds.has(event.id)) return false;
+
+    const c = event.conditions;
+    if (c.minDay        && state.dayNumber         < c.minDay)        return false;
+    if (c.maxDay        && state.dayNumber         > c.maxDay)        return false;
+    if (c.minLocationId && state.currentLocationId < c.minLocationId) return false;
+    if (c.maxLocationId && state.currentLocationId > c.maxLocationId) return false;
+    if (c.locationTypes && !c.locationTypes.includes(location.type))  return false;
+    if (c.requiredWeather && !c.requiredWeather.includes(state.weather)) return false;
+
+    if (c.requiredStatusEffects) {
+      if (!c.requiredStatusEffects.every(id => activeEffectIds.includes(id))) return false;
+    }
+    if (c.forbiddenStatusEffects) {
+      if (c.forbiddenStatusEffects.some(id => activeEffectIds.includes(id))) return false;
+    }
+
+    return true;
+  });
+}
+
+// ─────────────────────────────────────────
 // Convert passive outcome → StatDelta
 // ─────────────────────────────────────────
 export function passiveOutcomeToDelta(
