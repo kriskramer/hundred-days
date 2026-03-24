@@ -49,66 +49,20 @@ InventoryScreen writes directly to the Zustand store + triggers saveEngine.saveR
 
 ## What is NOT done yet (priority order)
 
-### 1. Paste full location data
-src/data/locations.ts has only location 1 as a stub.
-The full 125-location data was generated as locations.ts in a previous session.
-Paste all 124 remaining location objects from the generated file into the
-LOCATIONS array, or import from a separate locations.generated.ts file.
+Functional gaps (game won't feel complete without these):
 
-### 2. Shop screen
-No ShopScreen component exists yet. It should:
-- Be reachable from RoadScreen when location.hasShop is true
-- Use getShopInventory(locationId, playerGold, hasMerchantsRing) from ItemSystem
-- Use buyItem(inventory, itemId, gold, hasMerchantsRing) to purchase
-- Write result back with resourcesToInventory + setGame + saveEngine.saveRun
-- Same parchment/ink aesthetic as InventoryScreen
+  1. Boss fight — TurnEngine.checkWinLoss has a // TODO: Trigger boss combat event comment. When the player reaches location 125, it currently just checks combat power and auto-resolves to victory/defeat. A real boss combat event needs to be       
+  triggered through the CombatEngine.
+  2. Companion reputation affinity — isReputationInCompanionRange() in TurnEngine always returns true. Companions each have preferred rep ranges that should affect loyalty gain/loss each turn.
+  3. Component import paths — game.tsx imports like import { StatusBar } from '@components/StatusBar' point to files that don't exist (everything is in src/components/index.ts). This will cause build failures. The imports need to be changed to from
+   '@components', or each component needs to be split into its own file.
 
-### 3. Wire use-item effects back into GameState
-When a consumable is used (healing potion, spirit tonic, etc.),
-ItemSystem returns the active effect but the effect is only shown as a toast.
-The actual GameState deltas (health, food, morale) are not applied yet.
-In InventoryScreen.handleUse, after persistInventory(result.inventory),
-also apply result.effect values to gameState.player.health,
-gameState.resources.food, and gameState.morale.
+  Content / polish:
 
-### 4. Wire attack bonus into CombatEngine
-CombatEngine builds PlayerCombatant from GameState but doesn't read
-equipped item bonuses. In CombatEngine.buildPlayer(), add:
-  const bonuses = computeEquippedBonuses(inventoryFromResources(game.resources))
-  attack:  game.player.stats.attack  + (bonuses.attackBonus  ?? 0)
-  defense: game.player.stats.defense + (bonuses.defenseBonus ?? 0)
-  speed:   game.player.stats.speed   + (bonuses.speedBonus   ?? 0)
-Also wire immuneToTerrify: if bonuses.immuneToTerrify, skip Terrify effect.
-
-### 5. Location event pools
-Each Location has an eventPool field that should list event IDs eligible to
-fire there. Currently sampleEventsForTurn() samples globally.
-Assign event pools per location type:
-  wilderness: ['bandit_ambush', 'wolf_attack', 'find_abandoned_camp',
-               'forage_roadside', 'food_spoils', 'inspiring_vista', 'bad_dream']
-  town:       ['pickpocket', 'toll_road', 'weather_storm_rolls_in', 'bad_dream']
-  dungeon:    ['bandit_ambush', 'wolf_attack', 'bad_dream']
-
-### 6. Companion recruitment wiring
-When DialogueEngine returns a companionEffect of type 'recruit',
-game.tsx calls onComplete(result) but doesn't actually add the companion.
-In game.tsx handleInteractiveEventComplete(), check result for companionEffects
-and call the companion recruitment logic:
-  import { COMPANIONS } from '@data/companions'
-  const toRecruit = outcome.companionEffects.filter(e => e.type === 'recruit')
-  // add each to gameState.companions if not already present
-
-### 7. Gold from selling not persisted to status bar
-InventoryScreen.handleSell writes gold back correctly but the status bar
-gold display reads from gameState.resources.gold via the Zustand selector.
-Verify useGameStore re-renders the StatusBar after a sell — should work
-automatically since setGame triggers a re-render, but worth confirming.
-
-### 8. Polish / nice-to-have
-- Haptic feedback on combat hits (expo-haptics)
-- Turn history log viewer (GameState.turnHistory is populated, just needs a UI)
-- Settings screen (AppSettings type exists, saveEngine.saveSettings() works)
-- Sound design (expo-av is installed)
+  4. Sound assets — SoundEngine.ts is scaffolded but needs .mp3 files placed in src/assets/sfx/ and the asset map uncommented.
+  5. map_screen.html — there's a stray HTML file in src/screens/ that shouldn't be there.
+  6. CLAUDE.md is stale — the "What is NOT done yet" section still lists items 1–8 as todo. It should be updated to reflect current state.
+  7. Story flags — DialogueEngine uses a module-level Set for story flags (noted as a placeholder). These don't persist across app restarts since they're not saved to GameState.
 
 ## Design system
 Fonts: Cinzel_400Regular, Cinzel_600SemiBold (display), CrimsonText_400Regular,
