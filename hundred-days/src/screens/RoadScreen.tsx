@@ -30,9 +30,10 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
   return (
     <ScrollView
       className="flex-1 bg-parchment"
-      contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 32, alignItems: 'center' }}
       showsVerticalScrollIndicator={false}
     >
+      <View style={{ width: '100%', maxWidth: 480 }}>
       {/* Location header */}
       <View className="border-b border-parchment-deep pb-3 mb-4">
         <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 2 }}>
@@ -61,16 +62,16 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
       </View>
 
       {/* Narrative */}
-      <View className="bg-parchment-dark border-l-4 border-gold border border-parchment-deep p-3 mb-4 rounded-sm">
-        <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 24 }}>
+      <View className="bg-parchment-dark border-l-4 border-gold border border-parchment-deep rounded-sm" style={{ padding: 14, marginBottom: 16 }}>
+        <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 26 }}>
           "{flavor}"
         </Text>
       </View>
 
       {/* Stat bars */}
-      <View className="flex-row gap-2 mb-4">
-        <StatBar label="Morale" value={gameState.morale.value} color="#5A8A6A" />
-        <StatBar label="Health" value={gameState.player.health} color="#8B1A1A" />
+      <View className="flex-row gap-2" style={{ marginBottom: 24 }}>
+        <StatBar label="Morale" value={gameState.morale.value} />
+        <StatBar label="Health" value={gameState.player.health} />
       </View>
 
       {/* Companions */}
@@ -93,7 +94,7 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
       )}
 
       {/* Actions */}
-      <SectionHeader label="Actions" right="Choose wisely" />
+      <SectionHeader label="Actions" right="Choose wisely" centered />
       <View className="flex-row flex-wrap gap-2">
         <ActionButton
           label="Move"
@@ -144,25 +145,63 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
           onPress={() => submit({ action: PlayerAction.Camp })}
         />
       </View>
+      </View>
     </ScrollView>
   );
 }
 
 // ── Sub-components ────────────────────────
 
-function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+function statColor(value: number): string {
+  if (value >= 75) return '#4A9E6B'; // green
+  if (value >= 50) return '#C8A020'; // yellow
+  if (value >= 25) return '#C86A20'; // orange
+  return '#B83030';                  // red
+}
+
+function StatBar({ label, value }: { label: string; value: number }) {
+  const pct   = Math.min(Math.max(value, 0), 100);
+  const color = statColor(pct);
+
   return (
-    <View className="flex-1 bg-parchment-dark border border-parchment-deep p-2 rounded-sm">
-      <Text className="font-display text-mist" style={{ fontSize: 10, letterSpacing: 1 }}>{label.toUpperCase()}</Text>
-      <View className="h-1.5 bg-parchment-deep rounded-full mt-1 mb-1">
-        <View style={{ width: `${Math.min(value, 100)}%`, height: '100%', backgroundColor: color, borderRadius: 4 }} />
+    <View style={{
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#EDE0C4',
+      borderWidth: 1,
+      borderColor: '#C8B89A',
+      borderRadius: 3,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      gap: 8,
+    }}>
+      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E', width: 58 }}>
+        {label.toUpperCase()}
+      </Text>
+      <View style={{ flex: 1, height: 5, backgroundColor: '#C8B89A', borderRadius: 3 }}>
+        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
       </View>
-      <Text className="font-display text-ink" style={{ fontSize: 12 }}>{Math.round(value)}</Text>
+      <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 13, color, width: 28, textAlign: 'right' }}>
+        {Math.round(value)}
+      </Text>
     </View>
   );
 }
 
-function SectionHeader({ label, right }: { label: string; right?: string }) {
+function SectionHeader({ label, right, centered }: { label: string; right?: string; centered?: boolean }) {
+  if (centered) {
+    return (
+      <View style={{ alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#C8B89A', paddingBottom: 8, marginBottom: 12 }}>
+        <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 11, letterSpacing: 2, color: '#6B7C6E' }}>
+          {label.toUpperCase()}
+        </Text>
+        {right && (
+          <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 12, color: '#1A1208', marginTop: 2 }}>{right}</Text>
+        )}
+      </View>
+    );
+  }
   return (
     <View className="flex-row justify-between items-center border-b border-parchment-deep pb-1 mb-3">
       <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 1 }}>

@@ -206,29 +206,31 @@ export default function GameScreen() {
       </View>
 
       {/* Bottom navigation */}
-      <View className="bg-ink border-t-2 border-gold flex-row" style={{ paddingBottom: 0 }}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.id}
-            onPress={() => setActiveTab(tab.id)}
-            className="flex-1 items-center py-3"
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: 16, color: activeTab === tab.id ? '#D4A017' : '#6B7C6E' }}>
-              {tab.icon}
-            </Text>
-            <Text
-              className="font-display mt-1"
-              style={{
-                fontSize: 9,
-                letterSpacing: 0.8,
-                color: activeTab === tab.id ? '#D4A017' : '#6B7C6E',
-              }}
+      <View style={{ backgroundColor: '#1A1208', borderTopWidth: 2, borderTopColor: '#B8860B', flexDirection: 'row' }}>
+        {TABS.map(tab => {
+          const active = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => setActiveTab(tab.id)}
+              activeOpacity={0.7}
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
             >
-              {tab.label.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={{ fontSize: 18, color: active ? '#D4A017' : '#6B7C6E' }}>
+                {tab.icon}
+              </Text>
+              <Text style={{
+                fontFamily:    'Cinzel_400Regular',
+                fontSize:      10,
+                letterSpacing: 1,
+                color:         active ? '#D4A017' : '#6B7C6E',
+                marginTop:     3,
+              }}>
+                {tab.label.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Shop modal */}
