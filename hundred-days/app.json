@@ -47,7 +47,8 @@
         {
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "scheme": "hundreddays",
     "experiments": {

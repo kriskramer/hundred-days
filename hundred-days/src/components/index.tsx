@@ -370,9 +370,9 @@ function JournalEntry({ record }: { record: TurnRecord }) {
 // ─────────────────────────────────────────
 
 interface SettingsModalProps {
-  visible:   boolean;
-  onClose:   () => void;
-  onRestart: () => void;
+  visible:    boolean;
+  onClose:    () => void;
+  onRestart?: () => void;
 }
 
 export function SettingsModal({ visible, onClose, onRestart }: SettingsModalProps) {
@@ -522,7 +522,7 @@ export function SettingsModal({ visible, onClose, onRestart }: SettingsModalProp
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={onRestart}
+                    onPress={() => onRestart?.()}
                     activeOpacity={0.8}
                     style={{ flex: 1, paddingVertical: 10, backgroundColor: '#8B1A1A', borderRadius: 2, alignItems: 'center' }}
                   >

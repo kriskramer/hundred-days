@@ -20,9 +20,10 @@ const WEATHER_LABEL: Record<WeatherType, string> = {
 };
 
 export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
-  const location      = getLocation(gameState.currentLocationId);
-  const flavor        = getLocationFlavor(location);
+  const location       = getLocation(gameState.currentLocationId);
+  const flavor         = getLocationFlavor(location);
   const dialogueNearby = hasEligibleDialogue(gameState);
+  const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion);
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
@@ -60,6 +61,13 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
               {WEATHER_LABEL[gameState.weather]}
             </Text>
           </View>
+          {dangerNearby && (
+            <View style={{ backgroundColor: '#2A0808', borderWidth: 1, borderColor: '#C94040', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+              <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C94040' }}>
+                ⚔ DANGER
+              </Text>
+            </View>
+          )}
           {dialogueNearby && (
             <View style={{ backgroundColor: '#2A1A08', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
               <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C8A020' }}>

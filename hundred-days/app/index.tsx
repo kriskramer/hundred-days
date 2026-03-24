@@ -53,54 +53,78 @@ export default function TitleScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-ink">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#1A1208' }}>
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Title */}
-        <View className="items-center mt-8 mb-6">
-          <Text className="font-display-bold text-blood text-center"
-            style={{ fontSize: 32, letterSpacing: 2, lineHeight: 40 }}>
+        <View style={{ alignItems: 'center', marginBottom: 48 }}>
+          <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#8B1A1A', textAlign: 'center', fontSize: 34, letterSpacing: 3, lineHeight: 44 }}>
             100 DAYS{'\n'}TO SAVE{'\n'}THE WORLD
           </Text>
-          <Text className="font-body-italic text-parchment-deep text-center mt-3"
-            style={{ fontSize: 16 }}>
+          <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#C8B89A', textAlign: 'center', fontSize: 16, marginTop: 12 }}>
             A Fantasy Journey
           </Text>
-
-          {/* Decorative rule */}
-          <View className="w-24 h-px bg-gold mt-4" />
+          <View style={{ width: 80, height: 1, backgroundColor: '#B8860B', marginTop: 20 }} />
         </View>
 
         {/* Buttons */}
-        <View className="gap-3 mb-8">
+        <View style={{ width: '100%', maxWidth: 340, alignItems: 'center', gap: 12, marginBottom: 48 }}>
           {activeSave && (
             <TouchableOpacity
               onPress={handleContinue}
-              className="bg-blood border border-gold rounded-sm py-4 px-6 items-center"
-              activeOpacity={0.8}
+              activeOpacity={0.75}
+              style={{
+                width: '100%',
+                backgroundColor: '#8B1A1A',
+                borderWidth: 1.5,
+                borderColor: '#C94040',
+                borderRadius: 3,
+                alignItems: 'center',
+                paddingVertical: 16,
+                paddingHorizontal: 24,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.4,
+                shadowRadius: 4,
+                elevation: 5,
+              }}
             >
-              <Text className="font-display text-parchment" style={{ fontSize: 14, letterSpacing: 1 }}>
+              <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
                 CONTINUE
               </Text>
-              <Text className="font-body-italic text-parchment-deep mt-1" style={{ fontSize: 13 }}>
-                Day {activeSave.dayNumber} · Location {activeSave.locationId} · Level {activeSave.playerLevel}
+              <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#F5EAD6', fontSize: 13, marginTop: 4, opacity: 0.75 }}>
+                Day {activeSave.dayNumber} · Loc {activeSave.locationId} · Lv {activeSave.playerLevel}
               </Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
             onPress={handleNewGame}
-            className="bg-ink-light border border-parchment-deep rounded-sm py-4 px-6 items-center"
-            activeOpacity={0.8}
+            activeOpacity={0.75}
+            style={{
+              width: '100%',
+              backgroundColor: '#1A1208',
+              borderWidth: 1.5,
+              borderColor: activeSave ? '#3A2E1C' : '#C94040',
+              borderRadius: 3,
+              alignItems: 'center',
+              paddingVertical: 16,
+              paddingHorizontal: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.4,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
           >
-            <Text className="font-display text-parchment" style={{ fontSize: 14, letterSpacing: 1 }}>
+            <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
               {activeSave ? 'NEW GAME' : 'BEGIN THE JOURNEY'}
             </Text>
             {activeSave && (
-              <Text className="font-body-italic text-mist mt-1" style={{ fontSize: 12 }}>
+              <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#6B7C6E', fontSize: 12, marginTop: 4 }}>
                 Current run will be abandoned
               </Text>
             )}
@@ -109,11 +133,11 @@ export default function TitleScreen() {
           {history.length > 0 && (
             <TouchableOpacity
               onPress={() => setShowHistory(h => !h)}
-              className="border border-parchment-deep rounded-sm py-3 px-6 items-center"
               activeOpacity={0.8}
+              style={{ paddingVertical: 8 }}
             >
-              <Text className="font-display text-parchment-deep" style={{ fontSize: 12, letterSpacing: 1 }}>
-                {showHistory ? 'HIDE' : 'PAST JOURNEYS'} ({history.length})
+              <Text style={{ fontFamily: 'Cinzel_400Regular', color: '#6B7C6E', fontSize: 11, letterSpacing: 1 }}>
+                {showHistory ? 'HIDE CHRONICLES' : `PAST JOURNEYS (${history.length})`}
               </Text>
             </TouchableOpacity>
           )}
@@ -121,18 +145,16 @@ export default function TitleScreen() {
 
         {/* Run history */}
         {showHistory && (
-          <View className="border border-parchment-deep rounded-sm p-4 mb-6">
-            <Text className="font-display text-gold mb-3" style={{ fontSize: 12, letterSpacing: 1 }}>
+          <View style={{ width: '100%', maxWidth: 340, borderWidth: 1, borderColor: '#3A2E1C', borderRadius: 2, padding: 16, marginBottom: 48 }}>
+            <Text style={{ fontFamily: 'Cinzel_400Regular', color: '#B8860B', fontSize: 11, letterSpacing: 1, marginBottom: 12 }}>
               CHRONICLES
             </Text>
             {history.map((run, i) => (
-              <View key={run.runId}
-                className={`pb-3 mb-3 ${i < history.length - 1 ? 'border-b border-parchment-deep' : ''}`}
-              >
-                <Text className="font-display text-parchment" style={{ fontSize: 11 }}>
+              <View key={run.runId} style={{ paddingBottom: 12, marginBottom: i < history.length - 1 ? 12 : 0, borderBottomWidth: i < history.length - 1 ? 1 : 0, borderBottomColor: '#3A2E1C' }}>
+                <Text style={{ fontFamily: 'Cinzel_400Regular', color: '#F5EAD6', fontSize: 11, letterSpacing: 0.5 }}>
                   {run.outcome.toUpperCase()} · Level {run.finalLevel}
                 </Text>
-                <Text className="font-body-italic text-mist mt-1" style={{ fontSize: 13 }}>
+                <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#6B7C6E', fontSize: 13, marginTop: 4 }}>
                   {run.summary}
                 </Text>
               </View>
@@ -140,22 +162,18 @@ export default function TitleScreen() {
           </View>
         )}
 
-        {/* Flavour text */}
-        <Text className="font-body-italic text-mist text-center" style={{ fontSize: 13, lineHeight: 20 }}>
-          "The road to the Blasted Lands is long.{'\n'}
-          No one who has walked it has found it short."
+        {/* Flavour quote */}
+        <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#6B7C6E', textAlign: 'center', fontSize: 14, lineHeight: 22, marginBottom: 32 }}>
+          "The road to the Blasted Lands is long.{'\n'}No one who has walked it has found it short."
         </Text>
 
-        {/* Settings link */}
-        <TouchableOpacity
-          onPress={() => setSettingsOpen(true)}
-          style={{ alignSelf: 'center', marginTop: 24 }}
-          activeOpacity={0.7}
-        >
-          <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 1 }}>
+        {/* Settings */}
+        <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', color: '#3A2E1C', fontSize: 11, letterSpacing: 1 }}>
             ⚙ SETTINGS
           </Text>
         </TouchableOpacity>
+
       </ScrollView>
 
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />

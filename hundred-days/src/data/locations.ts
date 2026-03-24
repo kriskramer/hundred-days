@@ -18,8 +18,9 @@ export type Region =
   | 'The Blasted Lands';
 
 export interface MobEncounter {
-  name:      string;
-  aggroPct:  number;
+  name:        string;
+  aggroPct:    number;
+  isCompanion?: boolean;  // true → exclude from DANGER badge (companion or recruitable creature)
 }
 
 export interface LocationActions {
@@ -169,7 +170,7 @@ export const LOCATIONS: Location[] = [
     isTown: true,
     hasShop: false,
     mobs: [
-      { name: "Small rats", aggroPct: 10 },
+      { name: "Small rats", aggroPct: 10, isCompanion: true },
     ],
     actions: {
       canSteal:         true,

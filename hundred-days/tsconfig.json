@@ -5,22 +5,42 @@
     "exactOptionalPropertyTypes": false,
     "baseUrl": ".",
     "paths": {
-      "@engine/*":     ["src/engine/*"],
-      "@data/*":       ["src/data/*"],
-      "@screens/*":    ["src/screens/*"],
-      "@components/*": ["src/components/*"],
-      "@hooks/*":      ["src/hooks/*"],
-      "@store/*":      ["src/store/*"],
-      "@utils/*":      ["src/utils/*"],
-      "@assets/*":     ["src/assets/*"]
+      "@engine/*": [
+        "src/engine/*"
+      ],
+      "@data/*": [
+        "src/data/*"
+      ],
+      "@screens/*": [
+        "src/screens/*"
+      ],
+      "@components/*": [
+        "src/components/*"
+      ],
+      "@hooks/*": [
+        "src/hooks/*"
+      ],
+      "@store/*": [
+        "src/store/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ],
+      "@assets/*": [
+        "src/assets/*"
+      ]
     },
-    "types": ["react-native", "jest"]
+    "types": [
+      "react-native",
+      "jest"
+    ]
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.d.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
