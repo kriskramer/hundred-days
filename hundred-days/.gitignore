@@ -1,0 +1,23 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+.env
+.env.local
+google-services-key.json
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# Expo
+expo-env.d.ts

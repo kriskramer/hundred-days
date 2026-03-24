@@ -1,0 +1,263 @@
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, Modal, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { useGameStore } from '@store/gameStore';
+import { TurnEngine } from '@engine/TurnEngine';
+import { saveEngine } from '@engine/SaveEngine';
+
+// Screens
+import { RoadScreen }      from '@screens/RoadScreen';
+import { CombatScreen }    from '@screens/CombatScreen';
+import { DialogueScreen }  from '@screens/DialogueScreen';
+import { InventoryScreen } from '@screens/InventoryScreen';
+import { MapScreen }       from '@screens/MapScreen';
+import { ShopScreen }      from '@screens/ShopScreen';
+
+// Components
+import { StatusBar }    from '@components/StatusBar';
+import { JourneyBar }   from '@components/JourneyBar';
+import { DreadBanner }  from '@components/DreadBanner';
+import { LevelUpModal } from '@components/LevelUpModal';
+import { Toast }        from '@components/Toast';
+import { JournalModal, SettingsModal } from '@components';
+
+import type { GameEvent, LevelUpChoice, CombatResult } from '@engine/types';
+import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
+import { getCompanion } from '@data/companions';
+
+type Tab = 'road' | 'combat' | 'dialogue' | 'inventory' | 'map';
+
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'road',      label: 'Road',      icon: '◆' },
+  { id: 'combat',    label: 'Combat',    icon: '⚔' },
+  { id: 'dialogue',  label: 'Talk',      icon: '◇' },
+  { id: 'inventory', label: 'Pack',      icon: '▲' },
+  { id: 'map',       label: 'Map',       icon: '◈' },
+];
+
+export default function GameScreen() {
+  const [activeTab, setActiveTab]             = useState<Tab>('road');
+  const [activeEvent, setActiveEvent]         = useState<GameEvent | null>(null);
+  const [levelUpChoices, setLevelUpChoices]   = useState<LevelUpChoice[] | null>(null);
+  const [toastMsg, setToastMsg]               = useState('');
+  const [shopOpen, setShopOpen]               = useState(false);
+  const [journalOpen, setJournalOpen]         = useState(false);
+  const [settingsOpen, setSettingsOpen]       = useState(false);
+  const engineRef                             = useRef<TurnEngine | null>(null);
+
+  const gameState  = useGameStore(s => s.gameState);
+  const setGame    = useGameStore(s => s.setGameState);
+
+  // Guard: redirect to title if no state
+  useEffect(() => {
+    if (!gameState) { router.replace('/'); }
+  }, [gameState]);
+
+  // Initialise engine once on mount
+  useEffect(() => {
+    if (!gameState) return;
+
+    engineRef.current = new TurnEngine(
+      gameState,
+      // onStateChange
+      (newState) => {
+        setGame(newState);
+        // Auto-save handled inside TurnEngine.cleanup()
+      },
+      // onAwaitInput (interactive event — combat or dialogue)
+      (event: GameEvent) => {
+        setActiveEvent(event);
+        if (event.type === 'combat')   setActiveTab('combat');
+        if (event.type === 'dialogue') setActiveTab('dialogue');
+      },
+      // onLevelUp
+      (choices: LevelUpChoice[]) => {
+        setLevelUpChoices(choices);
+      },
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once — engine holds its own state reference
+
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2500);
+  }
+
+  function handleInteractiveEventComplete(result: CombatResult) {
+    engineRef.current?.resolveInteractiveEvent(result);
+    setActiveEvent(null);
+    setActiveTab('road');
+  }
+
+  function handleDialogueComplete(outcome: DialogueSessionOutcome) {
+    // Recruit any companions before the turn engine continues
+    for (const effect of outcome.companionEffects) {
+      if (effect.type === 'recruit') {
+        const companion = getCompanion(effect.companionId);
+        if (companion) engineRef.current?.addCompanion(companion);
+      }
+    }
+
+    // Convert to CombatResult and resume the turn
+    const result: CombatResult = {
+      outcome:           'negotiated',
+      roundsFought:      0,
+      xpGained:          outcome.xpGained,
+      goldGained:        outcome.resourceDeltas.gold,
+      foodGained:        outcome.resourceDeltas.food,
+      healthLost:        -(outcome.resourceDeltas.health ?? 0),
+      moraleDelta:       outcome.moraleDelta,
+      reputationDelta:   outcome.reputationDelta,
+      injuriesGained:    [],
+      companionInjuries: {},
+    };
+    handleInteractiveEventComplete(result);
+  }
+
+  function handleLevelUpChoice(choiceId: string) {
+    engineRef.current?.submitLevelUpChoice(choiceId);
+    setLevelUpChoices(null);
+    showToast('Level up applied!');
+  }
+
+  async function handleRunComplete() {
+    Alert.alert(
+      gameState?.outcome === 'victory' ? 'Victory!' : 'The Journey Ends',
+      gameState?.outcome === 'victory'
+        ? 'You have defeated the Dread Sovereign. The world is saved.'
+        : 'Your journey ends here. The darkness claims what it will.',
+      [{ text: 'Return to Title', onPress: () => router.replace('/') }]
+    );
+  }
+
+  // Check for run completion
+  useEffect(() => {
+    if (gameState?.isComplete) { handleRunComplete(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.isComplete]);
+
+  if (!gameState) return null;
+
+  const engine = engineRef.current;
+
+  return (
+    <SafeAreaView className="flex-1 bg-parchment" edges={['top']}>
+
+      {/* Persistent top chrome */}
+      <StatusBar gameState={gameState} />
+      <JourneyBar locationId={gameState.currentLocationId} />
+      <DreadBanner active={gameState.morale.dreadActive} />
+
+      {/* Utility bar — journal + settings */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#1A1208', paddingHorizontal: 14, paddingBottom: 6, gap: 16 }}>
+        <TouchableOpacity onPress={() => setJournalOpen(true)} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E', letterSpacing: 1 }}>◎ JOURNAL</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E', letterSpacing: 1 }}>⚙ SETTINGS</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Toast */}
+      <Toast message={toastMsg} />
+
+      {/* Screen area */}
+      <View className="flex-1">
+        {activeTab === 'road'      && (
+          <RoadScreen
+            gameState={gameState}
+            engine={engine}
+            onToast={showToast}
+            onOpenShop={() => setShopOpen(true)}
+          />
+        )}
+        {activeTab === 'combat'    && (
+          <CombatScreen
+            gameState={gameState}
+            event={activeEvent}
+            onComplete={handleInteractiveEventComplete}
+            onToast={showToast}
+          />
+        )}
+        {activeTab === 'dialogue'  && (
+          <DialogueScreen
+            gameState={gameState}
+            event={activeEvent}
+            onComplete={handleDialogueComplete}
+            onToast={showToast}
+          />
+        )}
+        {activeTab === 'inventory' && (
+          <InventoryScreen
+            gameState={gameState}
+            onToast={showToast}
+          />
+        )}
+        {activeTab === 'map'       && (
+          <MapScreen
+            gameState={gameState}
+            onToast={showToast}
+          />
+        )}
+      </View>
+
+      {/* Bottom navigation */}
+      <View className="bg-ink border-t-2 border-gold flex-row" style={{ paddingBottom: 0 }}>
+        {TABS.map(tab => (
+          <TouchableOpacity
+            key={tab.id}
+            onPress={() => setActiveTab(tab.id)}
+            className="flex-1 items-center py-3"
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 16, color: activeTab === tab.id ? '#D4A017' : '#6B7C6E' }}>
+              {tab.icon}
+            </Text>
+            <Text
+              className="font-display mt-1"
+              style={{
+                fontSize: 9,
+                letterSpacing: 0.8,
+                color: activeTab === tab.id ? '#D4A017' : '#6B7C6E',
+              }}
+            >
+              {tab.label.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Shop modal */}
+      <ShopScreen
+        gameState={gameState}
+        locationId={gameState.currentLocationId}
+        visible={shopOpen}
+        onClose={() => setShopOpen(false)}
+        onToast={showToast}
+      />
+
+      {/* Level-up modal */}
+      <LevelUpModal
+        visible={!!levelUpChoices}
+        choices={levelUpChoices ?? []}
+        playerLevel={(gameState.player.level ?? 0) + 1}
+        onChoose={handleLevelUpChoice}
+      />
+
+      {/* Journal modal */}
+      <JournalModal
+        visible={journalOpen}
+        history={gameState.turnHistory}
+        onClose={() => setJournalOpen(false)}
+      />
+
+      {/* Settings modal */}
+      <SettingsModal
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+
+    </SafeAreaView>
+  );
+}
