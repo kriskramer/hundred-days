@@ -307,7 +307,7 @@ export const EVENT_DEFINITIONS: GameEvent[] = [
     name: 'Mysterious Stranger',
     description: 'A hooded figure sits alone by the road.',
     conditions: {
-      probability: 0.07,
+      probability: 1.0,   // fires exactly once — guaranteed when first eligible
       minLocationId: 10,
       maxLocationId: 80,
     },
