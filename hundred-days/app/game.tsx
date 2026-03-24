@@ -15,12 +15,15 @@ import { MapScreen }       from '@screens/MapScreen';
 import { ShopScreen }      from '@screens/ShopScreen';
 
 // Components
-import { StatusBar }    from '@components/StatusBar';
-import { JourneyBar }   from '@components/JourneyBar';
-import { DreadBanner }  from '@components/DreadBanner';
-import { LevelUpModal } from '@components/LevelUpModal';
-import { Toast }        from '@components/Toast';
-import { JournalModal, SettingsModal } from '@components';
+import {
+  StatusBar,
+  JourneyBar,
+  DreadBanner,
+  LevelUpModal,
+  Toast,
+  JournalModal,
+  SettingsModal,
+} from '@components';
 
 import type { GameEvent, LevelUpChoice, CombatResult } from '@engine/types';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
