@@ -370,16 +370,20 @@ function JournalEntry({ record }: { record: TurnRecord }) {
 // ─────────────────────────────────────────
 
 interface SettingsModalProps {
-  visible: boolean;
-  onClose: () => void;
+  visible:   boolean;
+  onClose:   () => void;
+  onRestart: () => void;
 }
 
-export function SettingsModal({ visible, onClose }: SettingsModalProps) {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+export function SettingsModal({ visible, onClose, onRestart }: SettingsModalProps) {
+  const [settings,          setSettings]          = useState<AppSettings | null>(null);
+  const [confirmingRestart, setConfirmingRestart] = useState(false);
 
   useEffect(() => {
     if (visible) {
       saveEngine.loadSettings().then(setSettings);
+    } else {
+      setConfirmingRestart(false);
     }
   }, [visible]);
 
@@ -487,6 +491,50 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
               ))}
             </View>
           </SettingsSection>
+
+          <SettingsSection label="Game">
+            {!confirmingRestart ? (
+              <TouchableOpacity
+                onPress={() => setConfirmingRestart(true)}
+                activeOpacity={0.8}
+                style={{ paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 13, color: '#8B1A1A', letterSpacing: 0.3 }}>
+                  Restart Game
+                </Text>
+                <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 11, color: '#8B1A1A', opacity: 0.7 }}>
+                  ⚠ loses progress
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ padding: 14, gap: 10 }}>
+                <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 14, color: '#8B1A1A', lineHeight: 20 }}>
+                  All current progress will be lost. Are you sure?
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setConfirmingRestart(false)}
+                    activeOpacity={0.8}
+                    style={{ flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: '#C8B89A', borderRadius: 2, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 12, color: '#1A1208', letterSpacing: 0.5 }}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={onRestart}
+                    activeOpacity={0.8}
+                    style={{ flex: 1, paddingVertical: 10, backgroundColor: '#8B1A1A', borderRadius: 2, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 12, color: '#F5EAD6', letterSpacing: 0.5 }}>
+                      Restart
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </SettingsSection>
+
         </RNScrollView>
       </View>
     </Modal>

@@ -301,11 +301,11 @@ export const EVENT_DEFINITIONS: GameEvent[] = [
   },
 
   {
-    id: 'mysterious_stranger',
+    id: 'wounded_stranger',
     type: EventType.Dialogue,
     resolutionType: ResolutionType.Interactive,
-    name: 'Mysterious Stranger',
-    description: 'A hooded figure sits alone by the road.',
+    name: 'Someone Needs Help',
+    description: 'A figure is slumped at the side of the road.',
     conditions: {
       probability: 1.0,   // fires exactly once — guaranteed when first eligible
       minLocationId: 10,

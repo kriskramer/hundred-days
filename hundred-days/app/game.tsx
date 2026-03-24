@@ -124,6 +124,13 @@ export default function GameScreen() {
     showToast('Level up applied!');
   }
 
+  async function handleRestart() {
+    setSettingsOpen(false);
+    await saveEngine.clearActiveRun();
+    setGame(null);
+    router.replace('/');
+  }
+
   async function handleRunComplete() {
     Alert.alert(
       gameState?.outcome === 'victory' ? 'Victory!' : 'The Journey Ends',
@@ -261,6 +268,7 @@ export default function GameScreen() {
       <SettingsModal
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onRestart={handleRestart}
       />
 
     </SafeAreaView>
