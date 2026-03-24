@@ -183,22 +183,38 @@ function ActionButton({
   variant: 'primary' | 'secondary' | 'default';
   onPress: () => void;
 }) {
-  const bg = variant === 'primary'   ? 'bg-blood'
-           : variant === 'secondary' ? 'bg-gold'
-           : 'bg-ink';
-  const textColor = variant === 'secondary' ? 'text-ink' : 'text-parchment';
+  const bg          = variant === 'primary'   ? '#8B1A1A'
+                    : variant === 'secondary' ? '#B8860B'
+                    : '#1A1208';
+  const borderColor = variant === 'primary'   ? '#C94040'
+                    : variant === 'secondary' ? '#D4A017'
+                    : '#3A2E1C';
+  const textColor   = variant === 'secondary' ? '#1A1208' : '#F5EAD6';
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
-      className={`${bg} rounded-sm items-center py-3 px-3`}
-      style={{ width: '48%' }}
+      activeOpacity={0.75}
+      style={{
+        width: '48%',
+        backgroundColor: bg,
+        borderWidth: 1.5,
+        borderColor,
+        borderRadius: 3,
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 3,
+        elevation: 4,
+      }}
     >
-      <Text className={`font-display ${textColor}`} style={{ fontSize: 13, letterSpacing: 1 }}>
+      <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: textColor, fontSize: 13, letterSpacing: 1.5 }}>
         {label}
       </Text>
-      <Text className={`font-body-italic ${textColor} opacity-70`} style={{ fontSize: 11, marginTop: 2 }}>
+      <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: textColor, fontSize: 12, marginTop: 3, opacity: 0.75 }}>
         {sub}
       </Text>
     </TouchableOpacity>
