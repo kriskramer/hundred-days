@@ -45,6 +45,8 @@ import {
   inventoryFromResources,
 } from './ItemSystem';
 
+import { COMPANION_REQUIREMENTS } from '@data/companions';
+
 // ─────────────────────────────────────────
 // Action param types
 // ─────────────────────────────────────────
@@ -743,8 +745,12 @@ export class TurnEngine {
     saveEngine.saveRun(this.state); // archive
   }
 
-  private isReputationInCompanionRange(_companion: Companion): boolean {
-    // TODO: wire companion preferred rep range when companion data is complete
+  private isReputationInCompanionRange(companion: Companion): boolean {
+    const req      = COMPANION_REQUIREMENTS[companion.id];
+    if (!req) return true;
+    const repValue = this.state.reputation.value;
+    if (req.minReputation !== undefined && repValue < req.minReputation) return false;
+    if (req.maxReputation !== undefined && repValue > req.maxReputation) return false;
     return true;
   }
 
