@@ -88,7 +88,7 @@ export class TurnEngine {
 
   /** Submit the player's chosen action to start a turn. */
   async submitAction(params: ActionParams): Promise<void> {
-    if (this.state.currentTurn?.phase !== TurnPhase.AwaitingAction) return;
+    if (this.state.currentTurn !== null && this.state.currentTurn.phase !== TurnPhase.AwaitingAction) return;
     await this.runTurn(params);
   }
 
@@ -413,7 +413,9 @@ export class TurnEngine {
   private async processEventQueue(): Promise<void> {
     const queue = [...(this.state.currentTurn?.eventsQueue ?? [])];
 
-    for (const event of queue) {
+    for (let i = 0; i < queue.length; i++) {
+      const event = queue[i];
+
       // Mark as fired
       const newFired = new Set(this.state.firedEventIds);
       newFired.add(event.id);
@@ -422,8 +424,11 @@ export class TurnEngine {
       if (event.resolutionType === ResolutionType.Passive && event.passiveOutcome) {
         this.addDelta(passiveOutcomeToDelta(event, event.passiveOutcome));
       } else if (event.resolutionType === ResolutionType.Interactive) {
-        // Pause — hand control to UI
-        this.updateTurn({ activeInteractiveEvent: event });
+        // Replace the queue with only the events that come AFTER this one so
+        // the next processEventQueue call (after combat/dialogue resolves)
+        // doesn't re-encounter this same event.
+        const remaining = queue.slice(i + 1);
+        this.updateTurn({ activeInteractiveEvent: event, eventsQueue: remaining });
         this.setPhase(TurnPhase.AwaitingPlayer);
         this.onAwaitInput(event);
         return; // Resume via resolveInteractiveEvent()
