@@ -8,6 +8,7 @@ import {
   StatDelta,
 } from './types';
 import { LOCATIONS } from '@data/locations';
+import { findDialogueForLocation } from './DialogueEngine';
 
 // ─────────────────────────────────────────
 // Event definitions
@@ -448,7 +449,7 @@ export function hasEligibleDialogue(state: GameState): boolean {
     }
 
     return true;
-  });
+  }) || findDialogueForLocation(state.currentLocationId, state) !== null;
 }
 
 // ─────────────────────────────────────────

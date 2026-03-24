@@ -37,15 +37,15 @@ export function StatusBar({ gameState }: { gameState: GameState }) {
 function StatusPill({ label, value, sub, valueColor }: { label: string; value: string; sub?: string; valueColor?: string }) {
   return (
     <View style={{ flex: 1, alignItems: 'center', paddingVertical: 10 }}>
-      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 9, color: '#6B7C6E', letterSpacing: 1, marginBottom: 2 }}>
+      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 9, color: '#A0B8AA', letterSpacing: 1, marginBottom: 2 }}>
         {label}
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-        <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 16, color: valueColor ?? '#F5EAD6', letterSpacing: 0.5 }}>
+        <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 16, color: valueColor ?? '#FFF5E4', letterSpacing: 0.5 }}>
           {value}
         </Text>
         {sub && (
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E' }}>{sub}</Text>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#A0B8AA' }}>{sub}</Text>
         )}
       </View>
     </View>

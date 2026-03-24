@@ -412,8 +412,9 @@ export interface GameState {
   firedEventIds:      Set<string>;
   visitedLocationIds: Set<number>;
 
-  starvationTurns:    number;
-  currentTurn:        TurnState | null;
+  starvationTurns:        number;
+  clearedCombatLocations: Set<number>;
+  currentTurn:            TurnState | null;
   turnHistory:        TurnRecord[];
 }
 
@@ -449,10 +450,11 @@ export interface LevelUpChoice {
 // Save system
 // ─────────────────────────────────────────
 
-export interface SerializedGameState extends Omit<GameState, 'firedEventIds' | 'visitedLocationIds' | 'currentTurn'> {
-  firedEventIds:      string[];
-  visitedLocationIds: number[];
-  currentTurn:        null;
+export interface SerializedGameState extends Omit<GameState, 'firedEventIds' | 'visitedLocationIds' | 'clearedCombatLocations' | 'currentTurn'> {
+  firedEventIds:          string[];
+  visitedLocationIds:     number[];
+  clearedCombatLocations: number[];
+  currentTurn:            null;
 }
 
 export interface SaveFile {

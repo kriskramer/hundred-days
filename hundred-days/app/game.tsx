@@ -28,6 +28,7 @@ import {
 import type { GameEvent, LevelUpChoice, CombatResult } from '@engine/types';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { getCompanion } from '@data/companions';
+import { getLocation }  from '@data/locations';
 
 type Tab = 'road' | 'combat' | 'dialogue' | 'inventory' | 'map';
 
@@ -88,7 +89,16 @@ export default function GameScreen() {
   }
 
   function handleInteractiveEventComplete(result: CombatResult) {
-    engineRef.current?.resolveInteractiveEvent(result);
+    if (activeEvent) {
+      // Event-driven combat: feed result back into the turn engine
+      engineRef.current?.resolveInteractiveEvent(result);
+    } else {
+      // Location-initiated combat: apply result and mark location cleared
+      const locationId = gameState?.currentLocationId;
+      if (locationId !== undefined) {
+        engineRef.current?.resolveLocationCombat(locationId, result).catch(console.error);
+      }
+    }
     setActiveEvent(null);
     setActiveTab('road');
   }
@@ -151,6 +161,14 @@ export default function GameScreen() {
 
   const engine = engineRef.current;
 
+  // Combat tab is accessible only when an event demands it, or the location has
+  // uncleared dangerous mobs.
+  const currentLocation  = getLocation(gameState.currentLocationId);
+  const locationHasMobs  = currentLocation.mobs.some(m => m.aggroPct > 0 && !m.isCompanion);
+  const combatAvailable  =
+    activeEvent?.type === 'combat' ||
+    (locationHasMobs && !gameState.clearedCombatLocations.has(gameState.currentLocationId));
+
   return (
     <SafeAreaView className="flex-1 bg-parchment" edges={['top']}>
 
@@ -162,10 +180,10 @@ export default function GameScreen() {
       {/* Utility bar — journal + settings */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#1A1208', paddingHorizontal: 14, paddingBottom: 6, gap: 16 }}>
         <TouchableOpacity onPress={() => setJournalOpen(true)} activeOpacity={0.7}>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E', letterSpacing: 1 }}>◎ JOURNAL</Text>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#A0B8AA', letterSpacing: 1 }}>◎ JOURNAL</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E', letterSpacing: 1 }}>⚙ SETTINGS</Text>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#A0B8AA', letterSpacing: 1 }}>⚙ SETTINGS</Text>
         </TouchableOpacity>
       </View>
 
@@ -215,22 +233,24 @@ export default function GameScreen() {
       {/* Bottom navigation */}
       <View style={{ backgroundColor: '#1A1208', borderTopWidth: 2, borderTopColor: '#B8860B', flexDirection: 'row' }}>
         {TABS.map(tab => {
-          const active = activeTab === tab.id;
+          const active    = activeTab === tab.id;
+          const disabled  = tab.id === 'combat' && !combatAvailable;
+          const textColor = active ? '#D4A017' : disabled ? '#3A3A3A' : '#A0B8AA';
           return (
             <TouchableOpacity
               key={tab.id}
-              onPress={() => setActiveTab(tab.id)}
-              activeOpacity={0.7}
+              onPress={() => { if (!disabled) setActiveTab(tab.id); }}
+              activeOpacity={disabled ? 1 : 0.7}
               style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
             >
-              <Text style={{ fontSize: 18, color: active ? '#D4A017' : '#6B7C6E' }}>
+              <Text style={{ fontSize: 18, color: textColor }}>
                 {tab.icon}
               </Text>
               <Text style={{
                 fontFamily:    'Cinzel_400Regular',
                 fontSize:      10,
                 letterSpacing: 1,
-                color:         active ? '#D4A017' : '#6B7C6E',
+                color:         textColor,
                 marginTop:     3,
               }}>
                 {tab.label.toUpperCase()}

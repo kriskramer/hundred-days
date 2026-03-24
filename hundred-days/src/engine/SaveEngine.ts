@@ -163,18 +163,20 @@ class SaveEngine {
   private serialize(state: GameState): SerializedGameState {
     return {
       ...state,
-      firedEventIds:      Array.from(state.firedEventIds),
-      visitedLocationIds: Array.from(state.visitedLocationIds),
-      currentTurn:        null,  // never persist mid-turn state
+      firedEventIds:          Array.from(state.firedEventIds),
+      visitedLocationIds:     Array.from(state.visitedLocationIds),
+      clearedCombatLocations: Array.from(state.clearedCombatLocations),
+      currentTurn:            null,  // never persist mid-turn state
     };
   }
 
   private deserialize(saved: SerializedGameState): GameState {
     return {
       ...saved,
-      firedEventIds:      new Set(saved.firedEventIds),
-      visitedLocationIds: new Set(saved.visitedLocationIds),
-      currentTurn:        null,
+      firedEventIds:          new Set(saved.firedEventIds),
+      visitedLocationIds:     new Set(saved.visitedLocationIds),
+      clearedCombatLocations: new Set(saved.clearedCombatLocations ?? []),
+      currentTurn:            null,
     };
   }
 
@@ -232,6 +234,15 @@ class SaveEngine {
         state['starvationTurns'] = 0;
       }
       current = { ...current, schemaVersion: 3 };
+    }
+
+    // v3 → v4: add clearedCombatLocations if missing
+    if (current.schemaVersion === 3) {
+      const state = current.gameState as Record<string, unknown>;
+      if (state['clearedCombatLocations'] === undefined) {
+        state['clearedCombatLocations'] = [];
+      }
+      current = { ...current, schemaVersion: 4 };
     }
 
     if (current.schemaVersion !== SCHEMA_VERSION) return null;

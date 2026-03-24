@@ -23,7 +23,8 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
   const location       = getLocation(gameState.currentLocationId);
   const flavor         = getLocationFlavor(location);
   const dialogueNearby = hasEligibleDialogue(gameState);
-  const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion);
+  const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
+                      && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }

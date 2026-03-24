@@ -120,6 +120,34 @@ export class TurnEngine {
     this.setState({ companions: [...this.state.companions, companion] });
   }
 
+  /**
+   * Resolve combat that was initiated directly from a location (not via the
+   * event system).  Applies the result, marks the location cleared, and saves.
+   */
+  async resolveLocationCombat(locationId: number, result: CombatResult): Promise<void> {
+    const { player, resources } = this.state;
+    const newPlayer = {
+      ...player,
+      health: clamp(player.health - result.healthLost, 0, player.stats.maxHealth),
+    };
+    const applyXPResult = applyXP(newPlayer, result.xpGained);
+    const newResources  = {
+      ...resources,
+      gold: Math.max(0, resources.gold + result.goldGained),
+      food: Math.max(0, resources.food + result.foodGained),
+    };
+    const newCleared = new Set(this.state.clearedCombatLocations);
+    newCleared.add(locationId);
+
+    this.setState({
+      player:                 applyXPResult,
+      resources:              newResources,
+      clearedCombatLocations: newCleared,
+    });
+
+    await saveEngine.saveRun(this.state);
+  }
+
   // ─────────────────────────────────────────
   // MAIN LOOP
   // ─────────────────────────────────────────
@@ -642,6 +670,11 @@ export class TurnEngine {
 
   private async checkWinLoss(): Promise<void> {
     const { currentLocationId, dayNumber } = this.state;
+
+    if (this.state.player.health <= 0) {
+      this.endRun('defeat', 'Your wounds were too great. The world falls to darkness.');
+      return;
+    }
 
     if (currentLocationId >= 125) {
       if (!this.bossFightResult) {
