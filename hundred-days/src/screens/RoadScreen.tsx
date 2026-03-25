@@ -1,7 +1,7 @@
 import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
 import { GameState, PlayerAction, WeatherType } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
-import { getLocation, getLocationFlavor } from '@data/locations';
+import { getLocation, getLocationRandomText } from '@data/locations';
 import { hasEligibleDialogue } from '@engine/EventSystem';
 
 interface Props {
@@ -9,6 +9,16 @@ interface Props {
   engine:      TurnEngine | null;
   onToast:     (msg: string) => void;
   onOpenShop?: () => void;
+}
+
+function getForageLabel(huntYield: number | null): string | null {
+  if (huntYield === null)       return null;
+  if (huntYield === 0)          return '❧ BARREN';
+  if (huntYield < 0.5)          return '❧ SCARCE';
+  if (huntYield < 1.0)          return '❧ MEAGRE';
+  if (huntYield < 1.5)          return '❧ ADEQUATE';
+  if (huntYield < 2.0)          return '❧ PLENTIFUL';
+  return '❧ BOUNTIFUL';
 }
 
 const WEATHER_LABEL: Record<WeatherType, string> = {
@@ -21,7 +31,7 @@ const WEATHER_LABEL: Record<WeatherType, string> = {
 
 export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
   const location       = getLocation(gameState.currentLocationId);
-  const flavor         = getLocationFlavor(location);
+  const randomText     = getLocationRandomText(location);
   const dialogueNearby = hasEligibleDialogue(gameState);
   const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
@@ -32,64 +42,82 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-parchment"
-      contentContainerStyle={{ padding: 16, paddingBottom: 32, alignItems: 'center' }}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={{ flex: 1, backgroundColor: '#F5EAD6' }}>
+      {/* Stat bars — pinned below top chrome */}
+      <View style={{
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingVertical: 7,
+        gap: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#C8B89A',
+      }}>
+        <StatBar label="Morale" value={gameState.morale.value} />
+        <StatBar label="Health" value={gameState.player.health} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 32, alignItems: 'center' }}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={{ width: '100%', maxWidth: 480 }}>
       {/* Location header */}
       <View className="border-b border-parchment-deep pb-3 mb-4">
         <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 2 }}>
           {location.region.toUpperCase()} · LOCATION {location.id}
         </Text>
-        <Text className="font-display-bold text-ink" style={{ fontSize: 22, marginTop: 4 }}>
-          {location.name}
-        </Text>
-        <View className="flex-row mt-2 gap-2">
-          {location.isTown && (
-            <View className="bg-parchment-dark border border-green-700 px-2 py-0.5 rounded-sm">
-              <Text className="font-display text-green-800" style={{ fontSize: 10, letterSpacing: 1 }}>TOWN</Text>
-            </View>
-          )}
-          {location.hasShop && (
-            <View className="bg-parchment-dark border border-gold px-2 py-0.5 rounded-sm">
-              <Text className="font-display text-ink-light" style={{ fontSize: 10, letterSpacing: 1 }}>SHOP</Text>
-            </View>
-          )}
-          <View className="bg-parchment-dark border border-parchment-deep px-2 py-0.5 rounded-sm">
-            <Text className="font-display text-mist" style={{ fontSize: 10, letterSpacing: 1 }}>
-              {WEATHER_LABEL[gameState.weather]}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 }}>
+          <Text className="font-display-bold text-ink" style={{ fontSize: 22, flexShrink: 1 }}>
+            {location.name}
+          </Text>
+          {location.isTown  && <Text style={{ fontSize: 17, lineHeight: 26 }}>🏰</Text>}
+          {location.hasShop && <Text style={{ fontSize: 17, lineHeight: 26 }}>⚖</Text>}
+        </View>
+        {/* Weather · Forage row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E' }}>
+            {WEATHER_LABEL[gameState.weather]}
+          </Text>
+          {getForageLabel(location.actions.huntYield) && (
+            <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E' }}>
+              {getForageLabel(location.actions.huntYield)}
             </Text>
-          </View>
-          {dangerNearby && (
-            <View style={{ backgroundColor: '#2A0808', borderWidth: 1, borderColor: '#C94040', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
-              <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C94040' }}>
-                ⚔ DANGER
-              </Text>
-            </View>
-          )}
-          {dialogueNearby && (
-            <View style={{ backgroundColor: '#2A1A08', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
-              <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C8A020' }}>
-                ◇ STRANGER NEARBY
-              </Text>
-            </View>
           )}
         </View>
+        {/* Alert badges row — only when relevant */}
+        {(dangerNearby || dialogueNearby) && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+            {dangerNearby && (
+              <View style={{ backgroundColor: '#2A0808', borderWidth: 1, borderColor: '#C94040', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+                <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C94040' }}>
+                  ⚔ DANGER
+                </Text>
+              </View>
+            )}
+            {dialogueNearby && (
+              <View style={{ backgroundColor: '#2A1A08', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+                <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C8A020' }}>
+                  ◇ STRANGER NEARBY
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Narrative */}
-      <View className="bg-parchment-dark border-l-4 border-gold border border-parchment-deep rounded-sm" style={{ padding: 14, marginBottom: 16 }}>
-        <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 26 }}>
-          "{flavor}"
+      <View style={{ borderWidth: 1, borderColor: '#B8860B', borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}>
+        <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 22 }}>
+          {location.locationText}
         </Text>
-      </View>
-
-      {/* Stat bars */}
-      <View className="flex-row gap-2" style={{ marginBottom: 24 }}>
-        <StatBar label="Morale" value={gameState.morale.value} />
-        <StatBar label="Health" value={gameState.player.health} />
+        {randomText && (
+          <>
+            <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
+            <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 22 }}>
+              {randomText}
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Companions */}
@@ -113,56 +141,18 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
 
       {/* Actions */}
       <SectionHeader label="Actions" right="Choose wisely" centered />
-      <View className="flex-row flex-wrap gap-2">
-        <ActionButton
-          label="Move"
-          sub="1 location · 1.0 food"
-          variant="primary"
-          onPress={() => submit({ action: PlayerAction.Move, forcedMarch: false })}
-        />
-        <ActionButton
-          label="Force March"
-          sub="2 locations · 1.5 food"
-          variant="primary"
-          onPress={() => submit({ action: PlayerAction.Move, forcedMarch: true })}
-        />
-        {location.hasShop && (
-          <ActionButton
-            label="Trade"
-            sub="Buy · Sell"
-            variant="secondary"
-            onPress={() => onOpenShop?.()}
-          />
-        )}
-        {location.isTown && (
-          <ActionButton
-            label="Rest at Inn"
-            sub="+25 HP · 10 gold"
-            variant="default"
-            onPress={() => submit({ action: PlayerAction.Rest, atInn: true })}
-          />
-        )}
-        <ActionButton
-          label="Forage"
-          sub="Gain food · 1 turn"
-          variant="default"
-          onPress={() => submit({ action: PlayerAction.Hunt, method: 'forage' })}
-        />
-        <ActionButton
-          label="Rally"
-          sub="Boost morale · 1 turn"
-          variant="default"
-          onPress={() => submit({ action: PlayerAction.Rally })}
-        />
-        <ActionButton
-          label="Make Camp"
-          sub="+5 HP · rest"
-          variant="default"
-          onPress={() => submit({ action: PlayerAction.Camp })}
-        />
+      <ActionGrid actions={[
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
+        ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+        ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
+        { label: 'Forage',       sub: 'Gain food',          variant: 'default',   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
+        { label: 'Rally',        sub: 'Boost morale',       variant: 'default',   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
+        { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default',   onPress: () => submit({ action: PlayerAction.Camp                                           }) },
+      ]} />
       </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -180,25 +170,14 @@ function StatBar({ label, value }: { label: string; value: number }) {
   const color = statColor(pct);
 
   return (
-    <View style={{
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#EDE0C4',
-      borderWidth: 1,
-      borderColor: '#C8B89A',
-      borderRadius: 3,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      gap: 8,
-    }}>
-      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E', width: 58 }}>
+    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E', flexShrink: 0 }}>
         {label.toUpperCase()}
       </Text>
-      <View style={{ flex: 1, height: 5, backgroundColor: '#C8B89A', borderRadius: 3 }}>
-        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
+      <View style={{ flex: 1, height: 4, backgroundColor: '#C8B89A', borderRadius: 2 }}>
+        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: color, borderRadius: 2 }} />
       </View>
-      <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 13, color, width: 28, textAlign: 'right' }}>
+      <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 12, color, width: 26, textAlign: 'right' }}>
         {Math.round(value)}
       </Text>
     </View>
@@ -230,14 +209,31 @@ function SectionHeader({ label, right, centered }: { label: string; right?: stri
   );
 }
 
-function ActionButton({
-  label, sub, variant, onPress,
-}: {
+type ActionDef = {
   label:   string;
   sub:     string;
   variant: 'primary' | 'secondary' | 'default';
   onPress: () => void;
-}) {
+};
+
+function ActionGrid({ actions }: { actions: ActionDef[] }) {
+  const rows: ActionDef[][] = [];
+  for (let i = 0; i < actions.length; i += 3) {
+    rows.push(actions.slice(i, i + 3));
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      {rows.map((row, i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+          {row.map(btn => <ActionButton key={btn.label} {...btn} />)}
+          {row.length < 3 && <View style={{ flex: 3 - row.length }} />}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ActionButton({ label, sub, variant, onPress }: ActionDef) {
   const bg          = variant === 'primary'   ? '#8B1A1A'
                     : variant === 'secondary' ? '#B8860B'
                     : '#1A1208';
@@ -251,14 +247,14 @@ function ActionButton({
       onPress={onPress}
       activeOpacity={0.75}
       style={{
-        width: '48%',
+        flex: 1,
         backgroundColor: bg,
         borderWidth: 1.5,
         borderColor,
         borderRadius: 3,
         alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 6,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.35,
@@ -266,10 +262,10 @@ function ActionButton({
         elevation: 4,
       }}
     >
-      <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: textColor, fontSize: 13, letterSpacing: 1.5 }}>
+      <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: textColor, fontSize: 12, letterSpacing: 1 }}>
         {label}
       </Text>
-      <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: textColor, fontSize: 12, marginTop: 3, opacity: 0.75 }}>
+      <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: textColor, fontSize: 11, marginTop: 2, opacity: 0.75, textAlign: 'center' }}>
         {sub}
       </Text>
     </TouchableOpacity>

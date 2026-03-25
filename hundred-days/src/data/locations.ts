@@ -133,6 +133,11 @@ export function getLocationFlavor(location: Location): string {
   return location.randomTexts[Math.floor(Math.random() * location.randomTexts.length)];
 }
 
+export function getLocationRandomText(location: Location): string | null {
+  if (location.randomTexts.length === 0) return null;
+  return location.randomTexts[Math.floor(Math.random() * location.randomTexts.length)];
+}
+
 export const LOCATIONS: Location[] = [
   {
     id: 1,

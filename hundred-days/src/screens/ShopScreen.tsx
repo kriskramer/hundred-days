@@ -74,6 +74,27 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
     .filter(({ def }) => !!def?.shopPrice && def.category !== ItemCategory.QuestItem);
 
   function handleBuy(itemId: string) {
+    const def = getItemDef(itemId);
+
+    // Rations apply directly to food supply rather than going into the pack
+    if (def?.activeEffect?.foodRestore) {
+      const inv         = inventoryFromResources(gameState.resources);
+      const shopItem    = getShopInventory(locationId, gameState.resources.gold, hasMerchantsRing)
+                            .find(i => i.def.id === itemId);
+      if (!shopItem) { onToast('Cannot buy'); return; }
+      if (!shopItem.canAfford) { onToast('Not enough gold'); return; }
+      const newResources = {
+        ...gameState.resources,
+        gold: gameState.resources.gold - shopItem.finalPrice,
+        food: gameState.resources.food + def.activeEffect.foodRestore,
+      };
+      const newState = { ...gameState, resources: newResources };
+      setGame(newState);
+      saveEngine.saveRun(newState);
+      onToast(`+${def.activeEffect.foodRestore} food · ${shopItem.finalPrice} gold`);
+      return;
+    }
+
     const inv    = inventoryFromResources(gameState.resources);
     const result = buyItem(inv, itemId, gameState.resources.gold, hasMerchantsRing);
     if (!result.success || !result.inventory) {
@@ -87,7 +108,6 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
     const newState = { ...gameState, resources: newResources };
     setGame(newState);
     saveEngine.saveRun(newState);
-    const def = getItemDef(itemId);
     onToast(`Bought ${def?.name ?? itemId} · ${result.goldSpent} gold`);
   }
 

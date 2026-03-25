@@ -319,6 +319,7 @@ export class TurnEngine {
     this.addDelta({
       source:    'move',
       food:      -totalFood,
+      morale:    forcedMarch && locations > 1 ? -1 : undefined,
       narrative: this.buildMoveNarrative(locations, effectiveWeather, luckyThird, forcedMarch),
     });
 
@@ -428,10 +429,10 @@ export class TurnEngine {
     const companionFoodCost = this.state.companions.reduce((s, c) => s + c.foodCostPerTurn, 0);
     this.addDelta({
       source:    'camp',
-      health:    5,
+      health:    10,
       morale:    3,
       food:      -(1.0 + companionFoodCost),
-      narrative: 'You make camp early. Nothing dramatic. Just rest.',
+      narrative: 'You make camp early and rest the full day. The party recovers.',
     });
   }
 
@@ -543,9 +544,7 @@ export class TurnEngine {
       }
     }
 
-    if (moraleDelta !== 0 || Object.keys(loyaltyDeltas).length > 0) {
-      this.addDelta({ source: 'stat_tick', morale: moraleDelta, companionLoyalty: loyaltyDeltas });
-    }
+    this.addDelta({ source: 'stat_tick', health: 2, morale: moraleDelta || undefined, companionLoyalty: loyaltyDeltas });
 
     this.setState({ morale: { ...this.state.morale, dreadActive: dreadNow } });
 

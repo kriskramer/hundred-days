@@ -1,6 +1,6 @@
 import {
-  useRef,
   useState,
+  useRef,
   useEffect,
   useCallback,
 } from 'react';
@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  LayoutChangeEvent,
 } from 'react-native';
 
 import { GameState } from '@engine/types';
@@ -36,470 +35,389 @@ interface Props {
 }
 
 // ─────────────────────────────────────────
-// Layout constants
-// ─────────────────────────────────────────
-
-const NODE_SIZE        = 28;
-const NODE_SIZE_CURR   = 36;
-const CONNECTOR_WIDTH  = 14;
-const ROW_HEIGHT       = 60;   // height of one region row
-const REGION_LABEL_W   = 86;   // left label column width
-
-// ─────────────────────────────────────────
-// Palette
+// Palette — dark ink theme
 // ─────────────────────────────────────────
 
 const C = {
-  ink:       '#1A1208',
-  inkLight:  '#2D1F0A',
-  parchment: '#F5EAD6',
-  parchDark: '#E8D5B0',
-  parchDeep: '#D4B880',
-  blood:     '#8B1A1A',
-  bloodDim:  '#5A1010',
-  gold:      '#B8860B',
-  goldLight: '#D4A017',
-  mist:      '#6B7C6E',
-  mistDark:  '#3A4A3C',
-  green:     '#2A5A3A',
-  greenLight:'#4A8A5A',
+  bg:         '#1A0F05',
+  bgCard:     '#2E1E08',
+  bgCardDark: '#1E1005',
+  parchment:  '#F5EAD0',
+  parchDark:  '#E8D5A3',
+  gold:       '#B8860B',
+  goldLight:  '#D4A017',
+  blood:      '#8B1A1A',
+  green:      '#3A5C2A',
+  greenLight: '#8FCC70',
+  blue:       '#1A3A5C',
+  blueLight:  '#70A8CC',
+  purple:     '#502050',
+  purpleLight:'#CC88CC',
+  mist:       '#A0B8AA',
+  faded:      'rgba(212,160,23,0.55)',
 };
 
-// Danger → background tint for region rows
-const DANGER_BG: Record<number, string> = {
-  1:  '#F5F0E8',
-  3:  '#F2EDE0',
-  4:  '#EEEADA',
-  5:  '#EAE4D0',
-  6:  '#E6DEC8',
-  8:  '#E2D4BC',
-  9:  '#DCC8AC',
-  10: '#D4B89A',
-};
+// ─────────────────────────────────────────
+// Layout constants
+// ─────────────────────────────────────────
+
+const SPINE_W = 44;   // width of the centre spine column
+const DOT_W   = 14;   // road-dot diameter
+
+// ─────────────────────────────────────────
+// Item list type — region banners + loc rows
+// ─────────────────────────────────────────
+
+type Item =
+  | { kind: 'region';   region: RegionDefinition }
+  | { kind: 'location'; loc: Location; side: 'left' | 'right' };
+
+function buildItems(): Item[] {
+  const items: Item[] = [];
+  let sideIndex = 0;
+  for (const region of REGIONS) {
+    items.push({ kind: 'region', region });
+    const locs = LOCATIONS.filter(
+      l => l.id >= region.locationRange[0] && l.id <= region.locationRange[1],
+    );
+    for (const loc of locs) {
+      items.push({ kind: 'location', loc, side: sideIndex % 2 === 0 ? 'left' : 'right' });
+      sideIndex++;
+    }
+  }
+  return items;
+}
+
+const ITEMS = buildItems();
 
 // ─────────────────────────────────────────
 // MapScreen
 // ─────────────────────────────────────────
 
 export function MapScreen({ gameState, onToast }: Props) {
-  const [selectedId, setSelectedId]     = useState<number>(gameState.currentLocationId);
-  const [detailSlide]                   = useState(new Animated.Value(20));
-  const [detailOpacity]                 = useState(new Animated.Value(0));
-
-  const mapScrollRef = useRef<ScrollView>(null);
-  const hasScrolled  = useRef(false);
+  const [selectedId, setSelectedId]       = useState<number>(gameState.currentLocationId);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [detailSlide]                     = useState(new Animated.Value(320));
+  const scrollRef                         = useRef<ScrollView>(null);
+  const hasScrolled                       = useRef(false);
 
   const selectedLocation = getLocation(selectedId);
-  const currentRegion    = getRegion(gameState.currentLocationId);
 
-  // ── Auto-scroll to current location on first render ──────
-
+  // Auto-scroll to current location on first render
   useEffect(() => {
     if (hasScrolled.current) return;
-    const currentIdx    = LOCATIONS.findIndex(l => l.id === gameState.currentLocationId);
-    // Approximate x offset: each node is NODE_SIZE + CONNECTOR_WIDTH
-    const approxX       = currentIdx * (NODE_SIZE + CONNECTOR_WIDTH) - 120;
+    const idx = LOCATIONS.findIndex(l => l.id === gameState.currentLocationId);
+    // Each row ≈62px; each region banner ≈50px; rough: one banner per ~12 locations
+    const approxY = idx * 62 + Math.ceil(idx / 12) * 50 - 180;
     setTimeout(() => {
-      mapScrollRef.current?.scrollTo({ x: Math.max(0, approxX), animated: false });
+      scrollRef.current?.scrollTo({ y: Math.max(0, approxY), animated: false });
       hasScrolled.current = true;
     }, 150);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Animate detail card in when selection changes ─────────
-
-  const animateDetail = useCallback(() => {
-    detailSlide.setValue(14);
-    detailOpacity.setValue(0);
-    Animated.parallel([
-      Animated.timing(detailSlide,   { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(detailOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-    ]).start();
-  }, [detailSlide, detailOpacity]);
-
-  const handleSelect = useCallback((locId: number) => {
+  const openDetail = useCallback((locId: number) => {
     setSelectedId(locId);
-    animateDetail();
-  }, [animateDetail]);
+    detailSlide.setValue(320);
+    setDetailVisible(true);
+    Animated.timing(detailSlide, {
+      toValue:         0,
+      duration:        240,
+      useNativeDriver: true,
+    }).start();
+  }, [detailSlide]);
 
-  // ── Group locations by region ─────────────────────────────
-
-  const regionRows = REGIONS.map(region => ({
-    region,
-    locations: LOCATIONS.filter(
-      l => l.id >= region.locationRange[0] && l.id <= region.locationRange[1],
-    ),
-  }));
-
-  // ─────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────
+  const closeDetail = useCallback(() => {
+    Animated.timing(detailSlide, {
+      toValue:         320,
+      duration:        200,
+      useNativeDriver: true,
+    }).start(() => setDetailVisible(false));
+  }, [detailSlide]);
 
   return (
     <View style={s.root}>
 
-      {/* ── HEADER ── */}
-      <View style={s.header}>
-        <View>
-          <Text style={s.headerTitle}>The East Senin Road</Text>
-          <Text style={s.headerSub}>
-            Location {gameState.currentLocationId} of 125
-            {'  ·  '}Day {gameState.dayNumber} of 100
-          </Text>
-        </View>
-        <ProgressPill gameState={gameState} />
+      {/* Header */}
+      <MapHeader gameState={gameState} />
+
+      {/* Vertical road map */}
+      <ScrollView
+        ref={scrollRef}
+        style={s.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scrollContent}
+      >
+        {ITEMS.map(item => {
+          if (item.kind === 'region') {
+            return (
+              <RegionBanner
+                key={`r-${item.region.name}`}
+                region={item.region}
+              />
+            );
+          }
+          const { loc, side } = item;
+          return (
+            <LocationRow
+              key={loc.id}
+              loc={loc}
+              side={side}
+              isCurrent={loc.id === gameState.currentLocationId}
+              isVisited={gameState.visitedLocationIds.has(loc.id)}
+              isSelected={loc.id === selectedId}
+              onPress={openDetail}
+            />
+          );
+        })}
+
+        {/* End destination */}
+        <Destination />
+      </ScrollView>
+
+      {/* Slide-up detail panel */}
+      {detailVisible && (
+        <Animated.View
+          style={[s.detailPanel, { transform: [{ translateY: detailSlide }] }]}
+        >
+          <LocationDetail
+            location={selectedLocation}
+            isCurrent={selectedLocation.id === gameState.currentLocationId}
+            isVisited={gameState.visitedLocationIds.has(selectedLocation.id)}
+            gameState={gameState}
+            onClose={closeDetail}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────
+// Header
+// ─────────────────────────────────────────
+
+function MapHeader({ gameState }: { gameState: GameState }) {
+  const locPct = Math.round((gameState.currentLocationId / 125) * 100);
+  const dayPct = Math.round((gameState.dayNumber       / 100) * 100);
+  const onPace = locPct >= dayPct;
+
+  return (
+    <View style={s.header}>
+      <View>
+        <Text style={s.headerTitle}>The East Senin Road</Text>
+        <Text style={s.headerSub}>
+          Loc {gameState.currentLocationId} / 125{'  ·  '}Day {gameState.dayNumber} / 100
+        </Text>
       </View>
 
-      {/* ── REGION LEGEND (horizontal scroll) ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.legendScroll}
-        contentContainerStyle={s.legendContent}
-      >
-        {REGIONS.map(r => (
-          <View
-            key={r.name}
-            style={[
-              s.legendPill,
-              r.name === currentRegion.name && s.legendPillActive,
-            ]}
-          >
-            <Text style={[
-              s.legendPillText,
-              r.name === currentRegion.name && s.legendPillTextActive,
-            ]}>
-              {r.name}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* ── MAP: region rows, each horizontally scrollable ── */}
-      <ScrollView
-        ref={mapScrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.mapScroll}
-        contentContainerStyle={s.mapContent}
-      >
-        {/* Region label column (sticky-ish — scrolls with map) */}
-        <View style={s.regionLabels}>
-          {regionRows.map(({ region }) => (
-            <RegionLabel
-              key={region.name}
-              region={region}
-              isCurrent={region.name === currentRegion.name}
-            />
-          ))}
-        </View>
-
-        {/* Node rows */}
-        <View>
-          {regionRows.map(({ region, locations }) => (
-            <RegionRow
-              key={region.name}
-              region={region}
-              locations={locations}
-              currentId={gameState.currentLocationId}
-              selectedId={selectedId}
-              visitedIds={gameState.visitedLocationIds}
-              onSelect={handleSelect}
-            />
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* ── NODE LEGEND ── */}
-      <NodeLegend />
-
-      {/* ── DETAIL CARD ── */}
-      <Animated.View style={[
-        s.detailCard,
-        { opacity: detailOpacity, transform: [{ translateY: detailSlide }] },
-      ]}>
-        <LocationDetail
-          location={selectedLocation}
-          isCurrent={selectedLocation.id === gameState.currentLocationId}
-          isVisited={gameState.visitedLocationIds.has(selectedLocation.id)}
-          gameState={gameState}
-        />
-      </Animated.View>
+      <View style={s.pacePill}>
+        <Text style={[s.pacePct, { color: onPace ? C.greenLight : C.blood }]}>
+          {locPct}%
+        </Text>
+        <Text style={[s.paceLabel, { color: onPace ? C.greenLight : C.blood }]}>
+          {onPace ? 'ON PACE' : 'BEHIND'}
+        </Text>
+      </View>
     </View>
   );
 }
 
 // ─────────────────────────────────────────
-// Region label (left column)
+// Region banner
 // ─────────────────────────────────────────
 
-function RegionLabel({
-  region,
-  isCurrent,
+function RegionBanner({ region }: { region: RegionDefinition }) {
+  return (
+    <View style={s.regionBanner}>
+      <View style={s.regionBannerLine} />
+      <Text style={s.regionBannerText}>{region.name}</Text>
+      <View style={s.regionBannerLine} />
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────
+// Location row (alternating left / right)
+// ─────────────────────────────────────────
+
+function LocationRow({
+  loc, side, isCurrent, isVisited, isSelected, onPress,
 }: {
-  region:    RegionDefinition;
-  isCurrent: boolean;
+  loc:        Location;
+  side:       'left' | 'right';
+  isCurrent:  boolean;
+  isVisited:  boolean;
+  isSelected: boolean;
+  onPress:    (id: number) => void;
+}) {
+  const isShop = SHOP_LOCATION_IDS.includes(loc.id);
+  const isBoss = BOSS_LOCATION_IDS.includes(loc.id);
+  const isFuture = !isCurrent && !isVisited;
+
+  const card = (
+    <TouchableOpacity
+      onPress={() => onPress(loc.id)}
+      activeOpacity={0.75}
+      style={[
+        s.card,
+        isCurrent  && s.cardCurrent,
+        isSelected && !isCurrent && s.cardSelected,
+        isVisited  && !isCurrent && s.cardVisited,
+        isFuture   && s.cardFuture,
+      ]}
+    >
+      {/* "You are here" tag */}
+      {isCurrent && (
+        <Text style={s.cardHereTag}>◀ YOU ARE HERE</Text>
+      )}
+
+      <Text style={s.cardId}>#{loc.id}</Text>
+      <Text style={s.cardName} numberOfLines={1}>{loc.name}</Text>
+
+      {/* Badges */}
+      <View style={s.cardBadges}>
+        {loc.isTown && !isShop && <Badge label="Town"   color={C.greenLight} bg="rgba(58,92,42,0.5)"   border="rgba(58,92,42,0.8)"   />}
+        {isShop              && <Badge label="Shop"   color={C.blueLight}  bg="rgba(26,58,92,0.5)"   border="rgba(26,58,92,0.9)"   />}
+        {isBoss              && <Badge label="Boss"   color="#FF8080"      bg="rgba(139,26,26,0.5)"  border="rgba(139,26,26,0.9)"  />}
+      </View>
+
+      {/* Mob summary */}
+      {loc.mobs.filter(m => m.aggroPct > 0).length > 0 && (
+        <Text style={s.cardMobs} numberOfLines={1}>
+          {loc.mobs
+            .filter(m => m.aggroPct > 0)
+            .sort((a, b) => b.aggroPct - a.aggroPct)
+            .slice(0, 2)
+            .map(m => m.name)
+            .join('  ·  ')}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  const spacer = <View style={s.cardSpacer} />;
+
+  return (
+    <View style={s.row}>
+      {/* Left half */}
+      {side === 'left' ? card : spacer}
+
+      {/* Centre spine column */}
+      <View style={s.spineCol}>
+        <View style={s.spineLine} />
+        <View style={[
+          s.dot,
+          isCurrent && s.dotCurrent,
+          isVisited && !isCurrent && s.dotVisited,
+          isFuture  && s.dotFuture,
+        ]} />
+      </View>
+
+      {/* Right half */}
+      {side === 'right' ? card : spacer}
+    </View>
+  );
+}
+
+function Badge({ label, color, bg, border }: {
+  label:  string;
+  color:  string;
+  bg:     string;
+  border: string;
 }) {
   return (
-    <View style={[s.regionLabelCell, isCurrent && s.regionLabelCellActive]}>
-      <Text style={[s.regionLabelText, isCurrent && s.regionLabelTextActive]}
-        numberOfLines={2}
-      >
-        {region.name}
-      </Text>
-      <DangerPips level={region.dangerLevel} />
+    <View style={[s.badge, { backgroundColor: bg, borderColor: border }]}>
+      <Text style={[s.badgeText, { color }]}>{label}</Text>
     </View>
   );
 }
 
-function DangerPips({ level }: { level: number }) {
-  // Show 1–5 pips for danger 1–10 (2 danger per pip)
-  const pips = Math.ceil(level / 2);
+// ─────────────────────────────────────────
+// Destination footer
+// ─────────────────────────────────────────
+
+function Destination() {
   return (
-    <View style={s.dangerPips}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <View
-          key={i}
-          style={[s.dangerPip, i < pips && { backgroundColor: dangerColour(level) }]}
-        />
-      ))}
-    </View>
-  );
-}
-
-function dangerColour(level: number): string {
-  if (level >= 9)  return C.blood;
-  if (level >= 7)  return '#AA4422';
-  if (level >= 5)  return '#AA7722';
-  if (level >= 3)  return C.gold;
-  return C.greenLight;
-}
-
-// ─────────────────────────────────────────
-// One region row of nodes
-// ─────────────────────────────────────────
-
-function RegionRow({
-  region,
-  locations,
-  currentId,
-  selectedId,
-  visitedIds,
-  onSelect,
-}: {
-  region:    RegionDefinition;
-  locations: Location[];
-  currentId: number;
-  selectedId:number;
-  visitedIds:Set<number>;
-  onSelect:  (id: number) => void;
-}) {
-  const bg = DANGER_BG[region.dangerLevel] ?? C.parchDark;
-
-  return (
-    <View style={[s.regionRow, { backgroundColor: bg }]}>
-      {locations.map((loc, i) => {
-        const isCurrent  = loc.id === currentId;
-        const isSelected = loc.id === selectedId;
-        const isVisited  = visitedIds.has(loc.id);
-        const isFuture   = loc.id > currentId;
-        const isShop     = SHOP_LOCATION_IDS.includes(loc.id);
-        const isBoss     = BOSS_LOCATION_IDS.includes(loc.id);
-        const isLast     = i === locations.length - 1;
-
-        return (
-          <View key={loc.id} style={s.nodeWrapper}>
-            {/* Connector line (before node, not before the very first) */}
-            {i > 0 && (
-              <View style={[
-                s.connector,
-                isVisited && !isCurrent && s.connectorVisited,
-                isFuture && s.connectorFuture,
-              ]} />
-            )}
-
-            {/* Node */}
-            <TouchableOpacity
-              onPress={() => onSelect(loc.id)}
-              activeOpacity={0.75}
-              style={[
-                s.node,
-                isCurrent  && s.nodeCurrent,
-                isSelected && !isCurrent && s.nodeSelected,
-                isVisited  && !isCurrent && s.nodeVisited,
-                isFuture   && s.nodeFuture,
-                isShop     && !isCurrent && s.nodeShop,
-                isBoss     && !isCurrent && s.nodeBoss,
-              ]}
-            >
-              <Text style={[
-                s.nodeText,
-                isCurrent  && s.nodeTextCurrent,
-                isFuture   && s.nodeTextFuture,
-              ]}>
-                {loc.id}
-              </Text>
-
-              {/* Town dot */}
-              {loc.isTown && !isCurrent && (
-                <View style={[s.nodeDot, { backgroundColor: isShop ? C.gold : C.greenLight }]} />
-              )}
-            </TouchableOpacity>
-
-            {/* Connector after last node in region (bridge to next region) */}
-            {isLast && (
-              <View style={[s.connector, s.connectorRegionBridge]} />
-            )}
-          </View>
-        );
-      })}
+    <View style={s.dest}>
+      <Text style={s.destIcon}>⚑</Text>
+      <Text style={s.destName}>THE BLASTED LANDS</Text>
+      <Text style={s.destSub}>Where Roachak waits</Text>
     </View>
   );
 }
 
 // ─────────────────────────────────────────
-// Node legend
-// ─────────────────────────────────────────
-
-function NodeLegend() {
-  const items = [
-    { style: [s.legendNode, s.nodeCurrent],  label: 'You are here' },
-    { style: [s.legendNode, s.nodeShop],     label: 'Town / Shop' },
-    { style: [s.legendNode, s.nodeBoss],     label: 'Boss fight' },
-    { style: [s.legendNode, s.nodeVisited],  label: 'Visited' },
-    { style: [s.legendNode, s.nodeFuture],   label: 'Ahead' },
-  ];
-  return (
-    <View style={s.nodeLegend}>
-      {items.map(({ style, label }) => (
-        <View key={label} style={s.nodeLegendItem}>
-          <View style={style as any} />
-          <Text style={s.nodeLegendText}>{label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────
-// Progress pill (top right)
-// ─────────────────────────────────────────
-
-function ProgressPill({ gameState }: { gameState: GameState }) {
-  const locPct  = Math.round((gameState.currentLocationId / 125) * 100);
-  const dayPct  = Math.round((gameState.dayNumber / 100) * 100);
-  const onPace  = locPct >= dayPct;
-
-  return (
-    <View style={s.progressPill}>
-      <Text style={[s.progressPct, { color: onPace ? C.greenLight : C.blood }]}>
-        {locPct}%
-      </Text>
-      <Text style={s.progressLabel}>of road</Text>
-      <Text style={[s.progressPace, { color: onPace ? C.greenLight : C.blood }]}>
-        {onPace ? 'On pace' : 'Behind'}
-      </Text>
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────
-// Location detail card
+// Detail panel (slide-up)
 // ─────────────────────────────────────────
 
 function LocationDetail({
-  location,
-  isCurrent,
-  isVisited,
-  gameState,
+  location, isCurrent, isVisited, gameState, onClose,
 }: {
   location:  Location;
   isCurrent: boolean;
   isVisited: boolean;
   gameState: GameState;
+  onClose:   () => void;
 }) {
   const region    = getRegion(location.id);
   const isShop    = SHOP_LOCATION_IDS.includes(location.id);
   const isBoss    = BOSS_LOCATION_IDS.includes(location.id);
   const nextShop  = SHOP_LOCATION_IDS.find(id => id > gameState.currentLocationId);
-  const distToShop= nextShop ? nextShop - gameState.currentLocationId : null;
-
-  // Mobs summary
-  const mobSummary = location.mobs
-    .filter(m => m.aggroPct > 0)
-    .sort((a, b) => b.aggroPct - a.aggroPct)
-    .slice(0, 3)
-    .map(m => `${m.name} ${m.aggroPct}%`)
-    .join('  ·  ');
+  const distToShop = nextShop ? nextShop - gameState.currentLocationId : null;
 
   return (
-    <View style={s.detail}>
-      {/* Location header */}
-      <View style={s.detailHeader}>
-        <View style={s.detailHeaderLeft}>
-          <Text style={s.detailId}>#{location.id}</Text>
-          <View>
-            <Text style={s.detailName}>{location.name}</Text>
-            <Text style={s.detailRegion}>{region.name}</Text>
-          </View>
-        </View>
+    <ScrollView style={s.detail} showsVerticalScrollIndicator={false}>
+      {/* Close button */}
+      <TouchableOpacity onPress={onClose} style={s.detailClose}>
+        <Text style={s.detailCloseText}>✕</Text>
+      </TouchableOpacity>
 
-        {/* Status badges */}
-        <View style={s.detailBadges}>
-          {isCurrent && (
-            <View style={[s.badge, { backgroundColor: C.gold + '33', borderColor: C.gold }]}>
-              <Text style={[s.badgeText, { color: C.goldLight }]}>You are here</Text>
-            </View>
-          )}
-          {isVisited && !isCurrent && (
-            <View style={[s.badge, { backgroundColor: C.inkLight + '22', borderColor: C.mist }]}>
-              <Text style={[s.badgeText, { color: C.mist }]}>Visited</Text>
-            </View>
-          )}
-          {isShop && (
-            <View style={[s.badge, { backgroundColor: C.gold + '22', borderColor: C.gold }]}>
-              <Text style={[s.badgeText, { color: C.gold }]}>Shop</Text>
-            </View>
-          )}
-          {isBoss && (
-            <View style={[s.badge, { backgroundColor: C.blood + '22', borderColor: C.blood }]}>
-              <Text style={[s.badgeText, { color: C.blood }]}>
-                Boss · Lv {location.bossLevel ?? '?'}+
-              </Text>
-            </View>
-          )}
-          {location.isTown && !isShop && (
-            <View style={[s.badge, { backgroundColor: C.greenLight + '22', borderColor: C.greenLight }]}>
-              <Text style={[s.badgeText, { color: C.greenLight }]}>Town</Text>
-            </View>
-          )}
-        </View>
+      {/* Id + name */}
+      <Text style={s.detailId}>#{location.id}</Text>
+      <Text style={s.detailName}>{location.name}</Text>
+      <Text style={s.detailRegion}>{region.name}</Text>
+
+      {/* Status badges */}
+      <View style={s.detailBadges}>
+        {isCurrent && (
+          <Badge label="You are here" color={C.goldLight} bg="rgba(184,134,11,0.18)" border="rgba(184,134,11,0.6)" />
+        )}
+        {isVisited && !isCurrent && (
+          <Badge label="Visited" color={C.mist} bg="rgba(80,80,80,0.25)" border="rgba(120,120,120,0.35)" />
+        )}
+        {isShop && (
+          <Badge label="Shop" color={C.blueLight} bg="rgba(26,58,92,0.5)" border="rgba(26,58,92,0.9)" />
+        )}
+        {isBoss && (
+          <Badge label={`Boss · Lv ${location.bossLevel ?? '?'}+`} color="#FF8080" bg="rgba(139,26,26,0.5)" border="rgba(139,26,26,0.9)" />
+        )}
+        {location.isTown && !isShop && (
+          <Badge label="Town" color={C.greenLight} bg="rgba(58,92,42,0.5)" border="rgba(58,92,42,0.8)" />
+        )}
       </View>
 
       {/* Divider */}
       <View style={s.detailDivider} />
 
-      {/* Info columns */}
+      {/* Actions + Threats columns */}
       <View style={s.detailCols}>
-
-        {/* Actions available */}
         <View style={s.detailCol}>
-          <Text style={s.detailColTitle}>Actions</Text>
-          {location.actions.canSteal    && <DetailLine icon="◆" text="Steal" />}
-          {location.actions.huntYield   && <DetailLine icon="▲" text={`Hunt ×${location.actions.huntYield}`} />}
-          {location.actions.restQuality && <DetailLine icon="◇" text={`Rest ×${location.actions.restQuality}`} />}
-          {location.isTown              && <DetailLine icon="◈" text="Trade" />}
-          {!location.actions.canSteal &&
-           !location.actions.huntYield &&
+          <Text style={s.detailColLabel}>ACTIONS</Text>
+          {location.actions.huntYield   != null && <DetailLine icon="▲" text={`Hunt  ×${location.actions.huntYield}`} />}
+          {location.actions.restQuality != null && <DetailLine icon="◇" text={`Rest  ×${location.actions.restQuality}`} />}
+          {location.actions.canSteal             && <DetailLine icon="◆" text="Steal" />}
+          {location.isTown                       && <DetailLine icon="◈" text="Trade" />}
+          {!location.actions.huntYield &&
            !location.actions.restQuality &&
-           !location.isTown             && (
+           !location.actions.canSteal &&
+           !location.isTown && (
             <Text style={s.detailNone}>Move only</Text>
           )}
         </View>
 
-        {/* Threats */}
         <View style={s.detailCol}>
-          <Text style={s.detailColTitle}>Threats</Text>
+          <Text style={s.detailColLabel}>THREATS</Text>
           {location.mobs.filter(m => m.aggroPct > 0).length > 0 ? (
             location.mobs
               .filter(m => m.aggroPct > 0)
@@ -509,9 +427,9 @@ function LocationDetail({
                 <DetailLine
                   key={m.name}
                   icon="⚔"
-                  text={`${m.name}`}
+                  text={m.name}
                   sub={`${m.aggroPct}%`}
-                  subColor={m.aggroPct >= 40 ? C.blood : C.mist}
+                  subColor={m.aggroPct >= 40 ? '#FF8080' : C.mist}
                 />
               ))
           ) : (
@@ -520,43 +438,40 @@ function LocationDetail({
         </View>
       </View>
 
-      {/* Location text */}
-      {location.locationText && (
-        <Text style={s.detailFlavorText} numberOfLines={2}>
+      {/* Flavour text */}
+      {location.locationText ? (
+        <Text style={s.detailFlavour}>
           {location.locationText}
         </Text>
-      )}
+      ) : null}
 
       {/* Next shop hint */}
       {!isShop && distToShop !== null && distToShop > 0 && distToShop <= 15 && (
         <View style={s.shopHint}>
           <Text style={s.shopHintText}>
-            ★ Next shop: {SHOP_LOCATION_IDS.find(id => id > gameState.currentLocationId)
-              ? getLocation(SHOP_LOCATION_IDS.find(id => id > gameState.currentLocationId)!).name
-              : '?'}
-            {' '}({distToShop} location{distToShop !== 1 ? 's' : ''} ahead)
+            ★ Next shop: {getLocation(nextShop!).name}{'  '}({distToShop} ahead)
           </Text>
         </View>
       )}
-    </View>
+
+      <View style={{ height: 20 }} />
+    </ScrollView>
   );
 }
 
 function DetailLine({
   icon, text, sub, subColor,
 }: {
-  icon:      string;
-  text:      string;
-  sub?:      string;
-  subColor?: string;
+  icon:       string;
+  text:       string;
+  sub?:       string;
+  subColor?:  string;
 }) {
   return (
     <View style={s.detailLine}>
       <Text style={s.detailLineIcon}>{icon}</Text>
       <Text style={s.detailLineText}>{text}</Text>
-      {sub && (
-        <Text style={[s.detailLineSub, subColor ? { color: subColor } : {}]}>{sub}</Text>
-      )}
+      {sub && <Text style={[s.detailLineSub, subColor ? { color: subColor } : {}]}>{sub}</Text>}
     </View>
   );
 }
@@ -566,405 +481,374 @@ function DetailLine({
 // ─────────────────────────────────────────
 
 const s = StyleSheet.create({
+
   root: {
     flex:            1,
-    backgroundColor: C.parchment,
+    backgroundColor: C.bg,
   },
 
-  // Header
+  // ── Header ────────────────────────────
   header: {
-    flexDirection:   'row',
-    justifyContent:  'space-between',
-    alignItems:      'center',
-    paddingHorizontal: 14,
-    paddingTop:      12,
-    paddingBottom:   8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.parchDeep,
-    backgroundColor: C.parchment,
+    flexDirection:     'row',
+    justifyContent:    'space-between',
+    alignItems:        'center',
+    paddingHorizontal: 16,
+    paddingVertical:   12,
+    borderBottomWidth: 2,
+    borderBottomColor: C.gold,
+    backgroundColor:   '#0D0702',
   },
   headerTitle: {
-    fontFamily:  'Cinzel_600SemiBold',
-    fontSize:    15,
-    color:       C.ink,
-    letterSpacing: 0.8,
+    fontFamily:    'Cinzel_600SemiBold',
+    fontSize:      14,
+    color:         C.goldLight,
+    letterSpacing: 1.2,
   },
   headerSub: {
-    fontFamily:  'CrimsonText_400Regular_Italic',
-    fontSize:    12,
-    color:       C.mist,
-    marginTop:   2,
+    fontFamily:    'CrimsonText_400Regular_Italic',
+    fontSize:      12,
+    color:         C.parchDark,
+    marginTop:     2,
   },
-
-  // Progress pill
-  progressPill: {
-    alignItems:  'center',
-    backgroundColor: C.parchDark,
-    borderWidth:     1,
-    borderColor:     C.parchDeep,
-    borderRadius:    4,
-    paddingHorizontal: 10,
+  pacePill: {
+    alignItems:        'center',
+    backgroundColor:   'rgba(184,134,11,0.12)',
+    borderWidth:       1,
+    borderColor:       'rgba(184,134,11,0.4)',
+    borderRadius:      3,
+    paddingHorizontal: 12,
     paddingVertical:    6,
   },
-  progressPct: {
-    fontFamily:  'Cinzel_600SemiBold',
-    fontSize:    16,
+  pacePct: {
+    fontFamily:    'Cinzel_600SemiBold',
+    fontSize:      16,
     letterSpacing: 0.5,
   },
-  progressLabel: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    8,
-    color:       C.mist,
-    letterSpacing: 0.5,
-  },
-  progressPace: {
-    fontFamily:  'CrimsonText_400Regular_Italic',
-    fontSize:    11,
-    marginTop:   1,
+  paceLabel: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      8,
+    letterSpacing: 1,
+    marginTop:     1,
   },
 
-  // Region legend
-  legendScroll: {
-    maxHeight:       32,
-    backgroundColor: C.parchDark,
-    borderBottomWidth: 1,
-    borderBottomColor: C.parchDeep,
-  },
-  legendContent: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    paddingHorizontal: 10,
-    gap:           6,
-    paddingVertical: 5,
-  },
-  legendPill: {
-    borderWidth:     1,
-    borderColor:     C.parchDeep,
-    borderRadius:    2,
-    paddingHorizontal: 7,
-    paddingVertical:   2,
-  },
-  legendPillActive: {
-    backgroundColor: C.ink,
-    borderColor:     C.ink,
-  },
-  legendPillText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    9,
-    color:       C.mist,
-    letterSpacing: 0.5,
-  },
-  legendPillTextActive: {
-    color: C.parchment,
-  },
-
-  // Map scroll area
-  mapScroll: {
+  // ── Scroll ────────────────────────────
+  scroll: {
     flex: 1,
   },
-  mapContent: {
-    flexDirection: 'row',
-    alignItems:    'flex-start',
-    paddingBottom: 4,
+  scrollContent: {
+    paddingBottom: 40,
   },
 
-  // Region label column
-  regionLabels: {
-    width:           REGION_LABEL_W,
-    flexDirection:   'column',
+  // ── Region banner ─────────────────────
+  regionBanner: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    gap: 10,
   },
-  regionLabelCell: {
-    height:          ROW_HEIGHT,
-    justifyContent:  'center',
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.parchDeep + '88',
-    borderRightWidth:  1,
-    borderRightColor:  C.parchDeep,
-    backgroundColor:   C.parchDark,
+  regionBannerLine: {
+    flex:            1,
+    height:          1,
+    backgroundColor: 'rgba(184,134,11,0.35)',
   },
-  regionLabelCellActive: {
-    backgroundColor: C.ink,
-  },
-  regionLabelText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    8,
-    color:       C.mist,
-    letterSpacing: 0.4,
-    lineHeight:  11,
-    marginBottom: 3,
-  },
-  regionLabelTextActive: {
-    color: C.parchment,
-  },
-  dangerPips: {
-    flexDirection: 'row',
-    gap:           2,
-  },
-  dangerPip: {
-    width:           5,
-    height:          5,
-    borderRadius:    3,
-    backgroundColor: C.parchDeep,
+  regionBannerText: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      9,
+    letterSpacing: 2.5,
+    color:         C.gold,
+    opacity:       0.75,
+    textTransform: 'uppercase',
   },
 
-  // Region row
-  regionRow: {
-    height:          ROW_HEIGHT,
-    flexDirection:   'row',
-    alignItems:      'center',
-    borderBottomWidth: 1,
-    borderBottomColor: C.parchDeep + '66',
-    paddingHorizontal: 4,
+  // ── Location row ──────────────────────
+  row: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    minHeight:      62,
+    paddingVertical: 4,
   },
 
-  // Node + connector
-  nodeWrapper: {
-    flexDirection: 'row',
-    alignItems:    'center',
-  },
-  connector: {
-    width:           CONNECTOR_WIDTH,
-    height:          2,
-    backgroundColor: C.parchDeep,
-  },
-  connectorVisited: {
-    backgroundColor: C.inkLight,
-  },
-  connectorFuture: {
-    backgroundColor: C.parchDeep,
-    opacity:         0.45,
-  },
-  connectorRegionBridge: {
-    width:           8,
-    backgroundColor: C.parchDeep,
-    opacity:         0.4,
-  },
-  node: {
-    width:           NODE_SIZE,
-    height:          NODE_SIZE,
-    borderRadius:    NODE_SIZE / 2,
-    borderWidth:     1.5,
-    borderColor:     C.parchDeep,
-    backgroundColor: C.parchment,
+  // ── Spine column ──────────────────────
+  spineCol: {
+    width:           SPINE_W,
     alignItems:      'center',
     justifyContent:  'center',
+    alignSelf:       'stretch',
     position:        'relative',
   },
-  nodeCurrent: {
-    width:           NODE_SIZE_CURR,
-    height:          NODE_SIZE_CURR,
-    borderRadius:    NODE_SIZE_CURR / 2,
-    backgroundColor: C.gold,
-    borderColor:     C.ink,
-    borderWidth:     2,
-  },
-  nodeSelected: {
-    borderColor:     C.inkLight,
-    borderWidth:     2,
-    backgroundColor: C.parchDark,
-  },
-  nodeVisited: {
-    backgroundColor: C.parchDark,
-    borderColor:     C.inkLight,
-  },
-  nodeFuture: {
-    opacity:         0.4,
-  },
-  nodeShop: {
-    borderColor:     C.gold,
-    backgroundColor: '#F5E8C0',
-    borderWidth:     2,
-  },
-  nodeBoss: {
-    borderColor:     C.blood,
-    backgroundColor: '#F5E0E0',
-    borderWidth:     2,
-  },
-  nodeText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    7,
-    color:       C.inkLight,
-    letterSpacing: 0,
-  },
-  nodeTextCurrent: {
-    fontSize:    8,
-    color:       C.ink,
-    fontFamily:  'Cinzel_600SemiBold',
-  },
-  nodeTextFuture: {
-    color: C.parchDeep,
-  },
-  nodeDot: {
+  spineLine: {
     position:        'absolute',
-    bottom:          1,
-    right:           1,
-    width:           6,
-    height:          6,
+    top:             0,
+    bottom:          0,
+    width:           2,
+    backgroundColor: 'rgba(184,134,11,0.22)',
+  },
+  dot: {
+    width:           DOT_W,
+    height:          DOT_W,
+    borderRadius:    DOT_W / 2,
+    borderWidth:     2,
+    borderColor:     'rgba(212,160,23,0.55)',
+    backgroundColor: '#1A0F05',
+    zIndex:          2,
+  },
+  dotCurrent: {
+    backgroundColor: C.goldLight,
+    borderColor:     C.goldLight,
+    width:           18,
+    height:          18,
+    borderRadius:    9,
+  },
+  dotVisited: {
+    borderColor:     'rgba(212,160,23,0.35)',
+    backgroundColor: '#2E1E08',
+  },
+  dotFuture: {
+    opacity: 0.35,
+  },
+
+  // ── Card ──────────────────────────────
+  card: {
+    flex:            1,
+    marginHorizontal: 8,
+    backgroundColor: C.bgCard,
+    borderWidth:     1,
+    borderColor:     'rgba(184,134,11,0.25)',
     borderRadius:    3,
+    padding:         10,
+    position:        'relative',
+    overflow:        'hidden',
   },
-
-  // Node legend
-  nodeLegend: {
-    flexDirection:   'row',
-    flexWrap:        'wrap',
-    gap:             10,
-    paddingHorizontal: 12,
-    paddingVertical:   6,
-    borderTopWidth:  1,
-    borderTopColor:  C.parchDeep,
-    backgroundColor: C.parchDark,
+  cardSpacer: {
+    flex: 1,
   },
-  nodeLegendItem: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
+  cardCurrent: {
+    borderColor:     C.goldLight,
+    shadowColor:     C.goldLight,
+    shadowOffset:    { width: 0, height: 0 },
+    shadowOpacity:   0.45,
+    shadowRadius:    8,
+    elevation:       6,
   },
-  legendNode: {
-    width:        14,
-    height:       14,
-    borderRadius: 7,
-    borderWidth:  1.5,
-    borderColor:  C.parchDeep,
-    backgroundColor: C.parchment,
+  cardSelected: {
+    borderColor:     'rgba(212,160,23,0.6)',
   },
-  nodeLegendText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    9,
-    color:       C.mist,
+  cardVisited: {
+    opacity:     0.65,
+    borderColor: 'rgba(184,134,11,0.12)',
+  },
+  cardFuture: {
+    opacity: 0.45,
+  },
+  cardHereTag: {
+    position:      'absolute',
+    top:           5,
+    right:         7,
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      7,
+    letterSpacing: 0.8,
+    color:         C.goldLight,
+    opacity:       0.85,
+  },
+  cardId: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      9,
+    color:         C.gold,
+    opacity:       0.65,
+    letterSpacing: 0.8,
+    marginBottom:  2,
+  },
+  cardName: {
+    fontFamily:    'Cinzel_600SemiBold',
+    fontSize:      12,
+    color:         C.parchment,
     letterSpacing: 0.3,
+    marginBottom:  4,
   },
-
-  // Detail card
-  detailCard: {
-    backgroundColor: C.parchment,
-    borderTopWidth:  2,
-    borderTopColor:  C.parchDeep,
-  },
-  detail: {
-    padding: 12,
-  },
-  detailHeader: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'flex-start',
-    marginBottom:   8,
-  },
-  detailHeaderLeft: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           10,
-    flex:          1,
-  },
-  detailId: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    11,
-    color:       C.mist,
-    letterSpacing: 0.5,
-    minWidth:    24,
-  },
-  detailName: {
-    fontFamily:  'Cinzel_600SemiBold',
-    fontSize:    15,
-    color:       C.ink,
-    letterSpacing: 0.5,
-  },
-  detailRegion: {
-    fontFamily:  'CrimsonText_400Regular_Italic',
-    fontSize:    12,
-    color:       C.mist,
-    marginTop:   1,
-  },
-  detailBadges: {
+  cardBadges: {
     flexDirection: 'row',
     flexWrap:      'wrap',
     gap:           4,
-    justifyContent:'flex-end',
-    maxWidth:      130,
+    marginBottom:  3,
   },
+  cardMobs: {
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize:   11,
+    color:      C.faded,
+  },
+
+  // ── Inline badge ──────────────────────
   badge: {
-    borderWidth:     1,
-    borderRadius:    2,
+    borderWidth:       1,
+    borderRadius:      2,
     paddingHorizontal: 5,
     paddingVertical:   2,
   },
   badgeText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    9,
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      8,
     letterSpacing: 0.5,
+  },
+
+  // ── Destination footer ────────────────
+  dest: {
+    alignItems:    'center',
+    paddingTop:    28,
+    paddingBottom: 16,
+  },
+  destIcon: {
+    fontSize:     28,
+    color:        C.blood,
+    marginBottom:  6,
+  },
+  destName: {
+    fontFamily:    'Cinzel_600SemiBold',
+    fontSize:      13,
+    color:         C.blood,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+  },
+  destSub: {
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize:   13,
+    color:      'rgba(200,174,138,0.5)',
+    marginTop:   5,
+  },
+
+  // ── Detail panel ──────────────────────
+  detailPanel: {
+    position:        'absolute',
+    bottom:          0,
+    left:            0,
+    right:           0,
+    maxHeight:       '62%',
+    backgroundColor: '#0D0702',
+    borderTopWidth:  2,
+    borderTopColor:  C.gold,
+    paddingTop:      16,
+    paddingHorizontal: 20,
+    shadowColor:     '#000',
+    shadowOffset:    { width: 0, height: -4 },
+    shadowOpacity:   0.6,
+    shadowRadius:    12,
+    elevation:       20,
+  },
+  detailClose: {
+    position: 'absolute',
+    top:      14,
+    right:    18,
+    zIndex:   10,
+    padding:   4,
+  },
+  detailCloseText: {
+    fontFamily: 'Cinzel_400Regular',
+    fontSize:   16,
+    color:      C.gold,
+  },
+  detailId: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      10,
+    color:         C.gold,
+    opacity:       0.65,
+    letterSpacing: 1,
+    marginBottom:  2,
+  },
+  detailName: {
+    fontFamily:    'Cinzel_600SemiBold',
+    fontSize:      20,
+    color:         C.parchment,
+    letterSpacing: 0.5,
+    marginBottom:  2,
+  },
+  detailRegion: {
+    fontFamily:    'CrimsonText_400Regular_Italic',
+    fontSize:      13,
+    color:         C.mist,
+    marginBottom:  10,
+  },
+  detailBadges: {
+    flexDirection: 'row',
+    flexWrap:      'wrap',
+    gap:           6,
+    marginBottom:  12,
   },
   detailDivider: {
     height:          1,
-    backgroundColor: C.parchDeep,
-    marginBottom:    8,
+    backgroundColor: 'rgba(184,134,11,0.25)',
+    marginBottom:    12,
   },
   detailCols: {
     flexDirection: 'row',
-    gap:           12,
-    marginBottom:  6,
+    gap:           16,
+    marginBottom:  10,
   },
   detailCol: {
     flex: 1,
   },
-  detailColTitle: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    9,
-    color:       C.mist,
-    letterSpacing: 1,
-    marginBottom:  5,
-    textTransform: 'uppercase',
+  detailColLabel: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      8,
+    letterSpacing: 1.5,
+    color:         C.gold,
+    opacity:       0.7,
+    marginBottom:  6,
   },
   detailNone: {
-    fontFamily:  'CrimsonText_400Regular_Italic',
-    fontSize:    12,
-    color:       C.mist,
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize:   13,
+    color:      C.mist,
   },
   detailLine: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
-    marginBottom:  3,
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            6,
+    marginBottom:   4,
   },
   detailLineIcon: {
-    fontSize:    10,
-    color:       C.mist,
-    width:       12,
+    fontSize: 10,
+    color:    C.mist,
+    width:    14,
   },
   detailLineText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    10,
-    color:       C.ink,
-    flex:        1,
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      11,
+    color:         C.parchDark,
+    flex:          1,
+    letterSpacing: 0.2,
   },
   detailLineSub: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    9,
-    color:       C.mist,
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      10,
+    color:         C.mist,
     letterSpacing: 0.3,
   },
-  detailFlavorText: {
-    fontFamily:  'CrimsonText_400Regular_Italic',
-    fontSize:    12,
-    color:       C.mist,
-    lineHeight:  18,
-    marginTop:   6,
+  detailFlavour: {
+    fontFamily:    'CrimsonText_400Regular_Italic',
+    fontSize:      14,
+    color:         '#C8AE8A',
+    lineHeight:    22,
+    marginTop:     8,
+    paddingTop:    10,
     borderTopWidth: 1,
-    borderTopColor: C.parchDeep,
-    paddingTop:  6,
+    borderTopColor:'rgba(184,134,11,0.2)',
+    paddingLeft:   12,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(184,134,11,0.35)',
   },
   shopHint: {
-    marginTop:       6,
-    backgroundColor: C.gold + '18',
-    borderWidth:     1,
-    borderColor:     C.gold + '55',
-    borderRadius:    2,
-    paddingHorizontal: 8,
-    paddingVertical:   4,
+    marginTop:         10,
+    backgroundColor:   'rgba(184,134,11,0.1)',
+    borderWidth:       1,
+    borderColor:       'rgba(184,134,11,0.35)',
+    borderRadius:      2,
+    paddingHorizontal: 10,
+    paddingVertical:    6,
   },
   shopHintText: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    10,
-    color:       C.gold,
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      10,
+    color:         C.gold,
     letterSpacing: 0.3,
   },
 });
