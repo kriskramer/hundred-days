@@ -37,10 +37,11 @@ export interface DialogueCondition {
   minGold?:                number;
   minFood?:                number;
   locationId?:             number;
+  locationIds?:            number[];     // fires at any of these locations
   minLocationId?:          number;
   maxLocationId?:          number;
   dayRange?:               [number, number];
-  notAlreadyMet?:          boolean;      // fires at most once per run
+  notAlreadyMet?:          boolean;      // fires at most once per location per run
   requiredFlag?:           string;       // global story flag must be set
   forbiddenFlag?:          string;       // global story flag must NOT be set
 }
@@ -110,6 +111,7 @@ export interface Dialogue {
 // ─────────────────────────────────────────
 
 export interface DialogueSessionOutcome {
+  dialogueId:        string;
   reputationDelta:   number;
   moraleDelta:       number;
   xpGained:          number;
@@ -170,7 +172,7 @@ export class DialogueEngine {
       currentNodeId: dialogue.rootNodeId,
       choiceHistory: [],
       isComplete:    false,
-      outcome:       emptyOutcome(),
+      outcome:       emptyOutcome(dialogue.id),
     };
   }
 
@@ -273,7 +275,7 @@ export class DialogueEngine {
     if (c.requiredFlag && !hasStoryFlag(c.requiredFlag)) return false;
     if (c.forbiddenFlag && hasStoryFlag(c.forbiddenFlag)) return false;
 
-    if (c.notAlreadyMet && game.firedEventIds.has(this.dialogue.id)) return false;
+    if (c.notAlreadyMet && game.firedEventIds.has(`${this.dialogue.id}_loc${game.currentLocationId}`)) return false;
 
     return true;
   }
@@ -292,8 +294,9 @@ export class DialogueEngine {
   }
 }
 
-function emptyOutcome(): DialogueSessionOutcome {
+function emptyOutcome(dialogueId = ''): DialogueSessionOutcome {
   return {
+    dialogueId,
     reputationDelta: 0,
     moraleDelta:     0,
     xpGained:        0,
@@ -315,7 +318,7 @@ export const DIALOGUES: Dialogue[] = [
     id:          'rex_the_dog',
     title:       'Rex Wants to Come',
     triggerType: 'location_enter',
-    triggerConditions: { locationId: 2, notAlreadyMet: true },
+    triggerConditions: { locationIds: [2, 3, 4], notAlreadyMet: true, forbiddenCompanionId: 'rex_the_dog' },
     rootNodeId:  'rex_01',
     repeatable:  false,
     tags:        ['companion', 'early_game', 'animal'],
@@ -856,12 +859,16 @@ export function findDialogueForLocation(
   for (const d of DIALOGUES) {
     if (d.triggerType !== 'location_enter') continue;
     const c = d.triggerConditions;
-    if (c.locationId !== undefined && c.locationId !== locationId) continue;
+    if (c.locationId  !== undefined && c.locationId  !== locationId)       continue;
+    if (c.locationIds !== undefined && !c.locationIds.includes(locationId)) continue;
     if (c.minLocationId !== undefined && locationId < c.minLocationId) continue;
     if (c.maxLocationId !== undefined && locationId > c.maxLocationId) continue;
-    if (c.notAlreadyMet && gameState.firedEventIds.has(d.id)) continue;
+    // notAlreadyMet uses a per-location key so a multi-location companion can
+    // reappear at each stop until recruited or the window passes.
+    if (c.notAlreadyMet && gameState.firedEventIds.has(`${d.id}_loc${locationId}`)) continue;
     if (c.minReputation !== undefined && gameState.reputation.value < c.minReputation) continue;
     if (c.maxReputation !== undefined && gameState.reputation.value > c.maxReputation) continue;
+    if (c.forbiddenCompanionId && gameState.companions.some(co => co.id === c.forbiddenCompanionId)) continue;
     return d;
   }
   return null;

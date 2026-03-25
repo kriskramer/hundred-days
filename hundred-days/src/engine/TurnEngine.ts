@@ -120,6 +120,13 @@ export class TurnEngine {
     this.setState({ companions: [...this.state.companions, companion] });
   }
 
+  /** Mark a location_enter dialogue as seen at the given location. */
+  markDialogueSeen(dialogueId: string, locationId: number): void {
+    const newFired = new Set(this.state.firedEventIds);
+    newFired.add(`${dialogueId}_loc${locationId}`);
+    this.setState({ firedEventIds: newFired });
+  }
+
   /**
    * Resolve combat that was initiated directly from a location (not via the
    * event system).  Applies the result, marks the location cleared, and saves.

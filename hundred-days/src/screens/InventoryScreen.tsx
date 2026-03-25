@@ -128,6 +128,20 @@ export function InventoryScreen({ gameState, onToast }: Props) {
     const def = getItemDef(itemId);
     if (!def) return;
 
+    // Combat-only items (throwables and temp-buff draughts) cannot be used
+    // from the pack screen — they are consumed during combat via the Skill action.
+    const fx = def.activeEffect;
+    if (fx && (
+      fx.combatDamage !== undefined ||
+      fx.combatEffect !== undefined ||
+      fx.tempAttackBonus !== undefined ||
+      fx.tempDefenseBonus !== undefined ||
+      fx.tempSpeedBonus !== undefined
+    )) {
+      onToast('Can only be used in combat.');
+      return;
+    }
+
     Alert.alert(
       `Use ${def.name}?`,
       def.description,

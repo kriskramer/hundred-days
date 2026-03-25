@@ -1,5 +1,5 @@
 import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
-import { GameState, PlayerAction, WeatherType } from '@engine/types';
+import { GameState, PlayerAction, WeatherType, CompanionArchetype } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationRandomText } from '@data/locations';
 import { hasEligibleDialogue } from '@engine/EventSystem';
@@ -52,8 +52,8 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
         borderBottomWidth: 1,
         borderBottomColor: '#C8B89A',
       }}>
-        <StatBar label="Morale" value={gameState.morale.value} />
         <StatBar label="Health" value={gameState.player.health} />
+        <StatBar label="Morale" value={gameState.morale.value} />
       </View>
 
       <ScrollView
@@ -122,20 +122,13 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
 
       {/* Companions */}
       {gameState.companions.length > 0 && (
-        <View className="mb-4">
-          <SectionHeader label="Companions" right={`${gameState.companions.length} travelling`} />
-          <View className="flex-row flex-wrap gap-2">
+        <View style={{ marginBottom: 16 }}>
+          <SectionHeader label="Companions" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2 }}>
             {gameState.companions.map(c => (
-              <View key={c.id} className="flex-row items-center gap-2 bg-parchment-dark border border-parchment-deep px-2 py-1 rounded-sm">
-                <View className="w-6 h-6 rounded-full bg-ink items-center justify-center">
-                  <Text className="font-display text-parchment" style={{ fontSize: 9 }}>
-                    {c.name.slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <Text className="font-display text-ink" style={{ fontSize: 12 }}>{c.name}</Text>
-              </View>
+              <CompanionIcon key={c.id} name={c.name} archetype={c.archetype} loyalty={c.loyalty.value} />
             ))}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -163,6 +156,38 @@ function statColor(value: number): string {
   if (value >= 50) return '#C8A020'; // yellow
   if (value >= 25) return '#C86A20'; // orange
   return '#B83030';                  // red
+}
+
+const ARCHETYPE_COLOR: Record<CompanionArchetype, string> = {
+  [CompanionArchetype.Warrior]:   '#8B1A1A',
+  [CompanionArchetype.Scout]:     '#3D6B4A',
+  [CompanionArchetype.Healer]:    '#2E6B8B',
+  [CompanionArchetype.Rogue]:     '#4A3D6B',
+  [CompanionArchetype.Sage]:      '#7C6B2E',
+  [CompanionArchetype.Bard]:      '#7C3D6B',
+  [CompanionArchetype.Mercenary]: '#5C4A3D',
+  [CompanionArchetype.Animal]:    '#4A6B3D',
+};
+
+function CompanionIcon({ name, archetype, loyalty }: { name: string; archetype: CompanionArchetype; loyalty: number }) {
+  const color    = ARCHETYPE_COLOR[archetype];
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  return (
+    <View style={{ alignItems: 'center', width: 56 }}>
+      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#C8B89A' }}>
+        <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 14, color: '#F5EAD6' }}>
+          {initials}
+        </Text>
+      </View>
+      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 9, color: '#1A1208', marginTop: 4, textAlign: 'center', letterSpacing: 0.5 }} numberOfLines={2}>
+        {name}
+      </Text>
+      <View style={{ width: 36, height: 3, backgroundColor: '#C8B89A', borderRadius: 2, marginTop: 3 }}>
+        <View style={{ width: `${loyalty}%`, height: '100%', backgroundColor: color, borderRadius: 2, opacity: 0.7 }} />
+      </View>
+    </View>
+  );
 }
 
 function StatBar({ label, value }: { label: string; value: number }) {

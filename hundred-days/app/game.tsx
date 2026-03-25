@@ -104,6 +104,11 @@ export default function GameScreen() {
   }
 
   function handleDialogueComplete(outcome: DialogueSessionOutcome) {
+    // Mark the dialogue as seen at this location so it won't re-trigger here
+    if (outcome.dialogueId && gameState) {
+      engineRef.current?.markDialogueSeen(outcome.dialogueId, gameState.currentLocationId);
+    }
+
     // Recruit any companions before the turn engine continues
     for (const effect of outcome.companionEffects) {
       if (effect.type === 'recruit') {
