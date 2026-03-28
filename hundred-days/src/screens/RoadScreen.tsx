@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
-import { GameState, PlayerAction, WeatherType, CompanionArchetype } from '@engine/types';
+import { GameState, PlayerAction, WeatherType, CompanionArchetype, TurnRecord } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationRandomText } from '@data/locations';
 import { hasEligibleDialogue } from '@engine/EventSystem';
@@ -52,7 +53,7 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
         borderBottomWidth: 1,
         borderBottomColor: '#C8B89A',
       }}>
-        <StatBar label="Health" value={gameState.player.health} />
+        <StatBar label="Health" value={gameState.player.health} max={gameState.player.stats.maxHealth} />
         <StatBar label="Morale" value={gameState.morale.value} />
       </View>
 
@@ -143,6 +144,11 @@ export function RoadScreen({ gameState, engine, onToast, onOpenShop }: Props) {
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default',   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
         { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default',   onPress: () => submit({ action: PlayerAction.Camp                                           }) },
       ]} />
+
+      {/* Latest journal entry */}
+      {gameState.turnHistory.length > 0 && (
+        <LatestJournalEntry entry={gameState.turnHistory[gameState.turnHistory.length - 1]} />
+      )}
       </View>
       </ScrollView>
     </View>
@@ -190,8 +196,8 @@ function CompanionIcon({ name, archetype, loyalty }: { name: string; archetype: 
   );
 }
 
-function StatBar({ label, value }: { label: string; value: number }) {
-  const pct   = Math.min(Math.max(value, 0), 100);
+function StatBar({ label, value, max = 100 }: { label: string; value: number; max?: number }) {
+  const pct   = Math.min(Math.max((value / max) * 100, 0), 100);
   const color = statColor(pct);
 
   return (
@@ -294,5 +300,61 @@ function ActionButton({ label, sub, variant, onPress }: ActionDef) {
         {sub}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+const ACTION_LABEL: Record<PlayerAction, string> = {
+  [PlayerAction.Move]:  'Travelled',
+  [PlayerAction.Hunt]:  'Foraged',
+  [PlayerAction.Rest]:  'Rested',
+  [PlayerAction.Trade]: 'Traded',
+  [PlayerAction.Rally]: 'Rallied',
+  [PlayerAction.Camp]:  'Made Camp',
+};
+
+function TypewriterText({ text, style }: { text: string; style?: object }) {
+  const [displayed, setDisplayed] = useState('');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setDisplayed('');
+    if (!text) return;
+    let i = 0;
+    intervalRef.current = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+      }
+    }, 22);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [text]);
+
+  return <Text style={style}>{displayed}</Text>;
+}
+
+function LatestJournalEntry({ entry }: { entry: TurnRecord }) {
+  const narrative = entry.narrativeSummary || 'The day passed without incident.';
+  return (
+    <View style={{ marginTop: 20 }}>
+      <SectionHeader label="Last Entry" />
+      <View style={{ borderWidth: 1, borderColor: '#C8B89A', borderRadius: 3, padding: 12, backgroundColor: '#EDE4CF' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E' }}>
+            DAY {entry.dayNumber}
+          </Text>
+          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#6B7C6E' }}>
+            {ACTION_LABEL[entry.action].toUpperCase()}
+          </Text>
+        </View>
+        <TypewriterText
+          text={narrative}
+          style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: '#1A1208' }}
+        />
+      </View>
+    </View>
   );
 }

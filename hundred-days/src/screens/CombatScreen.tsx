@@ -479,7 +479,7 @@ function ResultOverlay({
           style={[s.resultBtn, { backgroundColor: isGood ? C.gold : C.blood }]}
         >
           <Text style={[s.resultBtnText, { color: isGood ? C.ink : C.parchment }]}>
-            {result.outcome === 'victory'    ? 'CONTINUE THE ROAD'
+            {result.outcome === 'victory'    ? 'BACK TO THE ROAD'
            : result.outcome === 'negotiated' ? 'MOVE ON'
            : result.outcome === 'fled'       ? 'REGROUP'
            :                                  'PRESS ON'}
@@ -511,7 +511,9 @@ function buildEnemiesFromContext(event: GameEvent | null, game: GameState) {
 
 function getEncounterText(enemies: EnemyCombatant[]): string {
   const def = ENEMY_DEFINITIONS.find(d => d.id === enemies[0]?.enemyId);
-  return def?.encounterText ?? 'Something threatens you on the road.';
+  if (!def) return 'Something threatens you on the road.';
+  const texts = def.encounterText;
+  return texts[Math.floor(Math.random() * texts.length)];
 }
 
 function canNegotiate(enemies: EnemyCombatant[]): boolean {

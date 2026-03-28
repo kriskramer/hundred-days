@@ -278,7 +278,7 @@ export default function GameScreen() {
       <LevelUpModal
         visible={!!levelUpChoices}
         choices={levelUpChoices ?? []}
-        playerLevel={(gameState.player.level ?? 0) + 1}
+        playerLevel={gameState.player.level ?? 0}
         onChoose={handleLevelUpChoice}
       />
 

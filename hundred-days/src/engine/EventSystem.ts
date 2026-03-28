@@ -249,13 +249,58 @@ export const EVENT_DEFINITIONS: GameEvent[] = [
     tags: ['morale', 'dread'],
   },
 
-  // ── Final boss ────────────────────────────────────────────
+  // ── Boss encounters ───────────────────────────────────────
+
+  {
+    id: 'boss_orc_warchief',
+    type: EventType.BossEncounter,
+    resolutionType: ResolutionType.Interactive,
+    name: 'The Orc Warchief',
+    description: 'The warlord who holds Samson\'s Bridge.',
+    conditions: {
+      probability: 1.0,   // always fires — force-queued by TurnEngine at loc 32
+      minLocationId: 32,
+    },
+    interactiveHandlerId: 'combat_handler',
+    repeatable: false,
+    tags: ['boss', 'combat'],
+  },
+
+  {
+    id: 'boss_lich_of_vorishy',
+    type: EventType.BossEncounter,
+    resolutionType: ResolutionType.Interactive,
+    name: 'The Lich of Vorishy',
+    description: 'An ancient sorcerer who refused death.',
+    conditions: {
+      probability: 1.0,   // always fires — force-queued by TurnEngine at loc 65
+      minLocationId: 65,
+    },
+    interactiveHandlerId: 'combat_handler',
+    repeatable: false,
+    tags: ['boss', 'combat'],
+  },
+
+  {
+    id: 'boss_white_horseman',
+    type: EventType.BossEncounter,
+    resolutionType: ResolutionType.Interactive,
+    name: 'The White Horseman',
+    description: 'One of Roachak\'s heralds. It has been following you.',
+    conditions: {
+      probability: 1.0,   // always fires — force-queued by TurnEngine at loc 93
+      minLocationId: 93,
+    },
+    interactiveHandlerId: 'combat_handler',
+    repeatable: false,
+    tags: ['boss', 'combat'],
+  },
 
   {
     id: 'boss_dread_sovereign',
     type: EventType.BossEncounter,
     resolutionType: ResolutionType.Interactive,
-    name: 'The Dread Sovereign',
+    name: 'Roachak',
     description: 'The final confrontation at the Inner Castle.',
     conditions: {
       probability: 1.0,   // always fires — force-queued by TurnEngine at loc 125

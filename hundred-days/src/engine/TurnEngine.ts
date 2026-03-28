@@ -7,6 +7,7 @@ import {
   StatDelta,
   TurnRecord,
   ResolutionType,
+  EventType,
   WeatherType,
   MoraleTier,
   CombatResult,
@@ -64,12 +65,19 @@ export type ActionParams =
 // TurnEngine
 // ─────────────────────────────────────────
 
+const BOSS_EVENT_MAP: Record<number, string> = {
+  32:  'boss_orc_warchief',
+  65:  'boss_lich_of_vorishy',
+  93:  'boss_white_horseman',
+  125: 'boss_dread_sovereign',
+};
+
 export class TurnEngine {
   private state:    GameState;
   private onStateChange:  (state: GameState) => void;
   private onAwaitInput:   (event: GameEvent)  => void;
   private onLevelUp:      (choices: LevelUpChoice[]) => void;
-  private bossFightResult: CombatResult | null = null;
+  private bossResults: Map<number, CombatResult> = new Map();
 
   constructor(
     initialState:   GameState,
@@ -96,9 +104,17 @@ export class TurnEngine {
   /** Called after an interactive event (combat / dialogue) resolves. */
   async resolveInteractiveEvent(result: CombatResult): Promise<void> {
     if (this.state.currentTurn?.phase !== TurnPhase.AwaitingPlayer) return;
-    // Record boss fight result so checkWinLoss can use it
-    if (this.state.currentTurn.activeInteractiveEvent?.id === 'boss_dread_sovereign') {
-      this.bossFightResult = result;
+    // Record boss fight results; mark location cleared on victory
+    const eventId = this.state.currentTurn.activeInteractiveEvent?.id ?? '';
+    const bossLoc = Object.entries(BOSS_EVENT_MAP).find(([, id]) => id === eventId)?.[0];
+    if (bossLoc) {
+      const loc = Number(bossLoc);
+      this.bossResults.set(loc, result);
+      if (result.outcome === 'victory') {
+        const newCleared = new Set(this.state.clearedCombatLocations);
+        newCleared.add(loc);
+        this.setState({ clearedCombatLocations: newCleared });
+      }
     }
     this.applyEventResult(result);
     await this.continueFromPhase(TurnPhase.ResolvingEvents);
@@ -168,6 +184,7 @@ export class TurnEngine {
 
     this.setPhase(TurnPhase.SamplingEvents);
     this.sampleAndQueueEvents();
+    this.maybeInjectDangerCombat(params);
 
     this.setPhase(TurnPhase.ResolvingEvents);
     await this.processEventQueue();
@@ -321,7 +338,14 @@ export class TurnEngine {
       * moraleFoodMult
       * itemFoodMult;
 
-    const newLoc    = Math.min(this.state.currentLocationId + locations, 125);
+    const currentLoc = this.state.currentLocationId;
+    const rawNewLoc  = Math.min(currentLoc + locations, 125);
+    // Stop at the nearest uncleared boss location in the path
+    const bossCheckpoint = Object.keys(BOSS_EVENT_MAP)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .find(b => b > currentLoc && b <= rawNewLoc && !this.state.clearedCombatLocations.has(b));
+    const newLoc = bossCheckpoint ?? rawNewLoc;
 
     this.addDelta({
       source:    'move',
@@ -448,9 +472,11 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private sampleAndQueueEvents(): void {
-    // At location 125, force the boss fight instead of normal events
-    if (this.state.currentLocationId >= 125 && !this.bossFightResult) {
-      const bossEvent = EVENT_DEFINITIONS.find(e => e.id === 'boss_dread_sovereign');
+    // At a boss location, force the boss fight instead of normal events
+    const currentLoc = this.state.currentLocationId;
+    const bossEventId = BOSS_EVENT_MAP[currentLoc];
+    if (bossEventId && !this.state.clearedCombatLocations.has(currentLoc)) {
+      const bossEvent = EVENT_DEFINITIONS.find(e => e.id === bossEventId);
       if (bossEvent) {
         this.updateTurn({ eventsQueue: [bossEvent] });
         return;
@@ -458,6 +484,32 @@ export class TurnEngine {
     }
     const events = sampleEventsForTurn(this.state);
     this.updateTurn({ eventsQueue: events });
+  }
+
+  private maybeInjectDangerCombat(params: ActionParams): void {
+    if (params.action !== PlayerAction.Hunt && params.action !== PlayerAction.Camp) return;
+
+    const location = getLocation(this.state.currentLocationId);
+    const hasDanger = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
+                   && !this.state.clearedCombatLocations.has(this.state.currentLocationId);
+    if (!hasDanger) return;
+
+    const verb = params.action === PlayerAction.Hunt ? 'foraging' : 'making camp';
+    this.addLog(`You are ambushed while ${verb}.`);
+
+    const ambush: GameEvent = {
+      id:             `location_ambush_loc${this.state.currentLocationId}_day${this.state.dayNumber}`,
+      type:           EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name:           'Ambushed',
+      description:    'The danger at this location takes its chance.',
+      conditions:     { probability: 1.0 },
+      repeatable:     true,
+      tags:           ['combat'],
+    };
+
+    const current = this.state.currentTurn?.eventsQueue ?? [];
+    this.updateTurn({ eventsQueue: [ambush, ...current] });
   }
 
   private async processEventQueue(): Promise<void> {
@@ -682,17 +734,25 @@ export class TurnEngine {
       return;
     }
 
-    if (currentLocationId >= 125) {
-      if (!this.bossFightResult) {
-        // Boss fight hasn't happened yet — sampleAndQueueEvents will queue it
-        // on the next turn. Nothing to do here.
+    // Check boss fight outcomes
+    const bossDefeatMessages: Record<number, string> = {
+      32:  'The Orc Warchief holds the bridge. The road ends here.',
+      65:  'The Lich of Vorishy claims another soul. The world grows darker.',
+      93:  'The White Horseman\'s chill finds every weakness. You will not rise.',
+      125: 'Roachak was too powerful. The world falls into shadow.',
+    };
+    for (const [locStr, result] of this.bossResults) {
+      if (result.outcome !== 'victory') {
+        this.endRun('defeat', bossDefeatMessages[locStr] ?? 'The road ends here.');
         return;
       }
-      if (this.bossFightResult.outcome === 'victory') {
-        this.endRun('victory', 'The Dread Sovereign falls. The shadow lifts. The world breathes again.');
-      } else {
-        this.endRun('defeat', 'The Dread Sovereign was too powerful. The world falls into shadow.');
-      }
+    }
+    if (currentLocationId >= 125 && this.state.clearedCombatLocations.has(125)) {
+      this.endRun('victory', 'Roachak falls. The shadow lifts. The world breathes again.');
+      return;
+    }
+    if (currentLocationId >= 125 && !this.bossResults.has(125)) {
+      // Boss fight hasn't happened yet — sampleAndQueueEvents will queue it.
       return;
     }
 

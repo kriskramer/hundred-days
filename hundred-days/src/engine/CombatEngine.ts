@@ -33,7 +33,7 @@ export interface EnemyDefinition {
   xpReward:             number;
   goldReward:           number;
   foodReward:           number;
-  encounterText:        string;
+  encounterText:        string[];
   defeatText:           string;
   victoryText:          string;
 }
@@ -162,7 +162,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 0,
     xpReward: 5, goldReward: 0, foodReward: 0,
-    encounterText: 'A swarm of rats boils up from a drain, teeth bared.',
+    encounterText: [
+      'A swarm of rats boils up from a drain, teeth bared.',
+      'Dozens of small eyes catch the light. Then they rush.',
+      'The scratching under the floorboards gets louder. Then it gets closer.',
+    ],
     defeatText: 'The rats scatter back into the dark.',
     victoryText: 'You\'ve been overwhelmed by rats. Embarrassing, but painful.',
   },
@@ -177,7 +181,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 2,
     xpReward: 8, goldReward: 0, foodReward: 0,
-    encounterText: 'Something large drops from the branches above you.',
+    encounterText: [
+      'Something large drops from the branches above you.',
+      'You walk through a web. The shaking brings its owner.',
+      'Eight eyes open in the darkness ahead. They don\'t blink.',
+    ],
     defeatText: 'The spider curls and goes still.',
     victoryText: 'The venom does its work before you can find help.',
   },
@@ -191,7 +199,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 0,
     xpReward: 8, goldReward: 0, foodReward: 2,
-    encounterText: 'A pack of gaunt dogs circles you, growling low.',
+    encounterText: [
+      'A pack of gaunt dogs circles you, growling low.',
+      'Something has been following you. Several somethings.',
+      'You hear padding paws on all sides before you see them.',
+    ],
     defeatText: 'The pack breaks and retreats into the brush.',
     victoryText: 'The pack brings you down through sheer numbers.',
   },
@@ -207,7 +219,12 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: false, physicalResistance: 0, moraleDamageOnSight: 3,
     xpReward: 18, goldReward: 10, foodReward: 1,
-    encounterText: 'Armed figures step out from behind the rocks. "Toll road," one says.',
+    encounterText: [
+      'Armed figures step out from behind the rocks. "Toll road," one says.',
+      '"Empty your pockets and we let you walk." The blade makes it less optional.',
+      'A figure drops from the tree above. Two more step out of the brush.',
+      'You smell them before you see them. Then they\'re everywhere.',
+    ],
     defeatText: 'The bandits cut their losses and scatter.',
     victoryText: 'There were more of them than you counted. The road takes you.',
   },
@@ -222,7 +239,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 2,
     xpReward: 20, goldReward: 0, foodReward: 3,
-    encounterText: 'Yellow eyes in the dark. Then more yellow eyes.',
+    encounterText: [
+      'Yellow eyes in the dark. Then more yellow eyes.',
+      'The howl comes from your left. The pack comes from your right.',
+      'A wolf steps into the moonlight ahead. It is not alone.',
+    ],
     defeatText: 'The wolves melt back into the forest.',
     victoryText: 'The pack closes in from all sides.',
   },
@@ -237,7 +258,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: false, physicalResistance: 0, moraleDamageOnSight: 0,
     xpReward: 22, goldReward: 8, foodReward: 0,
-    encounterText: 'A Qanisi warrior steps into the road, hand on weapon.',
+    encounterText: [
+      'A Qanisi warrior steps into the road, hand on weapon.',
+      '"This land is not yours to cross." The warrior draws.',
+      'The warrior emerges from the treeline. No words. Just a raised blade.',
+    ],
     defeatText: 'The warrior steps aside and lets you pass.',
     victoryText: 'The warrior\'s discipline outlasts your endurance.',
   },
@@ -252,7 +277,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: false, physicalResistance: 0, moraleDamageOnSight: 0,
     xpReward: 16, goldReward: 5, foodReward: 0,
-    encounterText: 'High-pitched cackling from the undergrowth. Then small shapes, rushing.',
+    encounterText: [
+      'High-pitched cackling from the undergrowth. Then small shapes, rushing.',
+      'Something throws a rock. Then everything starts throwing rocks.',
+      '"Get it! Get it! Get it!" They\'re already on you.',
+    ],
     defeatText: 'The goblins trip over themselves retreating, shrieking.',
     victoryText: 'There were simply too many of them.',
   },
@@ -267,7 +296,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: false, physicalResistance: 0, moraleDamageOnSight: 5,
     xpReward: 28, goldReward: 12, foodReward: 0,
-    encounterText: 'An orc steps out from behind a ruin. It doesn\'t say anything.',
+    encounterText: [
+      'An orc steps out from behind a ruin. It doesn\'t say anything.',
+      'The orc was waiting. It has been waiting a long time.',
+      'Three of them. They fan out to cut off your retreat.',
+    ],
     defeatText: 'The orc goes down hard, shaking the ground.',
     victoryText: 'The orc\'s strike ends it.',
   },
@@ -282,7 +315,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 8,
     xpReward: 38, goldReward: 5, foodReward: 0,
-    encounterText: 'The ground shakes before you see it. Then you see it.',
+    encounterText: [
+      'The ground shakes before you see it. Then you see it.',
+      'The trees ahead have been snapped like twigs. Fresh.',
+      'It hears you long before you hear it. It was ready.',
+    ],
     defeatText: 'The ogre crashes to its knees, then sideways.',
     victoryText: 'One swing. That\'s all it took.',
   },
@@ -297,7 +334,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0.4, moraleDamageOnSight: 10,
     xpReward: 35, goldReward: 0, foodReward: 0,
-    encounterText: 'The temperature drops. A shape that isn\'t quite a shape drifts toward you.',
+    encounterText: [
+      'The temperature drops. A shape that isn\'t quite a shape drifts toward you.',
+      'Your torch gutters and dies. Something in the dark notices.',
+      'The whispers started miles back. They\'ve been leading you here.',
+    ],
     defeatText: 'The wraith tears apart with a sound like a long exhale.',
     victoryText: 'Cold. Darkness. The road ends here.',
   },
@@ -312,7 +353,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0.2, moraleDamageOnSight: 8,
     xpReward: 30, goldReward: 0, foodReward: 0,
-    encounterText: 'Something that used to be a person lurches toward you.',
+    encounterText: [
+      'Something that used to be a person lurches toward you.',
+      'The smell reaches you first. Then the sounds. Then they do.',
+      'There\'s one. Then there are five. They were waiting in the ditch.',
+    ],
     defeatText: 'It collapses and stays down. Finally.',
     victoryText: 'There were too many and they would not stop.',
   },
@@ -327,7 +372,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 6,
     xpReward: 40, goldReward: 15, foodReward: 2,
-    encounterText: 'Soldiers march toward you in formation. Their eyes are wrong.',
+    encounterText: [
+      'Soldiers march toward you in formation. Their eyes are wrong.',
+      'Roachak\'s mark is burned into their armor. They don\'t slow down.',
+      'They don\'t speak. They don\'t hesitate. They just advance.',
+    ],
     defeatText: 'The thrall crumples. Whatever was left of the person inside is released.',
     victoryText: 'The formation breaks over you like a wave.',
   },
@@ -343,15 +392,63 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0.5, moraleDamageOnSight: 15,
     xpReward: 55, goldReward: 0, foodReward: 0,
-    encounterText: 'A pale rider crests the hill and turns its hollow gaze on you.',
+    encounterText: [
+      'A pale rider crests the hill and turns its hollow gaze on you.',
+      'The horse makes no sound. Neither does its rider. They have been behind you for days.',
+      'The horizon dims where it rides. It has found what it was looking for.',
+    ],
     defeatText: 'The Horseman dissolves with a sound like wind through a keyhole.',
     victoryText: 'The Horseman\'s chill finds every weakness.',
+  },
+
+  // ── Mid-bosses ────────────────────────────────────────────
+
+  {
+    id: 'orc_warchief', name: 'The Orc Warchief',
+    description: 'The warlord who holds Samson\'s Bridge. Armies have broken against him.',
+    baseHP: 65, baseAttack: 17, baseDefense: 10, baseSpeed: 5,
+    behavior: EnemyBehavior.Aggressive, minLocationId: 32, scaling: 1.0,
+    abilities: [
+      { id: 'warchief_strike', name: 'Warchief Strike', probability: 0.30, damageMultiplier: 1.9 },
+      { id: 'war_drum',        name: 'War Drum',        probability: 0.25, damageMultiplier: 0.3, specialEffect: SpecialEffect.PackCall },
+      { id: 'shield_wall',     name: 'Shield Wall',     probability: 0.20, damageMultiplier: 0,   specialEffect: SpecialEffect.Stun },
+    ],
+    immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 10,
+    xpReward: 50, goldReward: 20, foodReward: 3,
+    encounterText: [
+      'The bridge is blocked by a figure twice your height. He doesn\'t move.',
+      'The Orc Warchief stands at the centre of the bridge, arms crossed, waiting.',
+      '"No one crosses. Not today. Not you." He draws a weapon the size of a door.',
+    ],
+    defeatText: 'The Warchief crashes to his knees. The bridge is yours.',
+    victoryText: 'The Warchief\'s blow sends you over the railing.',
+  },
+
+  {
+    id: 'lich_of_vorishy', name: 'The Lich of Vorishy',
+    description: 'An ancient sorcerer who refused death. The bane the road is named for.',
+    baseHP: 90, baseAttack: 20, baseDefense: 12, baseSpeed: 6,
+    behavior: EnemyBehavior.Spectral, minLocationId: 65, scaling: 1.0,
+    abilities: [
+      { id: 'soul_rend',      name: 'Soul Rend',      probability: 0.35, damageMultiplier: 1.3, specialEffect: SpecialEffect.DrainHealth },
+      { id: 'dread_gaze',     name: 'Dread Gaze',     probability: 0.30, damageMultiplier: 0,   specialEffect: SpecialEffect.MoraleDamage, effectMagnitude: 15 },
+      { id: 'necrotic_burst', name: 'Necrotic Burst',  probability: 0.25, damageMultiplier: 1.7 },
+    ],
+    immuneToNegotiate: true, physicalResistance: 0.4, moraleDamageOnSight: 12,
+    xpReward: 70, goldReward: 0, foodReward: 0,
+    encounterText: [
+      'The sunken road fills with cold light. A figure rises from the mud — old, wrong, patient.',
+      '"I have been here since before your ancestors had names." The Lich raises one hand.',
+      'The ground beneath Vorishy\'s Bane cracks open. Something old crawls out.',
+    ],
+    defeatText: 'The Lich collapses into dust and old bones. Whatever bound it here is gone.',
+    victoryText: 'The cold takes you. Another soul to feed the Lich\'s eternity.',
   },
 
   // ── Final boss ───────────────────────────────────────────
 
   {
-    id: 'dread_sovereign', name: 'The Dread Sovereign',
+    id: 'dread_sovereign', name: 'Roachak',
     description: 'Ancient evil made manifest. The reason this journey began.',
     baseHP: 200, baseAttack: 28, baseDefense: 16, baseSpeed: 7,
     behavior: EnemyBehavior.Aggressive, minLocationId: 125, scaling: 1.0,
@@ -363,7 +460,10 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     ],
     immuneToNegotiate: true, physicalResistance: 0.25, moraleDamageOnSight: 25,
     xpReward: 500, goldReward: 0, foodReward: 0,
-    encounterText: 'The Dread Sovereign rises from its throne of shadow. The air turns cold. This is what the world feared.',
+    encounterText: [
+      'The Dread Sovereign rises from its throne of shadow. The air turns cold. This is what the world feared.',
+      'The shadow at the end of the world has a face. It is looking at you.',
+    ],
     defeatText: 'The Sovereign collapses, its form unravelling into dark smoke. It is over.',
     victoryText: 'Your strength was not enough. The world falls into shadow.',
   },
@@ -409,11 +509,19 @@ export function buildEnemiesForLocation(
 // Build boss combatant — scales with player level
 // ─────────────────────────────────────────
 
+const BOSS_ENEMY_BY_LOC: Record<number, string> = {
+  32:  'orc_warchief',
+  65:  'lich_of_vorishy',
+  93:  'white_horseman',
+  125: 'dread_sovereign',
+};
+
 export function buildBossEnemy(game: GameState): EnemyCombatant[] {
-  const def   = ENEMY_DEFINITIONS.find(e => e.id === 'dread_sovereign')!;
+  const enemyId = BOSS_ENEMY_BY_LOC[game.currentLocationId] ?? 'dread_sovereign';
+  const def   = ENEMY_DEFINITIONS.find(e => e.id === enemyId)!;
   const level = game.player.level;
   // Scale boss HP/attack/defense with player level so the fight is
-  // always meaningful regardless of when location 125 is reached.
+  // always meaningful regardless of when the boss location is reached.
   const hp      = def.baseHP   + level * 15;
   const attack  = def.baseAttack  + level * 2;
   const defense = def.baseDefense + level;
@@ -439,16 +547,18 @@ export function buildBossEnemy(game: GameState): EnemyCombatant[] {
 // ─────────────────────────────────────────
 
 export class CombatEngine {
-  private state:         CombatState;
-  private onStateChange: (state: CombatState) => void;
+  private state:           CombatState;
+  private onStateChange:   (state: CombatState) => void;
+  private initialPlayerHP: number;
 
   constructor(
     enemies:       EnemyCombatant[],
     gameState:     GameState,
     onStateChange: (state: CombatState) => void,
   ) {
-    this.onStateChange = onStateChange;
-    this.state         = this.init(enemies, gameState);
+    this.onStateChange   = onStateChange;
+    this.state           = this.init(enemies, gameState);
+    this.initialPlayerHP = this.state.player.currentHP;
     // Start in awaiting_input (or after surprise round)
     if (this.state.surpriseRound) {
       this.runEnemyTurn();
@@ -831,7 +941,7 @@ export class CombatEngine {
                      + this.state.enemies.filter(e => e.isFleeing).length * 5;
     const goldGained = defeated.reduce((s, e) => s + (ENEMY_DEFINITIONS.find(d => d.id === e.enemyId)?.goldReward ?? 0), 0);
     const foodGained = defeated.reduce((s, e) => s + (ENEMY_DEFINITIONS.find(d => d.id === e.enemyId)?.foodReward ?? 0), 0);
-    const healthLost = this.state.player.maxHP - this.state.player.currentHP;
+    const healthLost = Math.max(0, this.initialPlayerHP - this.state.player.currentHP);
 
     const moraleDelta = outcome === 'victory'    ?  8
                       : outcome === 'fled'        ? -3

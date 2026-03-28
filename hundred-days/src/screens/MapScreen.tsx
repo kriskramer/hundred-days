@@ -98,23 +98,32 @@ export function MapScreen({ gameState, onToast }: Props) {
   const [selectedId, setSelectedId]       = useState<number>(gameState.currentLocationId);
   const [detailVisible, setDetailVisible] = useState(false);
   const [detailSlide]                     = useState(new Animated.Value(320));
+  const [showAll, setShowAll]             = useState(false);
   const scrollRef                         = useRef<ScrollView>(null);
-  const hasScrolled                       = useRef(false);
 
   const selectedLocation = getLocation(selectedId);
+  const currentId        = gameState.currentLocationId;
 
-  // Auto-scroll to current location on first render
+  // Nearby window: 3 behind, 4 ahead (+ any region banners that overlap the window)
+  const visibleItems = showAll ? ITEMS : ITEMS.filter(item => {
+    if (item.kind === 'location') {
+      return item.loc.id >= currentId - 3 && item.loc.id <= currentId + 4;
+    }
+    const [start, end] = item.region.locationRange;
+    return start <= currentId + 4 && end >= currentId - 3;
+  });
+
+  // Auto-scroll to current location when expanding to full view
   useEffect(() => {
-    if (hasScrolled.current) return;
-    const idx = LOCATIONS.findIndex(l => l.id === gameState.currentLocationId);
-    // Each row ≈62px; each region banner ≈50px; rough: one banner per ~12 locations
-    const approxY = idx * 62 + Math.ceil(idx / 12) * 50 - 180;
+    if (!showAll) return;
+    const idx = LOCATIONS.findIndex(l => l.id === currentId);
+    // Each row ≈54px; each region banner ≈50px; rough: one banner per ~12 locations
+    const approxY = idx * 54 + Math.ceil(idx / 12) * 50 - 180;
     setTimeout(() => {
       scrollRef.current?.scrollTo({ y: Math.max(0, approxY), animated: false });
-      hasScrolled.current = true;
     }, 150);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showAll]);
 
   const openDetail = useCallback((locId: number) => {
     setSelectedId(locId);
@@ -141,6 +150,17 @@ export function MapScreen({ gameState, onToast }: Props) {
       {/* Header */}
       <MapHeader gameState={gameState} />
 
+      {/* Nearby / Show all toggle */}
+      <TouchableOpacity
+        onPress={() => setShowAll(v => !v)}
+        activeOpacity={0.7}
+        style={s.toggleRow}
+      >
+        <Text style={s.toggleText}>
+          {showAll ? '▲  NEARBY ONLY' : '▼  SHOW ALL LOCATIONS'}
+        </Text>
+      </TouchableOpacity>
+
       {/* Vertical road map */}
       <ScrollView
         ref={scrollRef}
@@ -148,7 +168,7 @@ export function MapScreen({ gameState, onToast }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.scrollContent}
       >
-        {ITEMS.map(item => {
+        {visibleItems.map(item => {
           if (item.kind === 'region') {
             return (
               <RegionBanner
@@ -531,6 +551,22 @@ const s = StyleSheet.create({
     marginTop:     1,
   },
 
+  // ── Toggle row ────────────────────────
+  toggleRow: {
+    alignItems:        'center',
+    paddingVertical:    8,
+    borderBottomWidth:  1,
+    borderBottomColor: 'rgba(184,134,11,0.2)',
+    backgroundColor:   '#110A02',
+  },
+  toggleText: {
+    fontFamily:    'Cinzel_400Regular',
+    fontSize:      9,
+    letterSpacing: 1.5,
+    color:         C.gold,
+    opacity:       0.7,
+  },
+
   // ── Scroll ────────────────────────────
   scroll: {
     flex: 1,
@@ -565,8 +601,8 @@ const s = StyleSheet.create({
   row: {
     flexDirection:  'row',
     alignItems:     'center',
-    minHeight:      62,
-    paddingVertical: 4,
+    minHeight:      54,
+    paddingVertical: 3,
   },
 
   // ── Spine column ──────────────────────
@@ -616,7 +652,7 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     'rgba(184,134,11,0.25)',
     borderRadius:    3,
-    padding:         10,
+    padding:         8,
     position:        'relative',
     overflow:        'hidden',
   },
@@ -661,10 +697,10 @@ const s = StyleSheet.create({
   },
   cardName: {
     fontFamily:    'Cinzel_600SemiBold',
-    fontSize:      12,
+    fontSize:      11,
     color:         C.parchment,
     letterSpacing: 0.3,
-    marginBottom:  4,
+    marginBottom:  3,
   },
   cardBadges: {
     flexDirection: 'row',
