@@ -501,10 +501,16 @@ function buildEnemiesFromContext(event: GameEvent | null, game: GameState) {
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'],  game.currentLocationId);
 
-  const eligible = location.mobs.filter(m => Math.random() * 100 < m.aggroPct);
-  const picked   = eligible.slice(0, 2).map(m => m.name);
+  const eligible = location.mobs.filter(m => Math.random() * 100 < m.aggroPct && !m.isCompanion);
+  // Guarantee at least one enemy — TurnEngine already confirmed mobs would spawn
+  const toSpawn = eligible.length > 0
+    ? eligible.slice(0, 2)
+    : location.mobs
+        .filter(m => !m.isCompanion)
+        .sort((a, b) => b.aggroPct - a.aggroPct)
+        .slice(0, 1);
   return buildEnemiesForLocation(
-    picked.length ? picked : [location.mobs[0]?.name ?? 'Bandits'],
+    toSpawn.map(m => m.name),
     game.currentLocationId,
   );
 }

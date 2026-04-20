@@ -105,7 +105,8 @@ export class TurnEngine {
   async resolveInteractiveEvent(result: CombatResult): Promise<void> {
     if (this.state.currentTurn?.phase !== TurnPhase.AwaitingPlayer) return;
     // Record boss fight results; mark location cleared on victory
-    const eventId = this.state.currentTurn.activeInteractiveEvent?.id ?? '';
+    const activeEvent = this.state.currentTurn.activeInteractiveEvent;
+    const eventId = activeEvent?.id ?? '';
     const bossLoc = Object.entries(BOSS_EVENT_MAP).find(([, id]) => id === eventId)?.[0];
     if (bossLoc) {
       const loc = Number(bossLoc);
@@ -115,6 +116,12 @@ export class TurnEngine {
         newCleared.add(loc);
         this.setState({ clearedCombatLocations: newCleared });
       }
+    }
+    // Mark location cleared after winning a location ambush
+    if (activeEvent?.tags?.includes('location_ambush') && result.outcome === 'victory') {
+      const newCleared = new Set(this.state.clearedCombatLocations);
+      newCleared.add(this.state.currentLocationId);
+      this.setState({ clearedCombatLocations: newCleared });
     }
     this.applyEventResult(result);
     await this.continueFromPhase(TurnPhase.ResolvingEvents);
@@ -490,9 +497,14 @@ export class TurnEngine {
     if (params.action !== PlayerAction.Hunt && params.action !== PlayerAction.Camp) return;
 
     const location = getLocation(this.state.currentLocationId);
-    const hasDanger = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
-                   && !this.state.clearedCombatLocations.has(this.state.currentLocationId);
-    if (!hasDanger) return;
+    if (this.state.clearedCombatLocations.has(this.state.currentLocationId)) return;
+
+    const aggressiveMobs = location.mobs.filter(m => m.aggroPct > 0 && !m.isCompanion);
+    if (aggressiveMobs.length === 0) return;
+
+    // Roll each mob's aggro probability — only ambush if at least one would spawn
+    const anySpawn = aggressiveMobs.some(m => Math.random() * 100 < m.aggroPct);
+    if (!anySpawn) return;
 
     const verb = params.action === PlayerAction.Hunt ? 'foraging' : 'making camp';
     this.addLog(`You are ambushed while ${verb}.`);
@@ -505,7 +517,7 @@ export class TurnEngine {
       description:    'The danger at this location takes its chance.',
       conditions:     { probability: 1.0 },
       repeatable:     true,
-      tags:           ['combat'],
+      tags:           ['combat', 'location_ambush'],
     };
 
     const current = this.state.currentTurn?.eventsQueue ?? [];
