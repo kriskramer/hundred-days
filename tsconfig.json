@@ -5,34 +5,60 @@
     "exactOptionalPropertyTypes": false,
     "baseUrl": ".",
     "paths": {
+      "@engine": [
+        "src/engine"
+      ],
       "@engine/*": [
         "src/engine/*"
+      ],
+      "@data": [
+        "src/data"
       ],
       "@data/*": [
         "src/data/*"
       ],
+      "@screens": [
+        "src/screens"
+      ],
       "@screens/*": [
         "src/screens/*"
+      ],
+      "@components": [
+        "src/components"
       ],
       "@components/*": [
         "src/components/*"
       ],
+      "@hooks": [
+        "src/hooks"
+      ],
       "@hooks/*": [
         "src/hooks/*"
+      ],
+      "@store": [
+        "src/store"
       ],
       "@store/*": [
         "src/store/*"
       ],
+      "@utils": [
+        "src/utils"
+      ],
       "@utils/*": [
         "src/utils/*"
       ],
+      "@assets": [
+        "src/assets"
+      ],
       "@assets/*": [
         "src/assets/*"
+      ],
+      "@theme": [
+        "src/theme"
       ]
     },
     "types": [
-      "react-native",
-      "jest"
+      "react-native"
     ]
   },
   "include": [

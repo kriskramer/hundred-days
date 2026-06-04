@@ -1,3 +1,4 @@
+/* eslint-disable react-native/sort-styles */
 import {
   useEffect,
   useRef,
@@ -356,7 +357,9 @@ function OutcomeScreen({
   const hasLosses = outcome.reputationDelta < 0 || outcome.moraleDelta < 0
                  || outcome.resourceDeltas.gold  < 0 || outcome.resourceDeltas.food < 0;
 
-  const recruited = outcome.companionEffects.filter(e => e.type === 'recruit');
+  const recruited = outcome.companionEffects.filter(
+    (e): e is NonNullable<typeof e> => e !== undefined && e.type === 'recruit'
+  );
 
   return (
     <View style={s.outcomeRoot}>
@@ -430,8 +433,8 @@ function formatCompanionId(id: string): string {
 
 const s = StyleSheet.create({
   root: {
-    flex:            1,
     backgroundColor: C.parchment,
+    flex:            1,
   },
   scroll: {
     padding:      16,
@@ -440,107 +443,107 @@ const s = StyleSheet.create({
 
   // Crumb
   crumb: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    10,
-    color:       C.mist,
     letterSpacing: 1.5,
     marginBottom: 14,
   },
 
   // Speaker block
   speakerBlock: {
-    flexDirection: 'row',
     alignItems:    'flex-start',
+    flexDirection: 'row',
     gap:           12,
     marginBottom:  18,
   },
   avatar: {
-    width:           48,
-    height:          48,
-    borderRadius:    24,
-    backgroundColor: C.inkLight,
-    borderWidth:     2,
-    borderColor:     C.parchDeep,
     alignItems:      'center',
-    justifyContent:  'center',
+    backgroundColor: C.inkLight,
+    borderColor:     C.parchDeep,
+    borderRadius:    24,
+    borderWidth:     2,
     flexShrink:      0,
+    height:          48,
+    justifyContent:  'center',
+    width:           48,
   },
   avatarNarrator: {
     backgroundColor: C.gold + '22',
     borderColor:     C.gold,
   },
   avatarText: {
+    color:      C.parchment,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize:   14,
-    color:      C.parchment,
   },
 
   // Bubble
   bubble: {
-    flex:            1,
     backgroundColor: C.parchDark,
-    borderWidth:     1,
+    borderBottomLeftRadius:  8,
+    borderBottomRightRadius: 8,
     borderColor:     C.parchDeep,
     borderRadius:    0,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
-    borderBottomLeftRadius:  8,
+    borderWidth:     1,
+    flex:            1,
     padding:         12,
   },
   bubbleNarrator: {
     backgroundColor: C.parchment,
     borderColor:     C.gold + '66',
-    borderLeftWidth: 2,
     borderLeftColor: C.gold,
+    borderLeftWidth: 2,
   },
   speakerName: {
+    color:        C.mist,
     fontFamily:   'Cinzel_400Regular',
     fontSize:     10,
-    color:        C.mist,
     letterSpacing: 1.2,
     marginBottom:  6,
   },
   bubbleText: {
+    color:      C.ink,
     fontFamily: 'CrimsonText_400Regular',
     fontSize:   16,
-    color:      C.ink,
     lineHeight: 26,
   },
   bubbleTextNarrator: {
-    fontFamily: 'CrimsonText_400Regular_Italic',
     color:      C.inkLight,
+    fontFamily: 'CrimsonText_400Regular_Italic',
   },
 
   // Outcome text
   outcomeTextBox: {
     backgroundColor: C.parchDark,
-    borderLeftWidth: 3,
     borderLeftColor: C.gold,
+    borderLeftWidth: 3,
+    borderRadius:      2,
+    marginBottom:      14,
     paddingHorizontal: 10,
     paddingVertical:   8,
-    marginBottom:      14,
-    borderRadius:      2,
   },
   outcomeTextContent: {
+    color:      C.inkLight,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize:   14,
-    color:      C.inkLight,
     lineHeight: 21,
   },
 
   // Auto-advance
   autoAdvancePill: {
-    flexDirection:  'row',
     alignItems:     'center',
+    flexDirection:  'row',
     justifyContent: 'center',
-    paddingVertical: 8,
     marginBottom:   16,
+    paddingVertical: 8,
   },
   autoAdvanceText: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    13,
-    color:       C.mist,
     letterSpacing: 0.5,
   },
 
@@ -549,40 +552,40 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   choicesHeader: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    10,
-    color:       C.mist,
     letterSpacing: 1.5,
     marginBottom: 10,
     textTransform: 'uppercase',
   },
   choiceBtn: {
-    flexDirection:   'row',
     alignItems:      'flex-start',
-    gap:             10,
     backgroundColor: C.parchDark,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderLeftWidth: 3,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    marginBottom:    8,
     borderRadius:    2,
+    borderWidth:     1,
+    flexDirection:   'row',
+    gap:             10,
+    marginBottom:    8,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
   toneDotLarge: {
-    width:        9,
-    height:       9,
     borderRadius: 5,
-    marginTop:    5,
     flexShrink:   0,
+    height:       9,
+    marginTop:    5,
+    width:        9,
   },
   choiceTextBlock: {
     flex: 1,
   },
   choiceText: {
+    color:      C.ink,
     fontFamily: 'CrimsonText_400Regular',
     fontSize:   15,
-    color:      C.ink,
     lineHeight: 22,
     marginBottom: 3,
   },
@@ -596,59 +599,59 @@ const s = StyleSheet.create({
   toneKey: {
     flexDirection:  'row',
     gap:            14,
-    marginTop:      14,
     justifyContent: 'center',
+    marginTop:      14,
   },
   toneKeyItem: {
-    flexDirection: 'row',
     alignItems:    'center',
+    flexDirection: 'row',
     gap:           4,
   },
   toneDot: {
-    width:        7,
-    height:       7,
     borderRadius: 4,
+    height:       7,
+    width:        7,
   },
   toneKeyLabel: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    11,
-    color:       C.mist,
   },
 
   // No-dialogue state
   noDialogueBox: {
-    flex:           1,
     alignItems:     'center',
+    flex:           1,
     justifyContent: 'center',
     padding:        32,
   },
   noDialogueTitle: {
+    color:       C.ink,
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    18,
-    color:       C.ink,
-    marginBottom: 10,
     letterSpacing: 1,
+    marginBottom: 10,
   },
   noDialogueBody: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    15,
-    color:       C.mist,
-    textAlign:   'center',
     lineHeight:  22,
     marginBottom: 24,
+    textAlign:   'center',
   },
   noDialogueBtn: {
     backgroundColor: C.inkLight,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    borderColor:     C.parchDeep,
     borderRadius:    2,
     borderWidth:     1,
-    borderColor:     C.parchDeep,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   noDialogueBtnText: {
+    color:       C.parchment,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    12,
-    color:       C.parchment,
     letterSpacing: 1.2,
   },
 
@@ -658,57 +661,57 @@ const s = StyleSheet.create({
     padding: 20,
   },
   recruitedBanner: {
+    alignItems:      'center',
     backgroundColor: C.gold + '22',
-    borderWidth:     2,
     borderColor:     C.gold,
     borderRadius:    2,
-    padding:         16,
-    alignItems:      'center',
+    borderWidth:     2,
     marginBottom:    16,
+    padding:         16,
   },
   recruitedTitle: {
+    color:       C.goldLight,
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    14,
-    color:       C.goldLight,
     letterSpacing: 1.5,
     marginBottom: 6,
   },
   recruitedName: {
+    color:       C.ink,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    18,
-    color:       C.ink,
   },
   outcomeStatsBox: {
     backgroundColor: C.parchDark,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    2,
-    padding:         14,
+    borderWidth:     1,
     marginBottom:    16,
+    padding:         14,
   },
   outcomeStatsTitle: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    11,
-    color:       C.mist,
     letterSpacing: 1.2,
     marginBottom: 10,
     textTransform: 'uppercase',
   },
   outcomeStatsDivider: {
-    height:      1,
     backgroundColor: C.parchDeep,
+    height:      1,
     marginBottom: 10,
   },
   statLine: {
+    alignItems:     'center',
     flexDirection:  'row',
     justifyContent: 'space-between',
-    alignItems:     'center',
     paddingVertical: 4,
   },
   statLabel: {
+    color:       C.ink,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    13,
-    color:       C.ink,
     letterSpacing: 0.3,
   },
   statValue: {
@@ -717,18 +720,18 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
   outcomeBtn: {
-    backgroundColor: C.ink,
-    paddingVertical:   12,
-    paddingHorizontal: 24,
-    borderRadius:      2,
     alignItems:        'center',
-    borderWidth:       1,
+    backgroundColor: C.ink,
     borderColor:       C.gold,
+    borderRadius:      2,
+    borderWidth:       1,
+    paddingHorizontal: 24,
+    paddingVertical:   12,
   },
   outcomeBtnText: {
+    color:       C.parchment,
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    12,
-    color:       C.parchment,
     letterSpacing: 1.5,
   },
 });

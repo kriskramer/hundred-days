@@ -163,9 +163,8 @@ export default function TitleScreen() {
           </View>
         )}
 
-        {/* Flavour quote */}
         <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: '#6B7C6E', textAlign: 'center', fontSize: 14, lineHeight: 22, marginBottom: 32 }}>
-          "The road to the Blasted Lands is long.{'\n'}No one who has walked it has found it short."
+          {"\"The road to the Blasted Lands is long.\nNo one who has walked it has found it short.\""}
         </Text>
 
         {/* Settings */}

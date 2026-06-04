@@ -133,19 +133,6 @@ export interface DialogueSession {
   outcome:       DialogueSessionOutcome;
 }
 
-// ─────────────────────────────────────────
-// Global story flags — persisted in GameState
-// In the full implementation these live in
-// GameState.storyFlags: Set<string>
-// Here we use a module-level set as a placeholder
-// until GameState is extended.
-// ─────────────────────────────────────────
-
-const _sessionFlags = new Set<string>();
-
-export function setStoryFlag(flag: string): void  { _sessionFlags.add(flag); }
-export function hasStoryFlag(flag: string): boolean { return _sessionFlags.has(flag); }
-export function clearStoryFlags(): void { _sessionFlags.clear(); }
 
 // ─────────────────────────────────────────
 // DialogueEngine
@@ -193,7 +180,7 @@ export class DialogueEngine {
     this.accumulateOutcome(choice.outcome);
 
     if (choice.outcome.flagsSet) {
-      choice.outcome.flagsSet.forEach(f => setStoryFlag(f));
+      choice.outcome.flagsSet.forEach(f => gameState.storyFlags.add(f));
     }
 
     if (choice.outcome.nextNodeId) {
@@ -272,8 +259,8 @@ export class DialogueEngine {
       if (companions.some(co => co.id === c.forbiddenCompanionId)) return false;
     }
 
-    if (c.requiredFlag && !hasStoryFlag(c.requiredFlag)) return false;
-    if (c.forbiddenFlag && hasStoryFlag(c.forbiddenFlag)) return false;
+    if (c.requiredFlag && !game.storyFlags.has(c.requiredFlag)) return false;
+    if (c.forbiddenFlag && game.storyFlags.has(c.forbiddenFlag)) return false;
 
     if (c.notAlreadyMet && game.firedEventIds.has(`${this.dialogue.id}_loc${game.currentLocationId}`)) return false;
 

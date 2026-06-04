@@ -1,3 +1,5 @@
+const tokens = require('./src/tokens');
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{js,jsx,ts,tsx}', './app/**/*.{js,jsx,ts,tsx}'],
@@ -5,16 +7,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Game palette — mirrors the UI design system
-        ink:        '#1A1208',
-        'ink-light': '#3D2E18',
-        parchment:  '#F5EAD6',
-        'parchment-dark': '#E8D5B0',
-        'parchment-deep': '#D4B880',
-        blood:      '#8B1A1A',
-        gold:       '#B8860B',
-        'gold-light': '#D4A017',
-        mist:       '#6B7C6E',
+        ...tokens,
+        'ink-light': tokens.inkLight,
+        'parchment-dark': tokens.parchDark,
+        'parchment-deep': tokens.parchDeep,
+        'gold-light': tokens.goldLight,
+
 
         // Morale tier colours
         morale: {

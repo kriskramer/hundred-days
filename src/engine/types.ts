@@ -24,6 +24,15 @@ export enum PlayerAction {
   Camp    = 'camp',
 }
 
+export const ACTION_LABELS: Record<PlayerAction, string> = {
+  [PlayerAction.Move]:  'Travelled',
+  [PlayerAction.Hunt]:  'Foraged',
+  [PlayerAction.Rest]:  'Rested',
+  [PlayerAction.Trade]: 'Traded',
+  [PlayerAction.Rally]: 'Rallied',
+  [PlayerAction.Camp]:  'Made Camp',
+};
+
 export enum MoraleTier {
   Inspired   = 'inspired',
   Steady     = 'steady',
@@ -206,6 +215,7 @@ export interface CompanionPassiveBonus {
   healthRegenPerTurn?:      number;
   movementBonus?:           number;
   eventMitigation?:         string[];
+  revealHiddenLocations?:   boolean;
 }
 
 export interface Companion {
@@ -217,6 +227,10 @@ export interface Companion {
   level:                CompanionLevel;
   loyalty:              CompanionLoyalty;
   passiveBonus:         CompanionPassiveBonus;
+  preferredReputation?: {
+    min?: number;
+    max?: number;
+  };
   foodCostPerTurn:      number;
   combatPower:          number;
   loyaltyGains: {
@@ -411,6 +425,7 @@ export interface GameState {
   companions:         Companion[];
   firedEventIds:      Set<string>;
   visitedLocationIds: Set<number>;
+  storyFlags:         Set<string>;
 
   starvationTurns:        number;
   clearedCombatLocations: Set<number>;
@@ -450,10 +465,11 @@ export interface LevelUpChoice {
 // Save system
 // ─────────────────────────────────────────
 
-export interface SerializedGameState extends Omit<GameState, 'firedEventIds' | 'visitedLocationIds' | 'clearedCombatLocations' | 'currentTurn'> {
+export interface SerializedGameState extends Omit<GameState, 'firedEventIds' | 'visitedLocationIds' | 'clearedCombatLocations' | 'storyFlags' | 'currentTurn'> {
   firedEventIds:          string[];
   visitedLocationIds:     number[];
   clearedCombatLocations: number[];
+  storyFlags:             string[];
   currentTurn:            null;
 }
 

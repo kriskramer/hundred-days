@@ -479,7 +479,7 @@ export function buildEnemiesForLocation(
 ): EnemyCombatant[] {
   return mobNames
     .slice(0, 3)
-    .map(name => {
+    .map((name): EnemyCombatant | null => {
       const def = ENEMY_DEFINITIONS.find(
         e => e.name.toLowerCase() === name.toLowerCase()
           || e.id === name.toLowerCase().replace(/\s+/g, '_'),

@@ -1,3 +1,4 @@
+/* eslint-disable react-native/sort-styles */
 import {
   useEffect,
   useRef,
@@ -50,18 +51,8 @@ interface Props {
 // Colours
 // ─────────────────────────────────────────
 
-const C = {
-  ink:        '#1A1208',
-  inkLight:   '#2D1F0A',
-  parchment:  '#F5EAD6',
-  parchDark:  '#E8D5B0',
-  parchDeep:  '#D4B880',
-  blood:      '#8B1A1A',
-  gold:       '#B8860B',
-  goldLight:  '#D4A017',
-  mist:       '#6B7C6E',
-  green:      '#4A8A5A',
-};
+import { Colors as C } from '@theme';
+
 
 // ─────────────────────────────────────────
 // CombatScreen
@@ -548,34 +539,34 @@ function flashAnim(anim: Animated.Value) {
 
 const s = StyleSheet.create({
   root: {
-    flex: 1,
     backgroundColor: C.ink,
+    flex: 1,
+    paddingBottom: 6,
     paddingHorizontal: 12,
     paddingTop: 10,
-    paddingBottom: 6,
   },
 
   emptyText: {
+    color: C.parchment,
     fontFamily: 'Cinzel_400Regular',
     fontSize: 14,
-    color: C.parchment,
     textAlign: 'center',
   },
 
   // Encounter banner
   encounterBanner: {
     backgroundColor: '#3A0A0A',
-    borderLeftWidth: 3,
     borderLeftColor: C.blood,
+    borderLeftWidth: 3,
+    borderRadius: 2,
+    marginBottom: 10,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    marginBottom: 10,
-    borderRadius: 2,
   },
   encounterText: {
+    color: C.parchDark,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize: 14,
-    color: C.parchDark,
     lineHeight: 20,
   },
 
@@ -583,23 +574,23 @@ const s = StyleSheet.create({
   enemiesSection: { gap: 5, marginBottom: 6 },
   enemyBlock: {
     backgroundColor: '#220D05',
-    borderWidth: 1,
     borderColor: '#5A1A1A',
     borderRadius: 2,
+    borderWidth: 1,
     padding: 9,
   },
   enemyTarget: { borderColor: C.blood },
   enemyDead: { opacity: 0.4 },
   enemyHeaderRow: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 6,
   },
   enemyName: {
+    color: '#FF9999',
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 14,
-    color: '#FF9999',
     letterSpacing: 0.5,
   },
   enemyFooterRow: {
@@ -610,40 +601,40 @@ const s = StyleSheet.create({
 
   // Divider
   divider: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row',
     gap: 8,
+    justifyContent: 'center',
     marginVertical: 6,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: C.inkLight },
+  dividerLine: { backgroundColor: C.inkLight, flex: 1, height: 1 },
   dividerText: {
+    color: C.gold,
     fontFamily: 'Cinzel_400Regular',
     fontSize: 11,
-    color: C.gold,
     letterSpacing: 1.5,
   },
   stunnedPill: {
     backgroundColor: '#3A0A0A',
-    borderWidth: 1,
     borderColor: '#FF4444',
     borderRadius: 2,
+    borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
   stunnedText: {
+    color: '#FF8080',
     fontFamily: 'Cinzel_400Regular',
     fontSize: 9,
-    color: '#FF8080',
     letterSpacing: 1,
   },
 
   // Party
   partyRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
   partyBlock: {
-    flex: 1,
-    borderWidth: 1,
     borderRadius: 2,
+    borderWidth: 1,
+    flex: 1,
     padding: 8,
   },
   playerBlock: {
@@ -655,70 +646,70 @@ const s = StyleSheet.create({
     borderColor: C.gold,
   },
   partyHeader: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 5,
   },
   playerName: {
+    color: '#AAFFAA',
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 12,
-    color: '#AAFFAA',
     letterSpacing: 0.5,
   },
   companionName: {
+    color: C.goldLight,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 11,
-    color: C.goldLight,
     letterSpacing: 0.5,
   },
   companionRole: {
+    color: C.mist,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize: 10,
-    color: C.mist,
   },
 
   // HP bar
   hpTrack: {
-    height: 6,
     backgroundColor: '#1A1A1A',
     borderRadius: 3,
-    overflow: 'hidden',
+    height: 6,
     marginBottom: 3,
+    overflow: 'hidden',
   },
-  hpFill: { height: '100%', borderRadius: 3 },
+  hpFill: { borderRadius: 3, height: '100%' },
   hpText: {
+    color: C.parchDeep,
     fontFamily: 'Cinzel_400Regular',
     fontSize: 10,
-    color: C.parchDeep,
     letterSpacing: 0.2,
   },
   resistText: {
+    color: '#AAAAFF',
     fontFamily: 'Cinzel_400Regular',
     fontSize: 9,
-    color: '#AAAAFF',
   },
 
   // Status badges
   statusPill: {
     backgroundColor: '#3A2A0A',
-    borderWidth: 1,
     borderColor: '#B8860B55',
     borderRadius: 2,
+    borderWidth: 1,
     paddingHorizontal: 4,
     paddingVertical: 1,
   },
   statusPillText: {
+    color: C.goldLight,
     fontFamily: 'Cinzel_400Regular',
     fontSize: 8,
-    color: C.goldLight,
     letterSpacing: 0.3,
   },
 
   // Behavior badge
   behaviorPill: {
-    borderWidth: 1,
     borderRadius: 2,
+    borderWidth: 1,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
@@ -730,15 +721,15 @@ const s = StyleSheet.create({
 
   // Log
   log: {
-    flex: 1,
     backgroundColor: '#0D0805',
-    borderWidth: 1,
     borderColor: '#2A1A0A',
     borderRadius: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderWidth: 1,
+    flex: 1,
     marginBottom: 8,
     maxHeight: 90,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   logLine: {
     fontFamily: 'CrimsonText_400Regular_Italic',
@@ -755,75 +746,75 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   actionBtn: {
-    width: '47%',
-    borderWidth: 1,
-    borderRadius: 2,
-    paddingVertical: 9,
-    paddingHorizontal: 8,
     alignItems: 'center',
+    borderRadius: 2,
+    borderWidth: 1,
     gap: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+    width: '47%',
   },
   actionBtnWide: { width: '100%' },
   actionBtnDimmed: { opacity: 0.35 },
-  actionIcon: { fontSize: 15, color: C.parchment, marginBottom: 1 },
+  actionIcon: { color: C.parchment, fontSize: 15, marginBottom: 1 },
   actionLabel: {
+    color: C.parchment,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 12,
-    color: C.parchment,
     letterSpacing: 0.8,
   },
   actionSub: {
+    color: C.parchDark,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize: 10,
-    color: C.parchDark,
     opacity: 0.75,
   },
 
   // Result overlay
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(26,18,8,0.93)',
     alignItems: 'center',
+    backgroundColor: 'rgba(26,18,8,0.93)',
     justifyContent: 'center',
     padding: 24,
   },
   resultCard: {
     backgroundColor: '#2A1A0A',
-    borderWidth: 2,
     borderColor: C.gold,
     borderRadius: 2,
-    padding: 20,
-    width: '100%',
+    borderWidth: 2,
     maxWidth: 360,
     overflow: 'hidden',
+    padding: 20,
+    width: '100%',
   },
   resultAccent: { height: 3, marginBottom: 14 },
   resultTitle: {
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 26,
-    textAlign: 'center',
     letterSpacing: 3,
     marginBottom: 4,
+    textAlign: 'center',
   },
   resultDivider: {
-    height: 1,
     backgroundColor: '#3A2A0A',
+    height: 1,
     marginVertical: 10,
   },
   resultStat: {
+    color: C.parchment,
     fontFamily: 'Cinzel_400Regular',
     fontSize: 14,
-    color: C.parchment,
-    textAlign: 'center',
     letterSpacing: 0.5,
     lineHeight: 22,
+    textAlign: 'center',
   },
   resultBtn: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 2,
     alignItems: 'center',
+    borderRadius: 2,
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
   },
   resultBtnText: {
     fontFamily: 'Cinzel_600SemiBold',

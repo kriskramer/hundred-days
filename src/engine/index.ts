@@ -20,8 +20,6 @@ export {
   DIALOGUES,
   getDialogue,
   findDialogueForLocation,
-  setStoryFlag,
-  hasStoryFlag,
 } from './DialogueEngine';
 export type {
   Dialogue, DialogueNode, DialogueChoice, DialogueSessionOutcome,

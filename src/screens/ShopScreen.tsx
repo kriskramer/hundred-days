@@ -1,3 +1,4 @@
+/* eslint-disable react-native/sort-styles */
 import { useState } from 'react';
 import {
   View,
@@ -160,7 +161,7 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
         {hasMerchantsRing && (
           <View style={s.discountBanner}>
             <Text style={s.discountText}>
-              Merchant's Ring — prices reduced 20%
+              {"Merchant's Ring — prices reduced 20%"}
             </Text>
           </View>
         )}
@@ -238,7 +239,7 @@ function BuyRow({ item, onBuy }: { item: ShopItem; onBuy: () => void }) {
             {def.rarity.toUpperCase()}
           </Text>
         </View>
-        <Text style={s.itemDesc}>{def.description}</Text>
+        <Text style={s.itemDesc} numberOfLines={2}>{def.description}</Text>
         <View style={s.rowBottom}>
           <Text style={s.priceText}>{finalPrice} gold</Text>
           <TouchableOpacity
@@ -246,6 +247,7 @@ function BuyRow({ item, onBuy }: { item: ShopItem; onBuy: () => void }) {
             disabled={!canAfford}
             style={[s.actionBtn, s.buyBtn, !canAfford && s.actionBtnDisabled]}
             activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={[s.actionBtnText, !canAfford && s.actionBtnTextDisabled]}>
               {canAfford ? 'BUY' : 'NO GOLD'}
@@ -291,6 +293,7 @@ function SellRow({
             onPress={onSell}
             style={[s.actionBtn, s.sellBtn]}
             activeOpacity={0.8}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={[s.actionBtnText, s.sellBtnText]}>SELL</Text>
           </TouchableOpacity>
@@ -305,115 +308,115 @@ function SellRow({
 // ─────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: C.ink,
-  },
-
   // Header
   header: {
-    flexDirection:  'row',
     alignItems:     'center',
+    flexDirection:  'row',
     justifyContent: 'space-between',
+    paddingBottom:  16,
     paddingHorizontal: 20,
     paddingTop:     16,
-    paddingBottom:  16,
   },
   headerTitle: {
     flex: 1,
   },
+
+  root: {
+    backgroundColor: C.ink,
+    flex: 1,
+  },
   merchantLabel: {
+    color:         C.gold,
     fontFamily:    'Cinzel_600SemiBold',
     fontSize:      10,
     letterSpacing: 2,
-    color:         C.gold,
   },
   locationName: {
+    color:      C.parchment,
     fontFamily: 'Cinzel_400Regular',
     fontSize:   20,
-    color:      C.parchment,
     marginTop:  2,
   },
   headerRight: {
-    flexDirection: 'row',
     alignItems:    'center',
+    flexDirection: 'row',
     gap:           16,
   },
   goldBox: {
     alignItems: 'flex-end',
   },
   goldLabel: {
+    color:         C.mist,
     fontFamily:    'Cinzel_400Regular',
     fontSize:      9,
     letterSpacing: 1,
-    color:         C.mist,
   },
   goldValue: {
+    color:      C.goldLight,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize:   20,
-    color:      C.goldLight,
   },
   closeBtn: {
-    width:           32,
-    height:          32,
     alignItems:      'center',
-    justifyContent:  'center',
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    2,
+    borderWidth:     1,
+    height:          32,
+    justifyContent:  'center',
+    width:           32,
   },
   closeBtnText: {
+    color:      C.parchment,
     fontFamily: 'Cinzel_400Regular',
     fontSize:   14,
-    color:      C.parchment,
   },
 
   // Rule
   rule: {
-    height:            1,
     backgroundColor:   C.gold,
+    height:            1,
     marginHorizontal:  20,
   },
 
   // Discount banner
   discountBanner: {
     backgroundColor:     C.inkLight,
-    borderBottomWidth:   1,
     borderBottomColor:   C.gold,
-    paddingVertical:     7,
+    borderBottomWidth:   1,
     paddingHorizontal:   20,
+    paddingVertical:     7,
   },
   discountText: {
+    color:      C.gold,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize:   13,
-    color:      C.gold,
     textAlign:  'center',
   },
 
   // Tabs
   tabRow: {
     flexDirection:   'row',
+    gap:             8,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    gap:             8,
   },
   tabBtn: {
-    flex:           1,
     alignItems:     'center',
-    paddingVertical: 9,
-    borderWidth:    1,
     borderColor:    C.parchDeep,
     borderRadius:   2,
+    borderWidth:    1,
+    flex:           1,
+    paddingVertical: 9,
   },
   tabBtnActive: {
     backgroundColor: C.gold,
     borderColor:     C.gold,
   },
   tabBtnText: {
+    color:         C.mist,
     fontFamily:    'Cinzel_400Regular',
     fontSize:      12,
     letterSpacing: 1,
-    color:         C.mist,
   },
   tabBtnTextActive: {
     color: C.ink,
@@ -424,26 +427,27 @@ const s = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 20,
     paddingBottom:     32,
+    paddingHorizontal: 20,
   },
   empty: {
+    color:      C.mist,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize:   15,
-    color:      C.mist,
-    textAlign:  'center',
     marginTop:  56,
+    textAlign:  'center',
   },
 
   // Row shared
   row: {
-    flexDirection:   'row',
     backgroundColor: C.inkLight,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    2,
+    borderWidth:     1,
+    flexDirection:   'row',
     marginBottom:    8,
     overflow:        'hidden',
+    minHeight:       60,
   },
   rarityBar: {
     width: 3,
@@ -453,20 +457,20 @@ const s = StyleSheet.create({
     padding: 12,
   },
   rowTop: {
-    flexDirection: 'row',
     alignItems:    'center',
+    flexDirection: 'row',
     gap:           6,
     marginBottom:  4,
   },
   itemIcon: {
-    fontSize: 13,
     color:    C.parchDeep,
+    fontSize: 13,
   },
   itemName: {
-    fontFamily: 'Cinzel_400Regular',
-    fontSize:   13,
     color:      C.parchment,
     flex:       1,
+    fontFamily: 'Cinzel_400Regular',
+    fontSize:   14,
   },
   rarityLabel: {
     fontFamily:    'Cinzel_400Regular',
@@ -474,51 +478,51 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
   qtyBadge: {
+    color:      C.mist,
     fontFamily: 'Cinzel_400Regular',
     fontSize:   11,
-    color:      C.mist,
   },
   itemDesc: {
+    color:      C.mist,
     fontFamily: 'CrimsonText_400Regular',
     fontSize:   13,
-    color:      C.mist,
     lineHeight: 19,
     marginBottom: 10,
   },
   rowBottom: {
-    flexDirection:  'row',
     alignItems:     'center',
+    flexDirection:  'row',
     justifyContent: 'space-between',
   },
   priceText: {
+    color:      C.goldLight,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize:   13,
-    color:      C.goldLight,
   },
 
   // Buttons
   actionBtn: {
+    borderRadius:      2,
     paddingHorizontal: 16,
     paddingVertical:   6,
-    borderRadius:      2,
   },
   buyBtn: {
     backgroundColor: C.blood,
   },
   sellBtn: {
-    borderWidth:  1,
     borderColor:  C.gold,
+    borderWidth:  1,
   },
   actionBtnDisabled: {
     backgroundColor: 'transparent',
-    borderWidth:     1,
     borderColor:     C.parchDeep,
+    borderWidth:     1,
   },
   actionBtnText: {
+    color:         C.parchment,
     fontFamily:    'Cinzel_400Regular',
     fontSize:      11,
     letterSpacing: 1,
-    color:         C.parchment,
   },
   sellBtnText: {
     color: C.gold,

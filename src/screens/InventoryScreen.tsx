@@ -1,3 +1,4 @@
+/* eslint-disable react-native/sort-styles */
 import {
   useState,
   useCallback,
@@ -10,13 +11,16 @@ import {
   ScrollView,
   StyleSheet,
   Animated,
-  Alert,
+  useWindowDimensions,
 } from 'react-native';
-
 import {
   GameState,
   ItemSlot,
   ItemCategory,
+  ItemPassiveEffect,
+  ItemActiveEffect,
+  InventoryItem,
+  ItemDefinition,
 } from '@engine/types';
 
 import {
@@ -24,7 +28,7 @@ import {
   getItemDef,
   equipItem,
   unequipItem,
-  useItem,
+  useItem as consumeItem,
   sellItem,
   computeEquippedBonuses,
   inventoryFromResources,
@@ -34,12 +38,13 @@ import {
   SLOT_LABELS,
   CATEGORY_ICONS,
   Inventory,
-  ItemPassiveEffect,
 } from '@engine/ItemSystem';
 
 import { useGameStore }     from '@store/gameStore';
 import { saveEngine }        from '@engine/SaveEngine';
 import { applyMoraleDelta }  from '@engine/GameState';
+import { confirmAction }     from '@utils/confirmAction';
+import * as Haptics          from 'expo-haptics';
 
 // ─────────────────────────────────────────
 // Props
@@ -109,6 +114,7 @@ export function InventoryScreen({ gameState, onToast }: Props) {
     const result = equipItem(inventory, itemId);
     if (!result.success) { onToast(result.reason!); return; }
     persistInventory(result.inventory);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const def = getItemDef(itemId);
     onToast(`${def?.name ?? itemId} equipped.`);
   }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -119,6 +125,7 @@ export function InventoryScreen({ gameState, onToast }: Props) {
     const result = unequipItem(inventory, itemId);
     if (!result.success) { onToast(result.reason!); return; }
     persistInventory(result.inventory);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     onToast('Item unequipped.');
   }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -142,78 +149,74 @@ export function InventoryScreen({ gameState, onToast }: Props) {
       return;
     }
 
-    Alert.alert(
+    confirmAction(
       `Use ${def.name}?`,
       def.description,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Use',
-          onPress: () => {
-            const result = useItem(inventory, itemId);
-            if (!result.success) { onToast(result.reason!); return; }
+      () => {
+        const result = consumeItem(inventory, itemId);
+        if (!result.success) { onToast(result.reason!); return; }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
-            const fx = result.effect;
+        const fx = result.effect;
 
-            // Build updated resources (inventory change)
-            let newResources = resourcesToInventory(gameState.resources, result.inventory);
-            let newPlayer    = { ...gameState.player };
-            let newMorale    = gameState.morale;
+        // Build updated resources (inventory change)
+        let newResources = resourcesToInventory(gameState.resources, result.inventory);
+        let newPlayer    = { ...gameState.player };
+        let newMorale    = gameState.morale;
 
-            if (fx) {
-              // Food restore
-              if (fx.foodRestore) {
-                newResources = { ...newResources, food: newResources.food + fx.foodRestore };
-              }
-              // Health restore (clamped to max HP)
-              if (fx.healthRestore) {
-                newPlayer = {
-                  ...newPlayer,
-                  health: Math.min(newPlayer.health + fx.healthRestore, newPlayer.stats.maxHealth),
-                };
-              }
-              // Morale restore (recalculates tier)
-              if (fx.moraleRestore) {
-                newMorale = applyMoraleDelta(newMorale, fx.moraleRestore);
-              }
-              // Clear a status effect
-              if (fx.clearsStatusEffect) {
-                newPlayer = {
-                  ...newPlayer,
-                  statusEffects: newPlayer.statusEffects.filter(
-                    e => e.id !== fx.clearsStatusEffect,
-                  ),
-                };
-              }
-              // Grant a status effect
-              if (fx.grantsStatusEffect) {
-                const already = newPlayer.statusEffects.some(e => e.id === fx.grantsStatusEffect);
-                if (!already) {
-                  newPlayer = {
-                    ...newPlayer,
-                    statusEffects: [
-                      ...newPlayer.statusEffects,
-                      { id: fx.grantsStatusEffect!, durationTurns: fx.statusDurationTurns ?? 3 },
-                    ],
-                  };
-                }
-              }
+        if (fx) {
+          // Food restore
+          if (fx.foodRestore) {
+            newResources = { ...newResources, food: newResources.food + fx.foodRestore };
+          }
+          // Health restore (clamped to max HP)
+          if (fx.healthRestore) {
+            newPlayer = {
+              ...newPlayer,
+              health: Math.min(newPlayer.health + fx.healthRestore, newPlayer.stats.maxHealth),
+            };
+          }
+          // Morale restore (recalculates tier)
+          if (fx.moraleRestore) {
+            newMorale = applyMoraleDelta(newMorale, fx.moraleRestore);
+          }
+          // Clear a status effect
+          if (fx.clearsStatusEffect) {
+            newPlayer = {
+              ...newPlayer,
+              statusEffects: newPlayer.statusEffects.filter(
+                e => e.id !== fx.clearsStatusEffect,
+              ),
+            };
+          }
+          // Grant a status effect
+          if (fx.grantsStatusEffect) {
+            const already = newPlayer.statusEffects.some(e => e.id === fx.grantsStatusEffect);
+            if (!already) {
+              newPlayer = {
+                ...newPlayer,
+                statusEffects: [
+                  ...newPlayer.statusEffects,
+                  { id: fx.grantsStatusEffect!, durationTurns: fx.statusDurationTurns ?? 3 },
+                ],
+              };
             }
+          }
+        }
 
-            const newState = { ...gameState, resources: newResources, player: newPlayer, morale: newMorale };
-            setGame(newState);
-            saveEngine.saveRun(newState);
-            setSelectedId(null);
+        const newState = { ...gameState, resources: newResources, player: newPlayer, morale: newMorale };
+        setGame(newState);
+        saveEngine.saveRun(newState);
+        setSelectedId(null);
 
-            const parts = [
-              fx?.healthRestore ? `+${fx.healthRestore} HP`     : null,
-              fx?.foodRestore   ? `+${fx.foodRestore} food`     : null,
-              fx?.moraleRestore ? `+${fx.moraleRestore} morale` : null,
-            ].filter(Boolean).join(', ');
-            onToast(parts ? `${def.name} used. ${parts}` : `${def.name} used.`);
-          },
-        },
-      ],
+        const parts = [
+          fx?.healthRestore ? `+${fx.healthRestore} HP`     : null,
+          fx?.foodRestore   ? `+${fx.foodRestore} food`     : null,
+          fx?.moraleRestore ? `+${fx.moraleRestore} morale` : null,
+        ].filter(Boolean).join(', ');
+        onToast(parts ? `${def.name} used. ${parts}` : `${def.name} used.`);
+      },
+      { confirmText: 'Use' },
     );
   }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -226,29 +229,25 @@ export function InventoryScreen({ gameState, onToast }: Props) {
     const salePrice = def.shopPrice ? Math.floor(def.shopPrice * 0.5) : 0;
     if (!salePrice) { onToast('This item cannot be sold.'); return; }
 
-    Alert.alert(
+    confirmAction(
       `Sell ${def.name}?`,
       `Sell for ${salePrice} gold?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: `Sell (+${salePrice}g)`,
-          onPress: () => {
-            const result = sellItem(inventory, itemId);
-            if (!result.success) { onToast(result.reason!); return; }
-            // Merge inventory change AND gold gain back into resources
-            const newResources = resourcesToInventory(
-              { ...gameState.resources, gold: gameState.resources.gold + (result.goldGained ?? 0) },
-              result.inventory,
-            );
-            const newState = { ...gameState, resources: newResources };
-            setGame(newState);
-            saveEngine.saveRun(newState);
-            setSelectedId(null);
-            onToast(`Sold for ${result.goldGained} gold.`);
-          },
-        },
-      ],
+      () => {
+        const result = sellItem(inventory, itemId);
+        if (!result.success) { onToast(result.reason!); return; }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        // Merge inventory change AND gold gain back into resources
+        const newResources = resourcesToInventory(
+          { ...gameState.resources, gold: gameState.resources.gold + (result.goldGained ?? 0) },
+          result.inventory!,
+        );
+        const newState = { ...gameState, resources: newResources };
+        setGame(newState);
+        saveEngine.saveRun(newState);
+        setSelectedId(null);
+        onToast(`Sold for ${result.goldGained} gold.`);
+      },
+      { confirmText: `Sell (+${salePrice}g)` },
     );
   }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -256,23 +255,17 @@ export function InventoryScreen({ gameState, onToast }: Props) {
 
   const handleDrop = useCallback((itemId: string) => {
     const def = getItemDef(itemId);
-    Alert.alert(
+    confirmAction(
       'Drop item?',
       `Drop ${def?.name ?? itemId}? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Drop',
-          style: 'destructive',
-          onPress: () => {
-            const result = sellItem(inventory, itemId);  // reuse remove logic
-            if (!result.success) return;
-            persistInventory(result.inventory);          // no gold gain — just remove
-            setSelectedId(null);
-            onToast('Item dropped.');
-          },
-        },
-      ],
+      () => {
+        const result = sellItem(inventory, itemId);  // reuse remove logic
+        if (!result.success) return;
+        persistInventory(result.inventory!);          // no gold gain — just remove
+        setSelectedId(null);
+        onToast('Item dropped.');
+      },
+      { confirmText: 'Drop', destructive: true },
     );
   }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -397,6 +390,9 @@ function ItemGrid({
   selectedId: string | null;
   onSelect:   (id: string) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const slotSize = Math.floor((width - 32) / 4); // 4 columns, 16px side padding each
+
   return (
     <View style={s.grid}>
       {inventory.items.map((item) => {
@@ -413,6 +409,7 @@ function ItemGrid({
             activeOpacity={0.75}
             style={[
               s.gridSlot,
+              { width: slotSize, height: slotSize },
               isSelected && s.gridSlotSelected,
               isEquipped && s.gridSlotEquipped,
               { borderColor: isSelected ? rarityColor : isEquipped ? C.gold : C.parchDeep },
@@ -443,12 +440,15 @@ function ItemGrid({
 }
 
 function EmptySlots({ used, max }: { used: number; max: number }) {
+  const { width } = useWindowDimensions();
   const empty = max - used;
   if (empty <= 0) return null;
+  const slotSize = Math.floor((width - 32) / 4); // 4 columns, 16px side padding each
+
   return (
     <View style={s.grid}>
       {Array.from({ length: empty }).map((_, i) => (
-        <View key={`empty_${i}`} style={[s.gridSlot, s.gridSlotEmpty]}>
+        <View key={`empty_${i}`} style={[s.gridSlot, { width: slotSize, height: slotSize }, s.gridSlotEmpty]}>
           <Text style={s.gridEmptyPlus}>+</Text>
         </View>
       ))}
@@ -595,7 +595,7 @@ function BonusList({ bonuses, gameState }: { bonuses: ItemPassiveEffect; gameSta
 function ItemDetail({
   def, invItem, inventory, onEquip, onUnequip, onUse, onSell, onDrop,
 }: {
-  def:       ReturnType<typeof getItemDef> & {};
+  def:       ItemDefinition;
   invItem:   InventoryItem;
   inventory: Inventory;
   onEquip:   (id: string) => void;
@@ -728,7 +728,7 @@ function PassiveEffectList({ fx }: { fx: ItemPassiveEffect }) {
   );
 }
 
-function ActiveEffectList({ fx }: { fx: ItemPassiveEffect }) {
+function ActiveEffectList({ fx }: { fx: ItemActiveEffect }) {
   const lines: string[] = [];
   const f = fx as any;
   if (f.healthRestore)     lines.push(`Restore ${f.healthRestore} HP`);
@@ -755,57 +755,55 @@ function ActiveEffectList({ fx }: { fx: ItemPassiveEffect }) {
 // Styles
 // ─────────────────────────────────────────
 
-const GRID_SLOT_SIZE = 76;
-
 const s = StyleSheet.create({
   root: {
-    flex:            1,
     backgroundColor: C.parchment,
+    flex:            1,
   },
 
   // Header
   header: {
+    alignItems:      'center',
+    borderBottomColor: C.parchDeep,
+    borderBottomWidth: 1,
     flexDirection:   'row',
     justifyContent:  'space-between',
-    alignItems:      'center',
+    paddingBottom:   8,
     paddingHorizontal: 14,
     paddingTop:      12,
-    paddingBottom:   8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.parchDeep,
   },
   headerTitle: {
+    color:       C.ink,
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    18,
-    color:       C.ink,
     letterSpacing: 1,
   },
   headerSlots: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    13,
-    color:       C.mist,
   },
 
   // Tabs
   tabs: {
-    flexDirection:  'row',
-    borderBottomWidth: 1,
     borderBottomColor: C.parchDeep,
+    borderBottomWidth: 1,
+    flexDirection:  'row',
   },
   tab: {
+    alignItems:      'center',
+    borderBottomColor: 'transparent',
+    borderBottomWidth: 2,
     flex:            1,
     paddingVertical: 9,
-    alignItems:      'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
   },
   tabActive: {
     borderBottomColor: C.gold,
   },
   tabText: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    11,
-    color:       C.mist,
     letterSpacing: 0.8,
   },
   tabTextActive: {
@@ -818,10 +816,10 @@ const s = StyleSheet.create({
     flexDirection: 'row',
   },
   leftPane: {
-    width:       '55%',
-    borderRightWidth: 1,
     borderRightColor: C.parchDeep,
+    borderRightWidth: 1,
     padding:     10,
+    width:       '55%',
   },
   rightPane: {
     flex:    1,
@@ -835,13 +833,11 @@ const s = StyleSheet.create({
     gap:           7,
   },
   gridSlot: {
-    width:           GRID_SLOT_SIZE,
-    height:          GRID_SLOT_SIZE,
+    alignItems:      'center',
     backgroundColor: C.parchDark,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    3,
-    alignItems:      'center',
+    borderWidth:     1,
     justifyContent:  'center',
     padding:         6,
     position:        'relative',
@@ -862,145 +858,145 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   gridName: {
+    color:       C.inkLight,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    8,
-    color:       C.inkLight,
-    textAlign:   'center',
-    lineHeight:  11,
     letterSpacing: 0.2,
+    lineHeight:  11,
+    textAlign:   'center',
   },
   gridEmptyPlus: {
-    fontSize:    22,
     color:       C.parchDeep,
+    fontSize:    22,
   },
   qtyBadge: {
-    position:        'absolute',
-    top:             3,
-    right:           3,
     backgroundColor: C.ink,
     borderRadius:    3,
     paddingHorizontal: 3,
     paddingVertical: 1,
+    position:        'absolute',
+    right:           3,
+    top:             3,
   },
   qtyText: {
+    color:       C.parchment,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    8,
-    color:       C.parchment,
   },
   equippedDot: {
-    position:        'absolute',
-    bottom:          3,
-    left:            3,
-    width:           6,
-    height:          6,
-    borderRadius:    3,
     backgroundColor: C.gold,
+    borderRadius:    3,
+    bottom:          3,
+    height:          6,
+    left:            3,
+    position:        'absolute',
+    width:           6,
   },
 
   // Equipped list
   equippedRow: {
-    flexDirection:  'row',
     alignItems:     'center',
     backgroundColor:C.parchDark,
-    borderWidth:    1,
     borderColor:    C.parchDeep,
     borderRadius:   2,
+    borderWidth:    1,
+    flexDirection:  'row',
     overflow:       'hidden',
   },
   equippedSlotLabel: {
-    width:          52,
+    alignItems:     'center',
     backgroundColor:C.parchDeep,
     paddingVertical: 10,
-    alignItems:     'center',
+    width:          52,
   },
   equippedSlotText: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    9,
-    color:       C.mist,
     letterSpacing: 0.5,
   },
   equippedSlotContent: {
+    alignItems:   'center',
     flex:         1,
     flexDirection:'row',
-    alignItems:   'center',
-    paddingHorizontal: 10,
     gap:          8,
+    paddingHorizontal: 10,
   },
   equippedItemIcon: {
     fontSize: 16,
   },
   equippedItemName: {
-    fontFamily:  'Cinzel_400Regular',
-    fontSize:    11,
     color:       C.ink,
     flex:        1,
+    fontFamily:  'Cinzel_400Regular',
+    fontSize:    11,
   },
   equippedEmpty: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    12,
-    color:       C.mist,
   },
 
   // Bonus list
   bonusEmpty: {
-    padding:    16,
     alignItems: 'center',
+    padding:    16,
   },
   bonusEmptyText: {
+    color:      C.mist,
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize:   13,
-    color:      C.mist,
-    textAlign:  'center',
     lineHeight: 20,
+    textAlign:  'center',
   },
   bonusBox: {
     backgroundColor: C.parchDark,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    2,
+    borderWidth:     1,
     padding:         12,
   },
   bonusTitle: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    10,
-    color:       C.mist,
     letterSpacing: 1.2,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   bonusSectionTitle: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    10,
-    color:       C.mist,
     letterSpacing: 1.2,
-    marginTop:   10,
     marginBottom: 8,
+    marginTop:   10,
     textTransform: 'uppercase',
   },
   bonusDivider: {
-    height:          1,
     backgroundColor: C.parchDeep,
+    height:          1,
     marginBottom:    8,
   },
   bonusRow: {
+    alignItems:     'center',
     flexDirection:  'row',
     justifyContent: 'space-between',
-    alignItems:     'center',
     paddingVertical: 3,
   },
   bonusLabel: {
+    color:       C.ink,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    11,
-    color:       C.ink,
   },
   bonusValue: {
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    11,
   },
   bonusValueNeutral: {
+    color:       C.inkLight,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    11,
-    color:       C.inkLight,
   },
 
   // Detail panel
@@ -1008,30 +1004,30 @@ const s = StyleSheet.create({
     flex: 1,
   },
   detailEmpty: {
-    flex:           1,
     alignItems:     'center',
-    justifyContent: 'center',
+    flex:           1,
     gap:            10,
+    justifyContent: 'center',
     opacity:        0.5,
   },
   detailEmptyIcon: {
-    fontSize: 28,
     color:    C.parchDeep,
+    fontSize: 28,
   },
   detailEmptyText: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    13,
-    color:       C.mist,
-    textAlign:   'center',
     lineHeight:  20,
+    textAlign:   'center',
   },
   rarityBadge: {
     alignSelf:       'flex-start',
-    borderWidth:     1,
     borderRadius:    2,
+    borderWidth:     1,
+    marginBottom:    8,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    marginBottom:    8,
   },
   rarityText: {
     fontFamily:  'Cinzel_400Regular',
@@ -1039,51 +1035,51 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
   detailName: {
+    color:       C.ink,
     fontFamily:  'Cinzel_600SemiBold',
     fontSize:    15,
-    color:       C.ink,
     lineHeight:  22,
     marginBottom: 3,
   },
   detailMeta: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    12,
-    color:       C.mist,
     marginBottom: 8,
   },
   detailDesc: {
+    color:       C.inkLight,
     fontFamily:  'CrimsonText_400Regular',
     fontSize:    13,
-    color:       C.inkLight,
     lineHeight:  20,
     marginBottom: 10,
   },
   effectBox: {
     backgroundColor: C.parchDark,
-    borderWidth:     1,
     borderColor:     C.parchDeep,
     borderRadius:    2,
-    padding:         8,
+    borderWidth:     1,
     marginBottom:    8,
+    padding:         8,
   },
   effectTitle: {
+    color:       C.mist,
     fontFamily:  'Cinzel_400Regular',
     fontSize:    9,
-    color:       C.mist,
     letterSpacing: 1,
     marginBottom: 5,
     textTransform: 'uppercase',
   },
   effectLine: {
+    color:       C.ink,
     fontFamily:  'CrimsonText_400Regular',
     fontSize:    12,
-    color:       C.ink,
     lineHeight:  18,
   },
   salePriceText: {
+    color:       C.mist,
     fontFamily:  'CrimsonText_400Regular_Italic',
     fontSize:    12,
-    color:       C.mist,
     marginBottom: 10,
   },
   detailActions: {
@@ -1093,10 +1089,10 @@ const s = StyleSheet.create({
     marginTop:     4,
   },
   detailBtn: {
-    paddingVertical:   8,
-    paddingHorizontal: 12,
-    borderRadius:      2,
     alignItems:        'center',
+    borderRadius:      2,
+    paddingHorizontal: 12,
+    paddingVertical:   8,
   },
   detailBtnText: {
     fontFamily:  'Cinzel_400Regular',

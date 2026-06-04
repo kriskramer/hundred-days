@@ -18,14 +18,13 @@ import { ShopScreen }      from '@screens/ShopScreen';
 import {
   StatusBar,
   JourneyBar,
-  DreadBanner,
   LevelUpModal,
   Toast,
   JournalModal,
   SettingsModal,
 } from '@components';
 
-import type { GameEvent, LevelUpChoice, CombatResult } from '@engine/types';
+import type { GameEvent, LevelUpChoice, CombatResult, AppSettings } from '@engine/types';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { getCompanion } from '@data/companions';
 import { getLocation }  from '@data/locations';
@@ -48,10 +47,12 @@ export default function GameScreen() {
   const [shopOpen, setShopOpen]               = useState(false);
   const [journalOpen, setJournalOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen]       = useState(false);
+  const [settings, setSettings]               = useState<AppSettings | null>(null);
   const engineRef                             = useRef<TurnEngine | null>(null);
 
   const gameState  = useGameStore(s => s.gameState);
   const setGame    = useGameStore(s => s.setGameState);
+  const clearGame  = useGameStore(s => s.clearGame);
 
   // Guard: redirect to title if no state
   useEffect(() => {
@@ -83,6 +84,10 @@ export default function GameScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once — engine holds its own state reference
 
+  useEffect(() => {
+    saveEngine.loadSettings().then(setSettings).catch(console.error);
+  }, []);
+
   function showToast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 2500);
@@ -111,7 +116,7 @@ export default function GameScreen() {
 
     // Recruit any companions before the turn engine continues
     for (const effect of outcome.companionEffects) {
-      if (effect.type === 'recruit') {
+      if (effect && effect.type === 'recruit') {
         const companion = getCompanion(effect.companionId);
         if (companion) engineRef.current?.addCompanion(companion);
       }
@@ -142,7 +147,7 @@ export default function GameScreen() {
   async function handleRestart() {
     setSettingsOpen(false);
     await saveEngine.clearActiveRun();
-    setGame(null);
+    clearGame();
     router.replace('/');
   }
 
@@ -179,8 +184,7 @@ export default function GameScreen() {
 
       {/* Persistent top chrome */}
       <StatusBar gameState={gameState} />
-      <JourneyBar locationId={gameState.currentLocationId} />
-      <DreadBanner active={gameState.morale.dreadActive} />
+      <JourneyBar locationId={gameState.currentLocationId} dreadActive={gameState.morale.dreadActive} />
 
       {/* Utility bar — journal + settings */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#1A1208', paddingHorizontal: 14, paddingBottom: 6, gap: 16 }}>
@@ -197,14 +201,22 @@ export default function GameScreen() {
 
       {/* Screen area */}
       <View className="flex-1">
-        {activeTab === 'road'      && (
+        <View style={{ flex: 1, display: activeTab === 'road' ? 'flex' : 'none' }}>
           <RoadScreen
             gameState={gameState}
             engine={engine}
             onToast={showToast}
             onOpenShop={() => setShopOpen(true)}
+            textInterval={settings?.textSpeed === 'slow'
+              ? 45
+              : settings?.textSpeed === 'fast'
+                ? 8
+                : settings?.textSpeed === 'instant'
+                  ? 0
+                  : 22}
+            confirmActions={settings?.confirmActions ?? true}
           />
-        )}
+        </View>
         {activeTab === 'combat'    && (
           <CombatScreen
             gameState={gameState}
@@ -294,6 +306,7 @@ export default function GameScreen() {
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onRestart={handleRestart}
+        onSettingsChanged={setSettings}
       />
 
     </SafeAreaView>

@@ -30,6 +30,7 @@ import {
   calculateCombatPower,
   BOSS_POWER_THRESHOLD,
   XP_THRESHOLDS,
+  LEVEL_UP_CHOICES,
   clamp,
 } from './GameState';
 
@@ -46,7 +47,6 @@ import {
   inventoryFromResources,
 } from './ItemSystem';
 
-import { COMPANION_REQUIREMENTS } from '@data/companions';
 import { getLocation } from '@data/locations';
 
 // ─────────────────────────────────────────
@@ -703,8 +703,7 @@ export class TurnEngine {
   }
 
   private applyLevelUpChoice(choiceId: string): void {
-    const { LEVEL_UP_CHOICES } = require('./GameState');
-    const choice = (LEVEL_UP_CHOICES as LevelUpChoice[]).find(c => c.id === choiceId);
+    const choice = LEVEL_UP_CHOICES.find(c => c.id === choiceId);
     if (!choice) return;
 
     const newStats = applyLevelUpChoice(this.state.player.stats, choice);
@@ -887,11 +886,12 @@ export class TurnEngine {
   }
 
   private isReputationInCompanionRange(companion: Companion): boolean {
-    const req      = COMPANION_REQUIREMENTS[companion.id];
-    if (!req) return true;
+    const preferredReputation = companion.preferredReputation;
+    if (!preferredReputation) return true;
+
     const repValue = this.state.reputation.value;
-    if (req.minReputation !== undefined && repValue < req.minReputation) return false;
-    if (req.maxReputation !== undefined && repValue > req.maxReputation) return false;
+    if (preferredReputation.min !== undefined && repValue < preferredReputation.min) return false;
+    if (preferredReputation.max !== undefined && repValue > preferredReputation.max) return false;
     return true;
   }
 

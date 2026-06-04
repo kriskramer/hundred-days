@@ -166,6 +166,7 @@ class SaveEngine {
       firedEventIds:          Array.from(state.firedEventIds),
       visitedLocationIds:     Array.from(state.visitedLocationIds),
       clearedCombatLocations: Array.from(state.clearedCombatLocations),
+      storyFlags:             Array.from(state.storyFlags),
       currentTurn:            null,  // never persist mid-turn state
     };
   }
@@ -176,6 +177,7 @@ class SaveEngine {
       firedEventIds:          new Set(saved.firedEventIds),
       visitedLocationIds:     new Set(saved.visitedLocationIds),
       clearedCombatLocations: new Set(saved.clearedCombatLocations ?? []),
+      storyFlags:             new Set(saved.storyFlags ?? []),
       currentTurn:            null,
     };
   }
@@ -217,7 +219,7 @@ class SaveEngine {
 
     // v1 → v2: add maxSlots and equippedItems to resources if missing
     if (current.schemaVersion === 1) {
-      const resources = current.gameState.resources as Record<string, unknown>;
+      const resources = current.gameState.resources as unknown as Record<string, unknown>;
       if (resources['maxSlots'] === undefined) {
         resources['maxSlots'] = 8;
       }
@@ -229,7 +231,7 @@ class SaveEngine {
 
     // v2 → v3: add starvationTurns if missing
     if (current.schemaVersion === 2) {
-      const state = current.gameState as Record<string, unknown>;
+      const state = current.gameState as unknown as Record<string, unknown>;
       if (state['starvationTurns'] === undefined) {
         state['starvationTurns'] = 0;
       }
@@ -238,11 +240,20 @@ class SaveEngine {
 
     // v3 → v4: add clearedCombatLocations if missing
     if (current.schemaVersion === 3) {
-      const state = current.gameState as Record<string, unknown>;
+      const state = current.gameState as unknown as Record<string, unknown>;
       if (state['clearedCombatLocations'] === undefined) {
         state['clearedCombatLocations'] = [];
       }
       current = { ...current, schemaVersion: 4 };
+    }
+
+    // v4 → v5: add storyFlags if missing
+    if (current.schemaVersion === 4) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['storyFlags'] === undefined) {
+        state['storyFlags'] = [];
+      }
+      current = { ...current, schemaVersion: 5 };
     }
 
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
