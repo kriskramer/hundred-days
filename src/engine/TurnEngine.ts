@@ -327,6 +327,12 @@ export class TurnEngine {
 
   private resolveMove(forcedMarch: boolean): void {
     const { morale, weather, resources, companions } = this.state;
+    const currentLoc = this.state.currentLocationId;
+    if (BOSS_EVENT_MAP[currentLoc] && !this.state.clearedCombatLocations.has(currentLoc)) {
+      this.addLog('The road ahead is sealed by a powerful foe.');
+      return;
+    }
+
     let locations = 1;
 
     // ── Item passive bonuses ─────────────────────────────────
@@ -389,7 +395,21 @@ export class TurnEngine {
       * moraleFoodMult
       * itemFoodMult;
 
-    const currentLoc = this.state.currentLocationId;
+    if (resources.food < totalFood) {
+      const turns = this.state.starvationTurns + 1;
+      const { healthLost, moraleLost } = this.getStarvationPenalty(turns);
+
+      this.setState({ starvationTurns: turns });
+      this.addDelta({
+        source: 'starving_move',
+        health: -healthLost,
+        morale: -moraleLost,
+        narrative: turns === 1
+          ? `You march on short rations. The strain costs ${healthLost} HP and ${moraleLost} morale.`
+          : `Day ${turns} of marching hungry. The road extracts a harsher toll (−${healthLost} HP, −${moraleLost} morale).`,
+      });
+    }
+
     const rawNewLoc  = Math.min(currentLoc + locations, 125);
     // Stop at the nearest uncleared boss location in the path
     const bossCheckpoint = Object.keys(BOSS_EVENT_MAP)
@@ -767,18 +787,33 @@ export class TurnEngine {
       return;
     }
 
+    if (this.didApplyStarvingMovePenalty()) {
+      return;
+    }
+
     const turns      = this.state.starvationTurns + 1;
-    const healthLost = Math.min(10 + (turns - 1) * 5, 40);
+    const { healthLost, moraleLost } = this.getStarvationPenalty(turns);
     this.setState({ starvationTurns: turns });
 
     this.addDelta({
       source:    'starvation',
       health:    -healthLost,
-      morale:    -8,
+      morale:    -moraleLost,
       narrative: turns === 1
-        ? 'There is nothing left to eat. The party suffers.'
-        : `Day ${turns} without food. The party is wasting away (−${healthLost} HP).`,
+        ? `There is nothing left to eat. The party suffers (−${healthLost} HP, −${moraleLost} morale).`
+        : `Day ${turns} without food. The party is wasting away (−${healthLost} HP, −${moraleLost} morale).`,
     });
+  }
+
+  private getStarvationPenalty(turns: number): { healthLost: number; moraleLost: number } {
+    return {
+      healthLost: Math.min(10 + (turns - 1) * 5, 40),
+      moraleLost: Math.min(8 + (turns - 1) * 2, 20),
+    };
+  }
+
+  private didApplyStarvingMovePenalty(): boolean {
+    return this.state.currentTurn?.pendingDeltas.some(d => d.source === 'starving_move') ?? false;
   }
 
   // ─────────────────────────────────────────

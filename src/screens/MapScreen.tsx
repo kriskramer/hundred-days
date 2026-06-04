@@ -73,6 +73,8 @@ type Item =
   | { kind: 'region';   region: RegionDefinition }
   | { kind: 'location'; loc: Location; side: 'left' | 'right' };
 
+const SHOW_ALL_PREVIEW_COUNT = 4;
+
 function buildItems(): Item[] {
   const items: Item[] = [];
   let sideIndex = 0;
@@ -91,6 +93,40 @@ function buildItems(): Item[] {
 
 const ITEMS = buildItems();
 
+export function getVisibleMapItems(
+  items: Item[],
+  currentId: number,
+  visitedLocationIds: Set<number>,
+  showAll: boolean,
+): Item[] {
+  if (!showAll) {
+    return items.filter(item => {
+      if (item.kind === 'location') {
+        return item.loc.id >= currentId - 3 && item.loc.id <= currentId + 4;
+      }
+      const [start, end] = item.region.locationRange;
+      return start <= currentId + 4 && end >= currentId - 3;
+    });
+  }
+
+  return items.filter(item => {
+    if (item.kind === 'location') {
+      return visitedLocationIds.has(item.loc.id)
+        || (item.loc.id > currentId && item.loc.id <= currentId + SHOW_ALL_PREVIEW_COUNT);
+    }
+
+    const [start, end] = item.region.locationRange;
+    return items.some(candidate =>
+      candidate.kind === 'location'
+      && candidate.loc.id >= start
+      && candidate.loc.id <= end
+      && (
+        visitedLocationIds.has(candidate.loc.id)
+        || (candidate.loc.id > currentId && candidate.loc.id <= currentId + SHOW_ALL_PREVIEW_COUNT)
+      ));
+  });
+}
+
 // ─────────────────────────────────────────
 // MapScreen
 // ─────────────────────────────────────────
@@ -105,14 +141,12 @@ export function MapScreen({ gameState, onToast }: Props) {
   const selectedLocation = getLocation(selectedId);
   const currentId        = gameState.currentLocationId;
 
-  // Nearby window: 3 behind, 4 ahead (+ any region banners that overlap the window)
-  const visibleItems = showAll ? ITEMS : ITEMS.filter(item => {
-    if (item.kind === 'location') {
-      return item.loc.id >= currentId - 3 && item.loc.id <= currentId + 4;
-    }
-    const [start, end] = item.region.locationRange;
-    return start <= currentId + 4 && end >= currentId - 3;
-  });
+  const visibleItems = getVisibleMapItems(
+    ITEMS,
+    currentId,
+    gameState.visitedLocationIds,
+    showAll,
+  );
 
   // Auto-scroll to current location when expanding to full view
   useEffect(() => {

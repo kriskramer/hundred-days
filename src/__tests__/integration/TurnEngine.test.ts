@@ -94,6 +94,55 @@ describe('TurnEngine — Move action', () => {
     expect(engine.getState().resources.food).toBeLessThan(foodBefore);
   });
 
+  it('still moves without food and applies a hungry march penalty', async () => {
+    const { engine } = makeEngine({
+      resources: { food: 0, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      weather: WeatherType.Neutral,
+      morale: { value: 50, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+      player: { name: 'Test', level: 1, xp: 0, health: 100, stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 }, statusEffects: [] },
+    });
+    const before = engine.getState();
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    const after = engine.getState();
+    expect(after.currentLocationId).toBe(before.currentLocationId + 1);
+    expect(after.starvationTurns).toBe(1);
+    expect(after.player.health).toBe(92);
+    expect(after.morale.value).toBe(42);
+    expect(after.turnHistory[after.turnHistory.length - 1].narrativeSummary).toContain('short rations');
+  });
+
+  it('scales hungry march penalties across consecutive foodless moves', async () => {
+    const { engine } = makeEngine({
+      resources: { food: 0, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      weather: WeatherType.Neutral,
+      morale: { value: 60, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+      player: { name: 'Test', level: 1, xp: 0, health: 100, stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 }, statusEffects: [] },
+    });
+
+    const startingHealth = engine.getState().player.health;
+    const startingMorale = engine.getState().morale.value;
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    const afterFirstMove = engine.getState();
+    expect(afterFirstMove.player.health).toBe(92);
+    expect(afterFirstMove.morale.value).toBe(52);
+    const firstHealthLoss = startingHealth - afterFirstMove.player.health;
+    const firstMoraleLoss = startingMorale - afterFirstMove.morale.value;
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    const afterSecondMove = engine.getState();
+    expect(afterSecondMove.player.health).toBe(79);
+    expect(afterSecondMove.morale.value).toBe(42);
+    const secondHealthLoss = afterFirstMove.player.health - afterSecondMove.player.health;
+    const secondMoraleLoss = afterFirstMove.morale.value - afterSecondMove.morale.value;
+
+    expect(afterSecondMove.starvationTurns).toBe(2);
+    expect(secondHealthLoss).toBeGreaterThan(firstHealthLoss);
+    expect(secondMoraleLoss).toBeGreaterThan(firstMoraleLoss);
+  });
+
   it('forced march moves 2 locations (no luck roll)', async () => {
     // luck roll mock returns 0.99 (above any threshold) so no lucky 3rd
     const { engine } = makeEngine({ resources: { food: 10, gold: 25, items: [], maxSlots: 8, equippedItems: {} } });
@@ -126,6 +175,20 @@ describe('TurnEngine — Move action', () => {
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
 
     // Even if forced march would move to 32, boss event is injected
+    expect(onAwaitInput).toHaveBeenCalled();
+    const bossEvent = onAwaitInput.mock.calls[0][0] as GameEvent;
+    expect(bossEvent.id).toBe('boss_orc_warchief');
+  });
+
+  it('starts the boss encounter without moving past an uncleared boss location', async () => {
+    const { engine, onAwaitInput } = makeEngine({
+      currentLocationId: 32,
+      resources: { food: 10, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    expect(engine.getState().currentLocationId).toBe(32);
     expect(onAwaitInput).toHaveBeenCalled();
     const bossEvent = onAwaitInput.mock.calls[0][0] as GameEvent;
     expect(bossEvent.id).toBe('boss_orc_warchief');

@@ -409,14 +409,14 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
     id: 'orc_warchief', name: 'The Orc Warchief',
     description: 'The warlord who holds Samson\'s Bridge. Armies have broken against him.',
-    baseHP: 65, baseAttack: 17, baseDefense: 10, baseSpeed: 5,
+    baseHP: 50, baseAttack: 13, baseDefense: 8, baseSpeed: 5,
     behavior: EnemyBehavior.Aggressive, minLocationId: 32, scaling: 1.0,
     abilities: [
-      { id: 'warchief_strike', name: 'Warchief Strike', probability: 0.30, damageMultiplier: 1.9 },
+      { id: 'warchief_strike', name: 'Warchief Strike', probability: 0.30, damageMultiplier: 1.5 },
       { id: 'war_drum',        name: 'War Drum',        probability: 0.25, damageMultiplier: 0.3, specialEffect: SpecialEffect.PackCall },
       { id: 'shield_wall',     name: 'Shield Wall',     probability: 0.20, damageMultiplier: 0,   specialEffect: SpecialEffect.Stun },
     ],
-    immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 10,
+    immuneToNegotiate: true, physicalResistance: 0, moraleDamageOnSight: 6,
     xpReward: 50, goldReward: 20, foodReward: 3,
     encounterText: [
       'The bridge is blocked by a figure twice your height. He doesn\'t move.',

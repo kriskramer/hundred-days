@@ -872,7 +872,7 @@ export const LOCATIONS: Location[] = [
       hasBossFight:     true,
     },
     bossLevel: 3,
-    locationText: "Samson's Bridge spans a fast-moving river that would otherwise be impassable. The warlord who controls it has never let anyone through for free.",
+    locationText: "Samson's Bridge spans a fast-moving river that would otherwise be impassable. The Orc Warchief, a formidable boss, controls the crossing, and you must defeat him to pass.",
     randomTexts: [],
   },
   {

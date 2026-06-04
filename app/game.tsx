@@ -25,6 +25,7 @@ import {
 } from '@components';
 
 import type { GameEvent, LevelUpChoice, CombatResult, AppSettings, GameState } from '@engine/types';
+import { findDialogueForLocation } from '@engine/DialogueEngine';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { getCompanion } from '@data/companions';
 import { getLocation }  from '@data/locations';
@@ -201,10 +202,13 @@ export default function GameScreen() {
   const combatAvailable  =
     activeEvent?.type === 'combat' ||
     (locationHasMobs && !gameState.clearedCombatLocations.has(gameState.currentLocationId));
+  const dialogueAvailable =
+    (activeEvent?.interactiveHandlerId === 'dialogue_handler' && !!activeEvent.id) ||
+    findDialogueForLocation(gameState.currentLocationId, gameState) !== null;
   const bottomNavInset = 66 + insets.bottom;
 
   return (
-    <SafeAreaView className="flex-1 bg-parchment" edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EAD6' }} edges={['top']}>
 
       {/* Fixed top chrome */}
       <View>
@@ -258,6 +262,7 @@ export default function GameScreen() {
             event={activeEvent}
             onComplete={handleDialogueComplete}
             onToast={showToast}
+            onBackToRoad={() => setActiveTab('road')}
           />
         )}
         {activeTab === 'inventory' && (
@@ -278,7 +283,9 @@ export default function GameScreen() {
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#1A1208', borderTopWidth: 2, borderTopColor: '#B8860B', flexDirection: 'row', paddingBottom: insets.bottom }}>
         {TABS.map(tab => {
           const active    = activeTab === tab.id;
-          const disabled  = tab.id === 'combat' && !combatAvailable;
+          const disabled  =
+            (tab.id === 'combat' && !combatAvailable) ||
+            (tab.id === 'dialogue' && !dialogueAvailable);
           const textColor = active ? '#D4A017' : disabled ? '#3A3A3A' : '#A0B8AA';
           return (
             <TouchableOpacity

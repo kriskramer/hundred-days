@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ScrollView, View, Text, TouchableOpacity, Alert, Animated } from 'react-native';
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationRandomText } from '@data/locations';
@@ -34,6 +34,24 @@ const WEATHER_LABEL: Record<WeatherType, string> = {
   [WeatherType.Good]:    'Good Weather',
   [WeatherType.Ideal]:   'Ideal Conditions',
 };
+
+const WEATHER_TEXT_STYLE: Record<WeatherType, { color: string; label: string }> = {
+  [WeatherType.Severe]:  { color: '#8B1A1A', label: '⛈ Severe Storm' },
+  [WeatherType.Poor]:    { color: '#A04A00', label: '☁ Poor Weather' },
+  [WeatherType.Neutral]: { color: Colors.mist, label: '☁ Overcast' },
+  [WeatherType.Good]:    { color: '#1E4E2C', label: '☀ Good Weather' },
+  [WeatherType.Ideal]:   { color: '#1B5232', label: '✨ Ideal Conditions' },
+};
+
+function getForageTextColor(huntYield: number | null): string {
+  if (huntYield === null) return Colors.mist;
+  if (huntYield === 0)    return '#8B1A1A';
+  if (huntYield < 0.5)    return '#A04A00';
+  if (huntYield < 1.0)    return '#86600B';
+  if (huntYield < 1.5)    return Colors.mist;
+  if (huntYield < 2.0)    return '#1E4E2C';
+  return '#1B5232';
+}
 
 function getPassiveBonusDescription(bonus: CompanionPassiveBonus): string {
   const parts: string[] = [];
@@ -154,6 +172,71 @@ function CompanionDetailCard({ companion, onClose }: { companion: Companion; onC
   );
 }
 
+interface ShakingBadgeProps {
+  children: React.ReactNode;
+  style: any;
+  delay?: number;
+}
+
+function ShakingBadge({ children, style, delay = 150 }: ShakingBadgeProps) {
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    shakeAnim.setValue(0);
+    const timer = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -3, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+      ]).start();
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [shakeAnim, delay]);
+
+  return (
+    <Animated.View style={[style, { transform: [{ translateX: shakeAnim }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+interface FlashingBadgeProps {
+  children: React.ReactNode;
+  style: any;
+  delay?: number;
+}
+
+function FlashingBadge({ children, style, delay = 150 }: FlashingBadgeProps) {
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    opacityAnim.setValue(1);
+    const timer = setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]).start();
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [opacityAnim, delay]);
+
+  return (
+    <Animated.View style={[style, { opacity: opacityAnim }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
 export function RoadScreen({
   gameState,
   engine,
@@ -163,20 +246,113 @@ export function RoadScreen({
   confirmActions = true,
 }: Props) {
   const location       = getLocation(gameState.currentLocationId);
-  const randomText     = getLocationRandomText(location);
   const dialogueNearby = hasEligibleDialogue(gameState);
   const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
+  const bossNearby     = location.actions.hasBossFight
+                      && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
 
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
+  const [showingLastEntry, setShowingLastEntry]       = useState(false);
+  const [randomText, setRandomText]                   = useState<string | null>(null);
+  const [forceComplete, setForceComplete]             = useState(false);
+
+  const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
+  const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
+  const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
+
+  useEffect(() => {
+    setRandomText(getLocationRandomText(location));
+  }, [gameState.currentLocationId]);
+
+  useEffect(() => {
+    if (!lastTurnKey) {
+      setShowingLastEntry(false);
+      prevTurnKeyRef.current = null;
+    } else if (lastTurnKey !== prevTurnKeyRef.current) {
+      setShowingLastEntry(true);
+      prevTurnKeyRef.current = lastTurnKey;
+    }
+  }, [lastTurnKey]);
+
+  useEffect(() => {
+    setForceComplete(false);
+  }, [gameState.currentLocationId, showingLastEntry]);
+
+  let netFood = 0;
+  let netGold = 0;
+  let netHealth = 0;
+  let netMorale = 0;
+
+  if (lastTurn) {
+    for (const d of lastTurn.deltas) {
+      netFood   += d.food   ?? 0;
+      netGold   += d.gold   ?? 0;
+      netHealth += d.health ?? 0;
+      netMorale += d.morale ?? 0;
+    }
+  }
+
+  const hasDelta = lastTurn && [netFood, netGold, netHealth, netMorale].some(v => Math.abs(v) >= 0.1);
+
+  const actionButtons = bossNearby
+    ? [
+        {
+          label: 'Fight Boss',
+          sub: 'Begin combat',
+          variant: 'primary' as const,
+          onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }),
+        },
+      ]
+    : [
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
+        ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+        ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
+        { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
+        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
+        { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) },
+      ];
+
+  function renderDelta(val: number, label: string, icon: string) {
+    if (Math.abs(val) < 0.1) return null;
+    const pos = val > 0;
+    const color = pos ? '#2A5A3A' : '#8B1A1A';
+    const sign = pos ? '+' : '';
+    const bgColor = pos ? '#E6F4EA' : '#FCE8E6';
+    const borderColor = pos ? '#A3D7B1' : '#F1B2AC';
+
+    return (
+      <View key={label} style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: bgColor,
+        borderWidth: 1,
+        borderColor,
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        marginRight: 8,
+        marginBottom: 6,
+      }}>
+        <Text style={{ fontSize: 13, marginRight: 4 }}>{icon}</Text>
+        <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, color, letterSpacing: 0.5 }}>
+          {sign}{Math.round(val)} {label.toUpperCase()}
+        </Text>
+      </View>
+    );
+  }
+
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
 
-    if (params.action === PlayerAction.Move && gameState.resources.food < 1) {
+    const moveFoodThreshold = params.action === PlayerAction.Move && params.forcedMarch ? 1.5 : 1;
+
+    if (params.action === PlayerAction.Move && gameState.resources.food < moveFoodThreshold) {
       Alert.alert(
-        'Starving',
-        'You have almost no food. Moving will cost health. Continue?',
+        'March Hungry?',
+        'You can still move without enough food, but each hungry march costs health and morale, and the penalty grows if you keep pushing.',
         [
           { text: 'Stay',  style: 'cancel' },
           { text: 'March', onPress: () => engine.submitAction(params).catch(console.error) },
@@ -240,50 +416,147 @@ export function RoadScreen({
               </View>
               {/* Weather · Forage row */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: Colors.mist }}>
-                  {WEATHER_LABEL[gameState.weather]}
-                </Text>
+                {(() => {
+                  const style = WEATHER_TEXT_STYLE[gameState.weather];
+                  return (
+                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, letterSpacing: 1, color: style.color }}>
+                      {style.label.toUpperCase()}
+                    </Text>
+                  );
+                })()}
                 {getForageLabel(location.actions.huntYield) && (
-                  <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: Colors.mist }}>
+                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, letterSpacing: 1, color: getForageTextColor(location.actions.huntYield) }}>
                     {getForageLabel(location.actions.huntYield)}
                   </Text>
                 )}
               </View>
+
               {/* Alert badges row — only when relevant */}
-              {(dangerNearby || dialogueNearby) && (
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+              {(dangerNearby || dialogueNearby || bossNearby) && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  {bossNearby && (
+                    <FlashingBadge style={{ backgroundColor: Colors.blood, borderWidth: 1, borderColor: Colors.goldLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+                      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: Colors.parchment }}>
+                        💀 BOSS FIGHT!
+                      </Text>
+                    </FlashingBadge>
+                  )}
+
                   {dangerNearby && (
-                    <View style={{ backgroundColor: '#2A0808', borderWidth: 1, borderColor: '#C94040', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
-                      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C94040' }}>
+                    <ShakingBadge style={{ backgroundColor: '#F5C2C2', borderWidth: 1, borderColor: '#C94040', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+                      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#5A0C0C' }}>
                         ⚔ DANGER
                       </Text>
-                    </View>
+                    </ShakingBadge>
                   )}
+
                   {dialogueNearby && (
-                    <View style={{ backgroundColor: '#2A1A08', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
-                      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#C8A020' }}>
+                    <ShakingBadge style={{ backgroundColor: '#F2E6C2', borderWidth: 1, borderColor: '#C8A020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
+                      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: '#403004' }}>
                         ◇ STRANGER NEARBY
                       </Text>
-                    </View>
+                    </ShakingBadge>
                   )}
                 </View>
               )}
             </View>
 
-            {/* Narrative */}
-            <View style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}>
-              <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 22 }}>
-                {location.locationText}
-              </Text>
-              {randomText && (
+            {/* Narrative / Combined Panel */}
+            <TouchableOpacity
+              activeOpacity={0.95}
+              onPress={() => setForceComplete(true)}
+              style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}
+            >
+              {showingLastEntry && lastTurn ? (
+                // Last Entry Content
                 <>
-                  <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
-                  <Text className="font-body-italic text-ink-light" style={{ fontSize: 15, lineHeight: 22 }}>
-                    {randomText}
-                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 0.5, borderBottomColor: '#C8A060', paddingBottom: 6 }}>
+                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, color: Colors.blood, letterSpacing: 0.5 }}>
+                      LAST ENTRY — DAY {lastTurn.dayNumber}
+                    </Text>
+                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, color: Colors.mist, letterSpacing: 0.5 }}>
+                      {ACTION_LABELS[lastTurn.action].toUpperCase()}
+                    </Text>
+                  </View>
+                  <TypewriterText
+                    key={`journal-${lastTurn.dayNumber}-${lastTurn.action}`}
+                    text={lastTurn.narrativeSummary || 'The day passed without incident.'}
+                    interval={textInterval}
+                    forceComplete={forceComplete}
+                    style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.ink }}
+                  />
+                  {hasDelta && (
+                    <>
+                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 10 }} />
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                        {renderDelta(netFood, 'food', '🍎')}
+                        {renderDelta(netGold, 'gold', '🪙')}
+                        {renderDelta(netHealth, 'health', '❤️')}
+                        {renderDelta(netMorale, 'morale', '🎭')}
+                      </View>
+                    </>
+                  )}
+                </>
+              ) : (
+                // Location Content
+                <>
+                  <TypewriterText
+                    key={`loc-${location.id}-${showingLastEntry}`}
+                    text={location.locationText || ''}
+                    interval={textInterval}
+                    forceComplete={forceComplete}
+                    style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
+                  />
+                  {randomText && (
+                    <>
+                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
+                      <TypewriterText
+                        key={`loc-random-${location.id}-${showingLastEntry}`}
+                        text={randomText}
+                        interval={textInterval}
+                        forceComplete={forceComplete}
+                        style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
+                      />
+                    </>
+                  )}
                 </>
               )}
-            </View>
+            </TouchableOpacity>
+
+            {/* Actions / Next button */}
+            {showingLastEntry ? (
+              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    setShowingLastEntry(false);
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: Colors.blood,
+                    borderWidth: 1.5,
+                    borderColor: '#C94040',
+                    borderRadius: 3,
+                    alignItems: 'center',
+                    paddingVertical: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.35,
+                    shadowRadius: 3,
+                    elevation: 4,
+                  }}
+                >
+                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: Colors.parchment, fontSize: 13, letterSpacing: 2 }}>
+                    NEXT
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                <SectionHeader label="Actions" right="Choose wisely" centered />
+                <ActionGrid actions={actionButtons} />
+              </View>
+            )}
 
             {/* Companions */}
             {gameState.companions.length > 0 && (
@@ -310,26 +583,6 @@ export function RoadScreen({
               </View>
             )}
 
-            {/* Latest journal entry */}
-            {gameState.turnHistory.length > 0 && (
-              <LatestJournalEntry
-                entry={gameState.turnHistory[gameState.turnHistory.length - 1]}
-                textInterval={textInterval}
-              />
-            )}
-
-            <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12 }}>
-              <SectionHeader label="Actions" right="Choose wisely" centered />
-              <ActionGrid actions={[
-                { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
-                { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
-                ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
-                ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
-                { label: 'Forage',       sub: 'Gain food',          variant: 'default',   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
-                { label: 'Rally',        sub: 'Boost morale',       variant: 'default',   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
-                { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default',   onPress: () => submit({ action: PlayerAction.Camp }) },
-              ]} />
-            </View>
           </View>
         </View>
       </ScrollView>
@@ -515,7 +768,17 @@ function ActionButton({ label, sub, variant, onPress }: ActionDef) {
   );
 }
 
-function TypewriterText({ text, style, interval = 22 }: { text: string; style?: object; interval?: number }) {
+function TypewriterText({
+  text,
+  style,
+  interval = 22,
+  forceComplete = false,
+}: {
+  text: string;
+  style?: object;
+  interval?: number;
+  forceComplete?: boolean;
+}) {
   const [displayed, setDisplayed] = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -525,8 +788,12 @@ function TypewriterText({ text, style, interval = 22 }: { text: string; style?: 
       return;
     }
 
-    if (interval === 0) {
+    if (interval === 0 || forceComplete) {
       setDisplayed(text);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       return;
     }
 
@@ -536,39 +803,16 @@ function TypewriterText({ text, style, interval = 22 }: { text: string; style?: 
       i++;
       setDisplayed(text.slice(0, i));
       if (i >= text.length) {
-        clearInterval(intervalRef.current!);
-        intervalRef.current = null;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       }
     }, interval);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [interval, text]);
+  }, [interval, text, forceComplete]);
 
   return <Text style={style}>{displayed}</Text>;
-}
-
-function LatestJournalEntry({ entry, textInterval }: { entry: TurnRecord; textInterval: number }) {
-  const narrative = entry.narrativeSummary || 'The day passed without incident.';
-  return (
-    <View style={{ marginTop: 20 }}>
-      <SectionHeader label="Last Entry" />
-      <View style={{ borderWidth: 1, borderColor: '#C8B89A', borderRadius: 3, padding: 12, backgroundColor: '#EDE4CF' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: Colors.mist }}>
-            DAY {entry.dayNumber}
-          </Text>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 1, color: Colors.mist }}>
-            {ACTION_LABELS[entry.action].toUpperCase()}
-          </Text>
-        </View>
-        <TypewriterText
-          key={`journal-${entry.dayNumber}`}
-          text={narrative}
-          interval={textInterval}
-          style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.ink }}
-        />
-      </View>
-    </View>
-  );
 }

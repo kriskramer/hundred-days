@@ -39,6 +39,7 @@ interface Props {
   event:      GameEvent | null;
   onComplete: (outcome: DialogueSessionOutcome) => void;
   onToast:    (msg: string) => void;
+  onBackToRoad?: () => void;
 }
 
 // ─────────────────────────────────────────
@@ -75,7 +76,7 @@ const TONE_META: Record<ChoiceTone, { color: string; label: string }> = {
 // DialogueScreen
 // ─────────────────────────────────────────
 
-export function DialogueScreen({ gameState, event, onComplete, onToast }: Props) {
+export function DialogueScreen({ gameState, event, onComplete, onToast, onBackToRoad }: Props) {
   const [currentNode,    setCurrentNode]    = useState<DialogueNode | null>(null);
   const [visibleChoices, setVisibleChoices] = useState<DialogueChoice[]>([]);
   const [outcome,        setOutcome]        = useState<DialogueSessionOutcome | null>(null);
@@ -172,7 +173,13 @@ export function DialogueScreen({ gameState, event, onComplete, onToast }: Props)
             There is nobody here who wants a conversation. The road awaits.
           </Text>
           <TouchableOpacity
-            onPress={() => onToast('Switch to Road tab to keep moving.')}
+            onPress={() => {
+              if (onBackToRoad) {
+                onBackToRoad();
+              } else {
+                onToast('Switch to Road tab to keep moving.');
+              }
+            }}
             style={s.noDialogueBtn}
             activeOpacity={0.8}
           >

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, fireEvent } from '@testing-library/react-native';
 import { StatusBar } from '@components/StatusBar';
 import { makeGameState } from '../__fixtures__/gameState';
 
@@ -68,5 +68,30 @@ describe('StatusBar', () => {
     const style = foodText.props.style;
     expect(style).not.toEqual(expect.objectContaining({ color: '#ff8080' }));
     expect(style).not.toEqual(expect.objectContaining({ color: '#ffcc44' }));
+  });
+
+  it('opens character sheet modal when clicking level pill', () => {
+    const state = makeGameState({
+      player: {
+        name: 'Galahad', level: 3, xp: 85, health: 80,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+      companions: [],
+    });
+    const { getByText, queryByText } = render(<StatusBar gameState={state} />);
+
+    // The modal content should not be visible initially
+    expect(queryByText('GALAHAD')).toBeFalsy();
+
+    // Find the level pill and press it
+    const lvPill = getByText('LV');
+    fireEvent.press(lvPill);
+
+    // Now the modal with player name and level info should be visible
+    expect(screen.getByText('GALAHAD')).toBeTruthy();
+    expect(screen.getByText('LEVEL 3')).toBeTruthy();
+    expect(screen.getByText('XP: 85 / 140')).toBeTruthy();
+    expect(screen.getByText('55 XP needed for next level.')).toBeTruthy();
   });
 });
