@@ -24,15 +24,9 @@ import {
 } from '@engine/types';
 
 import {
-  ITEM_DEFINITIONS,
   getItemDef,
-  equipItem,
-  unequipItem,
-  useItem as consumeItem,
-  sellItem,
   computeEquippedBonuses,
   inventoryFromResources,
-  resourcesToInventory,
   RARITY_COLOURS,
   RARITY_BG,
   SLOT_LABELS,
@@ -40,11 +34,9 @@ import {
   Inventory,
 } from '@engine/ItemSystem';
 
-import { useGameStore }     from '@store/gameStore';
-import { saveEngine }        from '@engine/SaveEngine';
-import { applyMoraleDelta }  from '@engine/GameState';
 import { confirmAction }     from '@utils/confirmAction';
 import * as Haptics          from 'expo-haptics';
+import { useInventoryActions } from '@hooks/useInventoryActions';
 
 // ─────────────────────────────────────────
 // Props
@@ -78,17 +70,8 @@ const C = {
 // ─────────────────────────────────────────
 
 export function InventoryScreen({ gameState, onToast }: Props) {
-  // Inventory is now derived from GameState — no local state needed.
-  // All mutations write back through the Zustand store and auto-save.
-  const setGame   = useGameStore(s => s.setGameState);
   const inventory = inventoryFromResources(gameState.resources);
-
-  function persistInventory(inv: Inventory) {
-    const newResources = resourcesToInventory(gameState.resources, inv);
-    const newState     = { ...gameState, resources: newResources };
-    setGame(newState);
-    saveEngine.saveRun(newState);  // auto-save after every inventory change
-  }
+  const { equipItem, unequipItem, consumeItem, sellItem, dropItem } = useInventoryActions();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab,  setActiveTab]  = useState<'inventory' | 'equipped' | 'stats'>('inventory');
@@ -111,23 +94,22 @@ export function InventoryScreen({ gameState, onToast }: Props) {
   // ── Equip ────────────────────────────────────────────────
 
   const handleEquip = useCallback((itemId: string) => {
-    const result = equipItem(inventory, itemId);
-    if (!result.success) { onToast(result.reason!); return; }
-    persistInventory(result.inventory);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    const def = getItemDef(itemId);
-    onToast(`${def?.name ?? itemId} equipped.`);
-  }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
+    void equipItem(itemId).then(result => {
+      if (!result.success) { onToast(result.reason); return; }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      onToast(`${result.itemName} equipped.`);
+    });
+  }, [equipItem, onToast]);
 
   // ── Unequip ──────────────────────────────────────────────
 
   const handleUnequip = useCallback((itemId: string) => {
-    const result = unequipItem(inventory, itemId);
-    if (!result.success) { onToast(result.reason!); return; }
-    persistInventory(result.inventory);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    onToast('Item unequipped.');
-  }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
+    void unequipItem(itemId).then(result => {
+      if (!result.success) { onToast(result.reason); return; }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      onToast('Item unequipped.');
+    });
+  }, [onToast, unequipItem]);
 
   // ── Use ──────────────────────────────────────────────────
 
@@ -153,72 +135,22 @@ export function InventoryScreen({ gameState, onToast }: Props) {
       `Use ${def.name}?`,
       def.description,
       () => {
-        const result = consumeItem(inventory, itemId);
-        if (!result.success) { onToast(result.reason!); return; }
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        void consumeItem(itemId).then(result => {
+          if (!result.success) { onToast(result.reason); return; }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          setSelectedId(null);
 
-        const fx = result.effect;
-
-        // Build updated resources (inventory change)
-        let newResources = resourcesToInventory(gameState.resources, result.inventory);
-        let newPlayer    = { ...gameState.player };
-        let newMorale    = gameState.morale;
-
-        if (fx) {
-          // Food restore
-          if (fx.foodRestore) {
-            newResources = { ...newResources, food: newResources.food + fx.foodRestore };
-          }
-          // Health restore (clamped to max HP)
-          if (fx.healthRestore) {
-            newPlayer = {
-              ...newPlayer,
-              health: Math.min(newPlayer.health + fx.healthRestore, newPlayer.stats.maxHealth),
-            };
-          }
-          // Morale restore (recalculates tier)
-          if (fx.moraleRestore) {
-            newMorale = applyMoraleDelta(newMorale, fx.moraleRestore);
-          }
-          // Clear a status effect
-          if (fx.clearsStatusEffect) {
-            newPlayer = {
-              ...newPlayer,
-              statusEffects: newPlayer.statusEffects.filter(
-                e => e.id !== fx.clearsStatusEffect,
-              ),
-            };
-          }
-          // Grant a status effect
-          if (fx.grantsStatusEffect) {
-            const already = newPlayer.statusEffects.some(e => e.id === fx.grantsStatusEffect);
-            if (!already) {
-              newPlayer = {
-                ...newPlayer,
-                statusEffects: [
-                  ...newPlayer.statusEffects,
-                  { id: fx.grantsStatusEffect!, durationTurns: fx.statusDurationTurns ?? 3 },
-                ],
-              };
-            }
-          }
-        }
-
-        const newState = { ...gameState, resources: newResources, player: newPlayer, morale: newMorale };
-        setGame(newState);
-        saveEngine.saveRun(newState);
-        setSelectedId(null);
-
-        const parts = [
-          fx?.healthRestore ? `+${fx.healthRestore} HP`     : null,
-          fx?.foodRestore   ? `+${fx.foodRestore} food`     : null,
-          fx?.moraleRestore ? `+${fx.moraleRestore} morale` : null,
-        ].filter(Boolean).join(', ');
-        onToast(parts ? `${def.name} used. ${parts}` : `${def.name} used.`);
+          const parts = [
+            result.effectSummary.healthRestore ? `+${result.effectSummary.healthRestore} HP` : null,
+            result.effectSummary.foodRestore ? `+${result.effectSummary.foodRestore} food` : null,
+            result.effectSummary.moraleRestore ? `+${result.effectSummary.moraleRestore} morale` : null,
+          ].filter(Boolean).join(', ');
+          onToast(parts ? `${result.itemName} used. ${parts}` : `${result.itemName} used.`);
+        });
       },
       { confirmText: 'Use' },
     );
-  }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [consumeItem, onToast]);
 
   // ── Sell ─────────────────────────────────────────────────
 
@@ -233,23 +165,16 @@ export function InventoryScreen({ gameState, onToast }: Props) {
       `Sell ${def.name}?`,
       `Sell for ${salePrice} gold?`,
       () => {
-        const result = sellItem(inventory, itemId);
-        if (!result.success) { onToast(result.reason!); return; }
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        // Merge inventory change AND gold gain back into resources
-        const newResources = resourcesToInventory(
-          { ...gameState.resources, gold: gameState.resources.gold + (result.goldGained ?? 0) },
-          result.inventory!,
-        );
-        const newState = { ...gameState, resources: newResources };
-        setGame(newState);
-        saveEngine.saveRun(newState);
-        setSelectedId(null);
-        onToast(`Sold for ${result.goldGained} gold.`);
+        void sellItem(itemId).then(result => {
+          if (!result.success) { onToast(result.reason); return; }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          setSelectedId(null);
+          onToast(`Sold for ${result.goldGained} gold.`);
+        });
       },
       { confirmText: `Sell (+${salePrice}g)` },
     );
-  }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onToast, sellItem]);
 
   // ── Drop ─────────────────────────────────────────────────
 
@@ -259,15 +184,15 @@ export function InventoryScreen({ gameState, onToast }: Props) {
       'Drop item?',
       `Drop ${def?.name ?? itemId}? This cannot be undone.`,
       () => {
-        const result = sellItem(inventory, itemId);  // reuse remove logic
-        if (!result.success) return;
-        persistInventory(result.inventory!);          // no gold gain — just remove
-        setSelectedId(null);
-        onToast('Item dropped.');
+        void dropItem(itemId).then(result => {
+          if (!result.success) { onToast(result.reason); return; }
+          setSelectedId(null);
+          onToast('Item dropped.');
+        });
       },
       { confirmText: 'Drop', destructive: true },
     );
-  }, [inventory, gameState]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dropItem, onToast]);
 
   // ─────────────────────────────────────────
   // Derived state

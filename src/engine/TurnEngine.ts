@@ -14,6 +14,7 @@ import {
   LevelUpChoice,
   Companion,
   StatusEffect,
+  PlayerStats,
 } from './types';
 
 import {
@@ -25,13 +26,13 @@ import {
   applyReputationDelta,
   applyXP,
   applyLevelUpChoice,
-  getRandomLevelUpChoices,
   isDreadActive,
   calculateCombatPower,
   BOSS_POWER_THRESHOLD,
   XP_THRESHOLDS,
   LEVEL_UP_CHOICES,
   clamp,
+  getRandomLevelUpChoicesWithRng,
 } from './GameState';
 
 import {
@@ -45,9 +46,11 @@ import { saveEngine } from './SaveEngine';
 import {
   computeEquippedBonuses,
   inventoryFromResources,
+  removeItem,
 } from './ItemSystem';
 
-import { getLocation } from '@data/locations';
+import { getLocation, getRegion } from '@data/locations';
+import { nextMulberry32, normalizeRngState } from './Random';
 
 // ─────────────────────────────────────────
 // Action param types
@@ -78,17 +81,23 @@ export class TurnEngine {
   private onAwaitInput:   (event: GameEvent)  => void;
   private onLevelUp:      (choices: LevelUpChoice[]) => void;
   private bossResults: Map<number, CombatResult> = new Map();
+  private readonly randomOverride?: () => number;
 
   constructor(
     initialState:   GameState,
     onStateChange:  (state: GameState) => void,
     onAwaitInput:   (event: GameEvent)  => void,
     onLevelUp:      (choices: LevelUpChoice[]) => void,
+    randomOverride?: () => number,
   ) {
-    this.state          = initialState;
+    this.state          = {
+      ...initialState,
+      rngState: initialState.rngState ?? normalizeRngState(initialState.seed),
+    };
     this.onStateChange  = onStateChange;
     this.onAwaitInput   = onAwaitInput;
     this.onLevelUp      = onLevelUp;
+    this.randomOverride = randomOverride;
   }
 
   // ─────────────────────────────────────────
@@ -98,11 +107,15 @@ export class TurnEngine {
   /** Submit the player's chosen action to start a turn. */
   async submitAction(params: ActionParams): Promise<void> {
     if (this.state.currentTurn !== null && this.state.currentTurn.phase !== TurnPhase.AwaitingAction) return;
+    this.initTurn(params.action);
     await this.runTurn(params);
   }
 
   /** Called after an interactive event (combat / dialogue) resolves. */
-  async resolveInteractiveEvent(result: CombatResult): Promise<void> {
+  async resolveInteractiveEvent(
+    result: CombatResult,
+    eventOutcomeOverride?: TurnRecord['eventOutcome'],
+  ): Promise<void> {
     if (this.state.currentTurn?.phase !== TurnPhase.AwaitingPlayer) return;
     // Record boss fight results; mark location cleared on victory
     const activeEvent = this.state.currentTurn.activeInteractiveEvent;
@@ -123,6 +136,13 @@ export class TurnEngine {
       newCleared.add(this.state.currentLocationId);
       this.setState({ clearedCombatLocations: newCleared });
     }
+    this.updateTurn({
+      eventOutcome: eventOutcomeOverride ?? {
+        eventId,
+        result: result.outcome,
+        summary: this.buildCombatResultNarrative(result),
+      },
+    });
     this.applyEventResult(result);
     await this.continueFromPhase(TurnPhase.ResolvingEvents);
   }
@@ -136,6 +156,27 @@ export class TurnEngine {
 
   /** Read-only snapshot for the UI. */
   getState(): GameState { return this.state; }
+
+  /** External UI mutations must merge into the engine without replacing turn-owned state. */
+  syncExternalState(nextState: GameState): void {
+    this.state = {
+      ...this.state,
+      player: nextState.player,
+      resources: nextState.resources,
+      morale: nextState.morale,
+    };
+  }
+
+  /** Production runs advance persisted RNG state; tests may inject a deterministic override. */
+  nextRandom(): number {
+    if (this.randomOverride) {
+      return this.randomOverride();
+    }
+
+    const next = nextMulberry32(this.state.rngState);
+    this.state = { ...this.state, rngState: next.state };
+    return next.value;
+  }
 
   /** Add a companion to the party (called when dialogue recruits one). */
   addCompanion(companion: Companion): void {
@@ -183,7 +224,6 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private async runTurn(params: ActionParams): Promise<void> {
-    this.initTurn();
     if (!this.validate()) return;
 
     this.setPhase(TurnPhase.ResolvingAction);
@@ -224,13 +264,17 @@ export class TurnEngine {
   // PHASE 0 — Init
   // ─────────────────────────────────────────
 
-  private initTurn(): void {
+  private initTurn(action: PlayerAction): void {
     const turn: TurnState = {
       phase:                  TurnPhase.AwaitingAction,
-      action:                 null,
+      action,
+      locationBefore:         this.state.currentLocationId,
       eventsQueue:            [],
+      triggeredEventIds:      [],
       activeInteractiveEvent: null,
+      eventOutcome:           undefined,
       pendingDeltas:          [],
+      levelUpOccurred:        false,
       log:                    [],
     };
     this.setState({ currentTurn: turn });
@@ -254,7 +298,7 @@ export class TurnEngine {
     }
 
     // Broken morale — 5% chance party refuses to move
-    if (morale.tier === MoraleTier.Broken && Math.random() < 0.05) {
+    if (morale.tier === MoraleTier.Broken && this.nextRandom() < 0.05) {
       this.addDelta({
         source:    'broken_morale_refusal',
         narrative: 'The party refuses to budge. Everyone sits in silence, unable to face another step.',
@@ -325,7 +369,7 @@ export class TurnEngine {
 
     // Luck roll for 3rd location — item bonus stacks on top of morale luck
     const luckThreshold = getLuckThreshold(morale) + (itemBonuses.luckModifier ?? 0);
-    const luckRoll      = Math.random();
+    const luckRoll      = this.nextRandom();
     let luckyThird      = false;
 
     if (
@@ -380,8 +424,8 @@ export class TurnEngine {
     // Base yield — scaled by location modifier before any other bonuses
     let foodGained = Math.max(0, Math.round(
       (method === 'forage'
-        ? 1 + Math.floor(Math.random() * 3)   // 1–3 base
-        : 2 + Math.floor(Math.random() * 4))  // 2–5 base
+      ? 1 + Math.floor(this.nextRandom() * 3)   // 1–3 base
+      : 2 + Math.floor(this.nextRandom() * 4))  // 2–5 base
       * forageModifier
     ));
 
@@ -413,6 +457,8 @@ export class TurnEngine {
                + (yieldDesc ? yieldDesc + ' ' : '')
                + `Net food gain: ${(foodGained - dayCost).toFixed(1)}.`,
     });
+
+    this.maybeTriggerAmbush(PlayerAction.Hunt);
   }
 
   private resolveRest(atInn: boolean): void {
@@ -437,6 +483,8 @@ export class TurnEngine {
         ? 'A warm bed and a hot meal. You feel almost human again.'
         : 'Camp is cold but rest is rest. You wake somewhat refreshed.',
     });
+
+    this.maybeTriggerAmbush(PlayerAction.Rest);
   }
 
   private resolveRally(targetCompanionId?: string): void {
@@ -479,18 +527,19 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private sampleAndQueueEvents(): void {
+    const current = this.state.currentTurn?.eventsQueue ?? [];
     // At a boss location, force the boss fight instead of normal events
     const currentLoc = this.state.currentLocationId;
     const bossEventId = BOSS_EVENT_MAP[currentLoc];
     if (bossEventId && !this.state.clearedCombatLocations.has(currentLoc)) {
       const bossEvent = EVENT_DEFINITIONS.find(e => e.id === bossEventId);
       if (bossEvent) {
-        this.updateTurn({ eventsQueue: [bossEvent] });
+        this.updateTurn({ eventsQueue: [...current, bossEvent] });
         return;
       }
     }
-    const events = sampleEventsForTurn(this.state);
-    this.updateTurn({ eventsQueue: events });
+    const events = sampleEventsForTurn(this.state, () => this.nextRandom());
+    this.updateTurn({ eventsQueue: [...current, ...events] });
   }
 
   private maybeInjectDangerCombat(params: ActionParams): void {
@@ -503,7 +552,7 @@ export class TurnEngine {
     if (aggressiveMobs.length === 0) return;
 
     // Roll each mob's aggro probability — only ambush if at least one would spawn
-    const anySpawn = aggressiveMobs.some(m => Math.random() * 100 < m.aggroPct);
+    const anySpawn = aggressiveMobs.some(m => this.nextRandom() * 100 < m.aggroPct);
     if (!anySpawn) return;
 
     const verb = params.action === PlayerAction.Hunt ? 'foraging' : 'making camp';
@@ -524,6 +573,38 @@ export class TurnEngine {
     this.updateTurn({ eventsQueue: [ambush, ...current] });
   }
 
+  private maybeTriggerAmbush(action: PlayerAction): void {
+    const loc      = getLocation(this.state.currentLocationId);
+    const region   = getRegion(this.state.currentLocationId);
+    const danger   = region?.dangerLevel ?? 0;
+    const isSafe   = loc.isTown || danger <= 1;
+    const chance   = isSafe ? 0 : danger * 0.05; // 5% per danger tier (max 50%)
+    if (this.nextRandom() > chance) return;
+
+    this.addLog(action === PlayerAction.Rest
+      ? 'Your sleep is interrupted by a sudden threat!'
+      : 'While foraging, you are startled by a predator!'
+    );
+
+    const ambush: GameEvent = {
+      id:             `ambush_${action}_day${this.state.dayNumber}`,
+      type:           EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name:           action === PlayerAction.Rest
+                        ? 'Disturbed Sleep'
+                        : 'Predator in the Brush',
+      description:    action === PlayerAction.Rest
+                        ? 'Your camp is breached while you sleep.'
+                        : 'Something was hunting you while you were hunting.',
+      conditions:     { probability: 1.0 },
+      repeatable:     true,
+      tags:           ['combat', 'hazard_ambush'],
+    };
+
+    const current = this.state.currentTurn?.eventsQueue ?? [];
+    this.updateTurn({ eventsQueue: [ambush, ...current] });
+  }
+
   private async processEventQueue(): Promise<void> {
     const queue = [...(this.state.currentTurn?.eventsQueue ?? [])];
 
@@ -533,7 +614,11 @@ export class TurnEngine {
       // Mark as fired
       const newFired = new Set(this.state.firedEventIds);
       newFired.add(event.id);
+      const triggeredEventIds = this.state.currentTurn?.triggeredEventIds.includes(event.id)
+        ? this.state.currentTurn.triggeredEventIds
+        : [...(this.state.currentTurn?.triggeredEventIds ?? []), event.id];
       this.setState({ firedEventIds: newFired });
+      this.updateTurn({ triggeredEventIds });
 
       if (event.resolutionType === ResolutionType.Passive && event.passiveOutcome) {
         this.addDelta(passiveOutcomeToDelta(event, event.passiveOutcome));
@@ -565,6 +650,22 @@ export class TurnEngine {
       statusEffectsAdded: result.injuriesGained,
       narrative: this.buildCombatResultNarrative(result),
     });
+
+    if (result.itemsConsumed && result.itemsConsumed.length > 0) {
+      let currentInv = this.state.resources;
+      for (const itemId of result.itemsConsumed) {
+        const removeRes = removeItem(currentInv, itemId, 1);
+        if (removeRes.success && removeRes.inventory) {
+          currentInv = {
+            ...currentInv,
+            items: removeRes.inventory.items,
+            equippedItems: removeRes.inventory.equippedItems,
+            maxSlots: removeRes.inventory.maxSlots,
+          };
+        }
+      }
+      this.setState({ resources: currentInv });
+    }
   }
 
   // ─────────────────────────────────────────
@@ -618,6 +719,15 @@ export class TurnEngine {
     this.addDelta({ source: 'stat_tick', health: 2, morale: moraleDelta || undefined, companionLoyalty: loyaltyDeltas });
 
     this.setState({ morale: { ...this.state.morale, dreadActive: dreadNow } });
+
+    // ── Weather consequences ─────────────────────────────
+    if (this.state.weather === WeatherType.Severe && this.nextRandom() < 0.10) {
+      this.addDelta({ source: 'weather', food: -1, narrative: 'Rations ruined by the storm.' });
+    }
+    if (this.state.weather === WeatherType.Ideal
+        && this.state.currentTurn?.action === PlayerAction.Move) {
+      this.addDelta({ source: 'weather', morale: 2, narrative: 'Morale lifts under clear skies.' });
+    }
 
     // ── Check companion desertion ────────────────────────
     this.checkCompanionDesertion();
@@ -697,7 +807,38 @@ export class TurnEngine {
     this.tickCompanionXP(5);
 
     // Present 3 random choices to player
-    const choices = getRandomLevelUpChoices(3);
+    const rawChoices = getRandomLevelUpChoicesWithRng(3, () => this.nextRandom());
+    const stats = this.state.player.stats;
+    const statLabels: Record<keyof PlayerStats, string> = {
+      maxHealth: 'Max HP',
+      attack:    'Attack',
+      defense:   'Defense',
+      speed:     'Speed',
+      endurance: 'Endurance',
+      perception:'Perception',
+      leadership:'Leadership',
+    };
+
+    const choices = rawChoices.map(choice => {
+      const cloned = { ...choice };
+      const previews: string[] = [];
+
+      (Object.keys(statLabels) as Array<keyof PlayerStats>).forEach(key => {
+        const delta = choice.effect[key];
+        if (delta !== undefined && delta !== 0) {
+          const before = stats[key];
+          const after = before + delta;
+          previews.push(`${statLabels[key]}  ${before} → ${after}`);
+        }
+      });
+
+      if (previews.length > 0) {
+        cloned.statPreview = previews.join(', ');
+      }
+      return cloned;
+    });
+
+    this.updateTurn({ levelUpOccurred: true });
     this.setPhase(TurnPhase.AwaitingLevelUp);
     this.onLevelUp(choices);
   }
@@ -934,13 +1075,14 @@ export class TurnEngine {
 
     return {
       dayNumber:       this.state.dayNumber,
-      locationBefore:  this.state.currentLocationId,
+      locationBefore:  turn?.locationBefore ?? this.state.currentLocationId,
       locationAfter:   this.state.currentLocationId,
       action:          (turn?.action ?? PlayerAction.Camp),
       weather:         this.state.weather,
-      eventsTriggered: (turn?.eventsQueue ?? []).map(e => e.id),
+      eventsTriggered: turn?.triggeredEventIds ?? [],
+      eventOutcome:    turn?.eventOutcome,
       deltas,
-      levelUpOccurred: false,
+      levelUpOccurred: turn?.levelUpOccurred ?? false,
       narrativeSummary:allNarratives.slice(0, 300),
     };
   }

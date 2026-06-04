@@ -408,6 +408,7 @@ export function buildEventRegistry(
 // ─────────────────────────────────────────
 export function sampleEventsForTurn(
   state: GameState,
+  rng: () => number = Math.random,
 ): GameEvent[] {
   const location = LOCATIONS.find(l => l.id === state.currentLocationId);
   if (!location) return [];
@@ -455,7 +456,7 @@ export function sampleEventsForTurn(
 
   const fired: GameEvent[] = [];
   for (const event of eligible) {
-    if (Math.random() < event.conditions.probability) {
+    if (rng() < event.conditions.probability) {
       fired.push(event);
       if (fired.length >= 2) break; // max 2 per turn
     }

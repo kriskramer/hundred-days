@@ -7,26 +7,21 @@ import {
   ScrollView,
   StyleSheet,
   Modal,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GameState, ItemCategory } from '@engine/types';
 import {
   getShopInventory,
-  buyItem,
-  sellItem,
   getItemDef,
   inventoryFromResources,
-  resourcesToInventory,
   isItemEquipped,
   RARITY_COLOURS,
   CATEGORY_ICONS,
   ShopItem,
 } from '@engine/ItemSystem';
-import { useGameStore } from '@store/gameStore';
-import { saveEngine }   from '@engine/SaveEngine';
 import { getLocation }  from '@data/locations';
+import { useShopActions } from '@hooks/useShopActions';
 
 // ─────────────────────────────────────────
 // Palette
@@ -62,7 +57,7 @@ interface Props {
 
 export function ShopScreen({ gameState, locationId, visible, onClose, onToast }: Props) {
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
-  const setGame       = useGameStore(s => s.setGameState);
+  const { buyItem, sellItem } = useShopActions();
 
   const location         = getLocation(locationId);
   const hasMerchantsRing = isItemEquipped(gameState.resources, 'merchants_ring');
@@ -74,60 +69,29 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
     .map(invItem => ({ invItem, def: getItemDef(invItem.definitionId) }))
     .filter(({ def }) => !!def?.shopPrice && def.category !== ItemCategory.QuestItem);
 
-  function handleBuy(itemId: string) {
-    const def = getItemDef(itemId);
-
-    // Rations apply directly to food supply rather than going into the pack
-    if (def?.activeEffect?.foodRestore) {
-      const inv         = inventoryFromResources(gameState.resources);
-      const shopItem    = getShopInventory(locationId, gameState.resources.gold, hasMerchantsRing)
-                            .find(i => i.def.id === itemId);
-      if (!shopItem) { onToast('Cannot buy'); return; }
-      if (!shopItem.canAfford) { onToast('Not enough gold'); return; }
-      const newResources = {
-        ...gameState.resources,
-        gold: gameState.resources.gold - shopItem.finalPrice,
-        food: gameState.resources.food + def.activeEffect.foodRestore,
-      };
-      const newState = { ...gameState, resources: newResources };
-      setGame(newState);
-      saveEngine.saveRun(newState);
-      onToast(`+${def.activeEffect.foodRestore} food · ${shopItem.finalPrice} gold`);
+  async function handleBuy(itemId: string) {
+    const result = await buyItem(locationId, itemId);
+    if (!result.success) {
+      onToast(result.reason);
       return;
     }
 
-    const inv    = inventoryFromResources(gameState.resources);
-    const result = buyItem(inv, itemId, gameState.resources.gold, hasMerchantsRing);
-    if (!result.success || !result.inventory) {
-      onToast(result.reason ?? 'Cannot buy');
+    if (result.foodGained) {
+      onToast(`+${result.foodGained} food · ${result.goldSpent} gold`);
       return;
     }
-    const newResources = resourcesToInventory(
-      { ...gameState.resources, gold: gameState.resources.gold - result.goldSpent! },
-      result.inventory,
-    );
-    const newState = { ...gameState, resources: newResources };
-    setGame(newState);
-    saveEngine.saveRun(newState);
-    onToast(`Bought ${def?.name ?? itemId} · ${result.goldSpent} gold`);
+
+    onToast(`Bought ${result.itemName} · ${result.goldSpent} gold`);
   }
 
-  function handleSell(itemId: string) {
-    const inv    = inventoryFromResources(gameState.resources);
-    const result = sellItem(inv, itemId);
-    if (!result.success || !result.inventory) {
-      onToast(result.reason ?? 'Cannot sell');
+  async function handleSell(itemId: string) {
+    const result = await sellItem(itemId);
+    if (!result.success) {
+      onToast(result.reason);
       return;
     }
-    const newResources = resourcesToInventory(
-      { ...gameState.resources, gold: gameState.resources.gold + result.goldGained! },
-      result.inventory,
-    );
-    const newState = { ...gameState, resources: newResources };
-    setGame(newState);
-    saveEngine.saveRun(newState);
-    const def = getItemDef(itemId);
-    onToast(`Sold ${def?.name ?? itemId} · +${result.goldGained} gold`);
+
+    onToast(`Sold ${result.itemName} · +${result.goldGained} gold`);
   }
 
   return (

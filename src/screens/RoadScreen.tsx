@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationRandomText } from '@data/locations';
@@ -172,6 +172,19 @@ export function RoadScreen({
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
+
+    if (params.action === PlayerAction.Move && gameState.resources.food < 1) {
+      Alert.alert(
+        'Starving',
+        'You have almost no food. Moving will cost health. Continue?',
+        [
+          { text: 'Stay',  style: 'cancel' },
+          { text: 'March', onPress: () => engine.submitAction(params).catch(console.error) },
+        ]
+      );
+      return;
+    }
+
     engine.submitAction(params).catch(console.error);
   }
 
@@ -194,25 +207,25 @@ export function RoadScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.parchment }}>
-      {/* Stat bars — pinned below top chrome */}
-      <View style={{
-        flexDirection: 'row',
-        paddingHorizontal: 16,
-        paddingVertical: 7,
-        gap: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#C8B89A',
-      }}>
-        <StatBar label="Health" value={gameState.player.health} max={gameState.player.stats.maxHealth} />
-        <StatBar label="Morale" value={gameState.morale.value} />
-      </View>
+      <ScrollView
+        contentContainerStyle={{ alignItems: 'center', paddingBottom: 16 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ width: '100%', maxWidth: 480 }}>
+          {/* Stat bars */}
+          <View style={{
+            flexDirection: 'row',
+            paddingHorizontal: 16,
+            paddingVertical: 7,
+            gap: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: '#C8B89A',
+          }}>
+            <StatBar label="Health" value={gameState.player.health} max={gameState.player.stats.maxHealth} />
+            <StatBar label="Morale" value={gameState.morale.value} />
+          </View>
 
-      <View style={{ flex: 1, alignItems: 'center', width: '100%' }}>
-        <View style={{ width: '100%', maxWidth: 480, flex: 1 }}>
-          <ScrollView
-            contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={{ padding: 16 }}>
             {/* Location header */}
             <View className="border-b border-parchment-deep pb-3 mb-4">
               <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 2 }}>
@@ -304,23 +317,22 @@ export function RoadScreen({
                 textInterval={textInterval}
               />
             )}
-          </ScrollView>
 
-          {/* Pinned actions footer */}
-          <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', padding: 12, backgroundColor: '#EDE4CF' }}>
-            <SectionHeader label="Actions" right="Choose wisely" centered />
-            <ActionGrid actions={[
-              { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
-              { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary',   onPress: () => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: true  }, 'Force March', 'Travel 2 locations and spend 1.5 food?') },
-              ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
-              ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
-              { label: 'Forage',       sub: 'Gain food',          variant: 'default',   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
-              { label: 'Rally',        sub: 'Boost morale',       variant: 'default',   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
-              { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default',   onPress: () => submitWithConfirm({ action: PlayerAction.Camp }, 'Make Camp', 'Rest here, heal, and spend the turn?') },
-            ]} />
+            <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12 }}>
+              <SectionHeader label="Actions" right="Choose wisely" centered />
+              <ActionGrid actions={[
+                { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
+                { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary',   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
+                ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+                ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
+                { label: 'Forage',       sub: 'Gain food',          variant: 'default',   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
+                { label: 'Rally',        sub: 'Boost morale',       variant: 'default',   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
+                { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default',   onPress: () => submit({ action: PlayerAction.Camp }) },
+              ]} />
+            </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }

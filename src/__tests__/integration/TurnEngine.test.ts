@@ -1,6 +1,8 @@
-import { TurnEngine, ActionParams } from '@engine/TurnEngine';
-import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType } from '@engine/types';
+import { TurnEngine } from '@engine/TurnEngine';
+import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType, GameState } from '@engine/types';
+import { saveEngine } from '@engine/SaveEngine';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
+import { getLocation, getRegion } from '@data/locations';
 
 // ─────────────────────────────────────────
 // Module-level mocks
@@ -11,12 +13,12 @@ jest.mock('@engine/SaveEngine', () => ({
 }));
 
 // Default: no events fire
-const mockSampleEvents = jest.fn(() => []);
-const mockHasEligibleDialogue = jest.fn(() => false);
+const mockSampleEvents = jest.fn<GameEvent[], [GameState]>(() => []);
+const mockHasEligibleDialogue = jest.fn<boolean, [GameState]>(() => false);
 
 jest.mock('@engine/EventSystem', () => ({
-  sampleEventsForTurn: (...args: unknown[]) => mockSampleEvents(...args),
-  hasEligibleDialogue: (...args: unknown[]) => mockHasEligibleDialogue(...args),
+  sampleEventsForTurn: (gameState: GameState) => mockSampleEvents(gameState),
+  hasEligibleDialogue: (gameState: GameState) => mockHasEligibleDialogue(gameState),
   passiveOutcomeToDelta: jest.requireActual('@engine/EventSystem').passiveOutcomeToDelta,
   EVENT_DEFINITIONS: jest.requireActual('@engine/EventSystem').EVENT_DEFINITIONS,
 }));
@@ -47,7 +49,7 @@ function makeEngine(stateOverrides = {}) {
   const onStateChange = jest.fn();
   const onAwaitInput  = jest.fn();
   const onLevelUp     = jest.fn();
-  const engine = new TurnEngine(state, onStateChange, onAwaitInput, onLevelUp);
+  const engine = new TurnEngine(state, onStateChange, onAwaitInput, onLevelUp, () => Math.random());
   return { engine, onStateChange, onAwaitInput, onLevelUp };
 }
 
@@ -57,6 +59,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockSampleEvents.mockReturnValue([]);
   mockHasEligibleDialogue.mockReturnValue(false);
+  (getLocation as jest.Mock).mockReturnValue(mockLocation);
+  (getRegion as jest.Mock).mockReturnValue({ name: 'Test Region', startId: 1, endId: 20 });
   // Default: no luck roll success, no crits — pass slightly above typical thresholds
   randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
 });
@@ -128,7 +132,6 @@ describe('TurnEngine — Move action', () => {
   });
 
   it('calls saveEngine.saveRun after completing a turn', async () => {
-    const { saveEngine } = require('@engine/SaveEngine');
     const { engine } = makeEngine();
 
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
@@ -169,6 +172,34 @@ describe('TurnEngine — Rest action', () => {
     expect(after.player.health).toBeGreaterThan(70);
     expect(after.player.health).toBeLessThan(90); // not as much as inn (+25)
   });
+
+  it('triggers hazard ambush when resting in high-danger area', async () => {
+    const mockGetLocation = getLocation as jest.Mock;
+    const mockGetRegion = getRegion as jest.Mock;
+
+    mockGetLocation.mockReturnValue({
+      id: 1, name: 'Wilderness Location', type: 'wilderness',
+      isTown: false, hasShop: false, mobs: [],
+      actions: { canSteal: false, huntYield: 1.0, restQuality: 1.0, travelDifficulty: 1.0, hasBossFight: false },
+    });
+    mockGetRegion.mockReturnValue({ name: 'Danger Zone', startId: 1, endId: 20, dangerLevel: 8 });
+
+    // Mock random to trigger the ambush: dangerLevel 8 * 0.05 = 0.4 chance.
+    // 0.3 <= 0.4, so it should trigger.
+    randomSpy.mockReturnValue(0.3);
+
+    const { engine } = makeEngine({
+      player: { name: 'Test', level: 1, xp: 0, health: 70, stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 }, statusEffects: [] },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Rest, atInn: false });
+
+    const state = engine.getState();
+    const currentTurn = state.currentTurn;
+    expect(currentTurn?.activeInteractiveEvent).not.toBeNull();
+    expect(currentTurn?.activeInteractiveEvent?.tags).toContain('hazard_ambush');
+    expect(currentTurn?.activeInteractiveEvent?.name).toBe('Disturbed Sleep');
+  });
 });
 
 // ─────────────────────────────────────────
@@ -188,6 +219,32 @@ describe('TurnEngine — Hunt action', () => {
     expect(after.player.xp).toBe(before.player.xp + 3);
     // Food may have gone up or down depending on day cost vs yield; just verify turn advanced
     expect(after.dayNumber).toBe(before.dayNumber + 1);
+  });
+
+  it('triggers hazard ambush when hunting in high-danger area', async () => {
+    const mockGetLocation = getLocation as jest.Mock;
+    const mockGetRegion = getRegion as jest.Mock;
+
+    mockGetLocation.mockReturnValue({
+      id: 1, name: 'Wilderness Location', type: 'wilderness',
+      isTown: false, hasShop: false, mobs: [],
+      actions: { canSteal: false, huntYield: 1.0, restQuality: 1.0, travelDifficulty: 1.0, hasBossFight: false },
+    });
+    mockGetRegion.mockReturnValue({ name: 'Danger Zone', startId: 1, endId: 20, dangerLevel: 8 });
+
+    // Mock random to trigger the ambush: dangerLevel 8 * 0.05 = 0.4 chance.
+    // 0.3 <= 0.4, so it should trigger.
+    randomSpy.mockReturnValue(0.3);
+
+    const { engine } = makeEngine();
+
+    await engine.submitAction({ action: PlayerAction.Hunt, method: 'forage' });
+
+    const state = engine.getState();
+    const currentTurn = state.currentTurn;
+    expect(currentTurn?.activeInteractiveEvent).not.toBeNull();
+    expect(currentTurn?.activeInteractiveEvent?.tags).toContain('hazard_ambush');
+    expect(currentTurn?.activeInteractiveEvent?.name).toBe('Predator in the Brush');
   });
 });
 
@@ -381,6 +438,69 @@ describe('TurnEngine — interactive events', () => {
     expect(after.resources.gold).toBeGreaterThanOrEqual(goldBefore + 10 - 5); // gold + event gain, minus any costs
     expect(after.dayNumber).toBeGreaterThan(1);
   });
+
+  it('records action, locations, triggered events, and event outcome in turn history', async () => {
+    const banditEvent: GameEvent = {
+      id: 'bandit_ambush', type: EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Bandit Ambush', description: 'Bandits!',
+      conditions: { probability: 1.0 }, repeatable: true, tags: ['combat'],
+    };
+    mockSampleEvents.mockReturnValue([banditEvent]);
+
+    const { engine } = makeEngine();
+    const startingLocation = engine.getState().currentLocationId;
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    await engine.resolveInteractiveEvent({
+      outcome: 'victory', roundsFought: 2, xpGained: 18, goldGained: 10,
+      foodGained: 0, healthLost: 5, moraleDelta: 8, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {},
+    });
+
+    const history = engine.getState().turnHistory;
+    const record = history[history.length - 1];
+    expect(record).toMatchObject({
+      action: PlayerAction.Move,
+      locationBefore: startingLocation,
+      locationAfter: startingLocation + 1,
+      eventsTriggered: ['bandit_ambush'],
+      eventOutcome: {
+        eventId: 'bandit_ambush',
+        result: 'victory',
+      },
+    });
+  });
+
+  it('records dialogue completion separately from negotiated combat outcomes', async () => {
+    const dialogueEvent: GameEvent = {
+      id: 'camp_elder', type: EventType.Dialogue,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Camp Elder', description: 'A quiet conversation.',
+      conditions: { probability: 1.0 }, repeatable: true, tags: ['dialogue'],
+    };
+    mockSampleEvents.mockReturnValue([dialogueEvent]);
+
+    const { engine } = makeEngine();
+    await engine.submitAction({ action: PlayerAction.Camp });
+    await engine.resolveInteractiveEvent({
+      outcome: 'negotiated', roundsFought: 0, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 0, moraleDelta: 1, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {},
+    }, {
+      eventId: 'camp_elder',
+      result: 'dialogue_complete',
+      summary: 'Dialogue completed.',
+    });
+
+    const history = engine.getState().turnHistory;
+    const record = history[history.length - 1];
+    expect(record?.eventOutcome).toEqual({
+      eventId: 'camp_elder',
+      result: 'dialogue_complete',
+      summary: 'Dialogue completed.',
+    });
+  });
 });
 
 // ─────────────────────────────────────────
@@ -406,5 +526,62 @@ describe('TurnEngine — companion desertion', () => {
     const stillPresent = after.companions.some(c => c.id === 'deserting_comp');
     // Desertion depends on actual loyalty tick amount — just verify no crash
     expect(typeof stillPresent).toBe('boolean');
+  });
+});
+
+// ─────────────────────────────────────────
+// Weather consequences
+// ─────────────────────────────────────────
+
+describe('TurnEngine — Weather consequences', () => {
+  it('ruins rations in severe weather with 10% chance', async () => {
+    const { engine } = makeEngine({
+      weather: WeatherType.Severe,
+      resources: { food: 5, gold: 20, items: [], maxSlots: 8, equippedItems: {} },
+    });
+
+    randomSpy.mockReset();
+    randomSpy = jest.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.99) // luck roll
+      .mockReturnValueOnce(0.05) // weather check
+      .mockReturnValue(0.99);    // general fallback
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    expect(engine.getState().resources.food).toBe(3);
+    const history = engine.getState().turnHistory;
+    const record = history[history.length - 1];
+    expect(record.narrativeSummary).toContain('Rations ruined by the storm.');
+  });
+
+  it('lifts morale in ideal weather when moving', async () => {
+    const { engine } = makeEngine({
+      weather: WeatherType.Ideal,
+      morale: { value: 50, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    randomSpy.mockReset();
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    expect(engine.getState().morale.value).toBe(52);
+    const history = engine.getState().turnHistory;
+    const record = history[history.length - 1];
+    expect(record.narrativeSummary).toContain('Morale lifts under clear skies.');
+  });
+
+  it('does not lift morale in ideal weather when camping', async () => {
+    const { engine } = makeEngine({
+      weather: WeatherType.Ideal,
+      morale: { value: 50, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    randomSpy.mockReset();
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    await engine.submitAction({ action: PlayerAction.Camp });
+
+    expect(engine.getState().morale.value).toBe(53);
   });
 });

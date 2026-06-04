@@ -19,7 +19,14 @@ import {
   GameEvent,
   CombatResult,
   EnemyBehavior,
+  ItemCategory,
+  ItemDefinition,
 } from '@engine/types';
+
+import {
+  inventoryFromResources,
+  getItemDef,
+} from '@engine/ItemSystem';
 
 import {
   CombatEngine,
@@ -32,6 +39,7 @@ import {
   buildEnemiesForLocation,
   buildBossEnemy,
 } from '@engine/CombatEngine';
+import type { TurnEngine } from '@engine/TurnEngine';
 
 import { getLocation } from '@data/locations';
 import * as Haptics from 'expo-haptics';
@@ -42,6 +50,7 @@ import * as Haptics from 'expo-haptics';
 
 interface Props {
   gameState:  GameState;
+  engine:     TurnEngine | null;
   event:      GameEvent | null;
   onComplete: (result: CombatResult) => void;
   onToast:    (msg: string) => void;
@@ -53,14 +62,25 @@ interface Props {
 
 import { Colors as C } from '@theme';
 
+const BEHAVIOR_DESC: Record<EnemyBehavior, string> = {
+  [EnemyBehavior.Aggressive]:  'Attacks every round without hesitation.',
+  [EnemyBehavior.Opportunist]: 'Targets the weakest party member preferentially.',
+  [EnemyBehavior.Defensive]:   'Takes reduced damage until provoked.',
+  [EnemyBehavior.Pack]:        'May call additional enemies when bloodied.',
+  [EnemyBehavior.Undead]:      'Cannot flee or be negotiated with.',
+  [EnemyBehavior.Spectral]:    'Resists 40% of physical damage.',
+};
+
 
 // ─────────────────────────────────────────
 // CombatScreen
 // ─────────────────────────────────────────
 
-export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
+export function CombatScreen({ gameState, engine, event, onComplete, onToast }: Props) {
   const [combatState, setCombatState] = useState<CombatState | null>(null);
   const [showResult,  setShowResult]  = useState(false);
+  const [showItemPicker, setShowItemPicker] = useState(false);
+  const [encounterText, setEncounterText] = useState('');
 
   const engineRef    = useRef<CombatEngine | null>(null);
   const logScrollRef = useRef<ScrollView>(null);
@@ -68,16 +88,16 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
   const playerFlash  = useRef(new Animated.Value(1)).current;
   const prevPlayerHP = useRef<number>(0);
 
-  // ── Build enemies ────────────────────────────────────────
-
-  const enemies = buildEnemiesFromContext(event, gameState);
-
   // ── Init engine once ─────────────────────────────────────
 
   useEffect(() => {
     if (engineRef.current) return;
 
-    const engine = new CombatEngine(
+    const combatRng = engine ? () => engine.nextRandom() : Math.random;
+    const enemies = buildEnemiesFromContext(event, gameState, combatRng);
+    setEncounterText(getEncounterText(enemies, combatRng));
+
+    const combatEngine = new CombatEngine(
       enemies,
       gameState,
       (newState) => {
@@ -97,10 +117,11 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
           setTimeout(() => setShowResult(true), 700);
         }
       },
+      combatRng,
     );
 
-    engineRef.current = engine;
-    const initial     = engine.getState();
+    engineRef.current = combatEngine;
+    const initial     = combatEngine.getState();
     prevPlayerHP.current = initial.player.currentHP;
     setCombatState(initial);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,14 +135,14 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
 
   // ── Actions ──────────────────────────────────────────────
 
-  const handleAction = useCallback((type: CombatAction['type'], targetIdx = 0) => {
+  const handleAction = useCallback((type: CombatAction['type'], targetIdx = 0, itemId?: string) => {
     if (!engineRef.current) return;
     if (combatState?.phase !== 'awaiting_input') return;
     if (type === 'attack') {
       flashAnim(enemyFlash);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
-    engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx });
+    engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId });
   }, [combatState?.phase, enemyFlash]);
 
   const handleContinue = useCallback(() => {
@@ -146,80 +167,90 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
   const awaitingInput = combatState.phase === 'awaiting_input';
   const showNegotiate = canNegotiate(combatState.enemies);
 
+  const inv = inventoryFromResources(gameState.resources);
+  const usableItems = inv.items
+    .map(i => getItemDef(i.definitionId))
+    .filter((def): def is ItemDefinition => !!def?.activeEffect && def.category === ItemCategory.Consumable);
+
   return (
     <View style={s.root}>
-
-      {/* Encounter text — shown on round 1 */}
-      {combatState.round === 1 && (
-        <View style={s.encounterBanner}>
-          <Text style={s.encounterText}>
-            {getEncounterText(combatState.enemies)}
-          </Text>
-        </View>
-      )}
-
-      {/* ── ENEMY BLOCKS ── */}
-      <View style={s.enemiesSection}>
-        {combatState.enemies.map((enemy, i) => (
-          <Animated.View
-            key={`${enemy.enemyId}_${i}`}
-            style={{ opacity: i === 0 ? enemyFlash : 1 }}
-          >
-            <EnemyBlock
-              enemy={enemy}
-              isTarget={i === 0 && aliveEnemies.length > 0}
-              onPress={() => awaitingInput && handleAction('attack', i)}
-            />
-          </Animated.View>
-        ))}
-      </View>
-
-      {/* ── ROUND DIVIDER ── */}
-      <View style={s.divider}>
-        <View style={s.dividerLine} />
-        <Text style={s.dividerText}>Round {combatState.round}</Text>
-        {combatState.isPlayerStunned && (
-          <View style={s.stunnedPill}>
-            <Text style={s.stunnedText}>STUNNED</Text>
-          </View>
-        )}
-        <View style={s.dividerLine} />
-      </View>
-
-      {/* ── PARTY ── */}
-      <View style={s.partyRow}>
-        <Animated.View style={[s.partyBlock, s.playerBlock, { opacity: playerFlash }]}>
-          <View style={s.partyHeader}>
-            <Text style={s.playerName}>You</Text>
-            {combatState.player.statusEffects.length > 0 && (
-              <StatusBadges effects={combatState.player.statusEffects} />
-            )}
-          </View>
-          <HPBar current={combatState.player.currentHP} max={combatState.player.maxHP} color={C.green} />
-          <Text style={s.hpText}>
-            {combatState.player.currentHP} / {combatState.player.maxHP}
-          </Text>
-        </Animated.View>
-
-        {combatState.companions.map(c => (
-          <CompanionBlock key={c.companionId} companion={c} />
-        ))}
-      </View>
-
-      {/* ── LOG ── */}
       <ScrollView
-        ref={logScrollRef}
-        style={s.log}
-        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 8 }}
       >
-        {combatState.log.map((entry, i) => (
-          <LogLine key={i} entry={entry} />
-        ))}
-        {combatState.log.length === 0 && (
-          <Text style={[s.logLine, { color: C.mist }]}>
-            The air grows heavy. Choose your action.
-          </Text>
+        {/* Encounter text — shown on round 1 */}
+        {combatState.round === 1 && (
+          <View style={s.encounterBanner}>
+            <Text style={s.encounterText}>
+              {encounterText}
+            </Text>
+          </View>
         )}
+
+        {/* ── ENEMY BLOCKS ── */}
+        <View style={s.enemiesSection}>
+          {combatState.enemies.map((enemy, i) => (
+            <Animated.View
+              key={`${enemy.enemyId}_${i}`}
+              style={{ opacity: i === 0 ? enemyFlash : 1 }}
+            >
+              <EnemyBlock
+                enemy={enemy}
+                isTarget={i === 0 && aliveEnemies.length > 0}
+                onPress={() => awaitingInput && handleAction('attack', i)}
+                onBehaviorLongPress={() => onToast(BEHAVIOR_DESC[enemy.behavior])}
+              />
+            </Animated.View>
+          ))}
+        </View>
+
+        {/* ── ROUND DIVIDER ── */}
+        <View style={s.divider}>
+          <View style={s.dividerLine} />
+          <Text style={s.dividerText}>Round {combatState.round}</Text>
+          {combatState.isPlayerStunned && (
+            <View style={s.stunnedPill}>
+              <Text style={s.stunnedText}>STUNNED</Text>
+            </View>
+          )}
+          <View style={s.dividerLine} />
+        </View>
+
+        {/* ── PARTY ── */}
+        <View style={s.partyRow}>
+          <Animated.View style={[s.partyBlock, s.playerBlock, { opacity: playerFlash }]}>
+            <View style={s.partyHeader}>
+              <Text style={s.playerName}>You</Text>
+              {combatState.player.statusEffects.length > 0 && (
+                <StatusBadges effects={combatState.player.statusEffects} />
+              )}
+            </View>
+            <HPBar current={combatState.player.currentHP} max={combatState.player.maxHP} color={C.green} />
+            <Text style={s.hpText}>
+              {combatState.player.currentHP} / {combatState.player.maxHP}
+            </Text>
+          </Animated.View>
+
+          {combatState.companions.map(c => (
+            <CompanionBlock key={c.companionId} companion={c} />
+          ))}
+        </View>
+
+        {/* ── LOG ── */}
+        <ScrollView
+          ref={logScrollRef}
+          style={s.log}
+          showsVerticalScrollIndicator={false}
+        >
+          {combatState.log.map((entry, i) => (
+            <LogLine key={i} entry={entry} />
+          ))}
+          {combatState.log.length === 0 && (
+            <Text style={[s.logLine, { color: C.mist }]}>
+              The air grows heavy. Choose your action.
+            </Text>
+          )}
+        </ScrollView>
       </ScrollView>
 
       {/* ── ACTIONS ── */}
@@ -244,12 +275,12 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
         />
         <ActionBtn
           label="Skill"
-          sub="Use consumable"
+          sub={usableItems.length > 0 ? "Use consumable" : "No items"}
           icon="★"
           bgColor={C.inkLight}
           borderColor={C.goldLight}
-          disabled={!awaitingInput}
-          onPress={() => handleAction('skill')}
+          disabled={!awaitingInput || usableItems.length === 0}
+          onPress={() => setShowItemPicker(true)}
         />
         <ActionBtn
           label="Flee"
@@ -274,6 +305,31 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
         )}
       </View>
 
+      {/* ── ITEM PICKER OVERLAY ── */}
+      {showItemPicker && (
+        <View style={s.itemPickerOverlay}>
+          <Text style={s.itemPickerTitle}>USE ITEM</Text>
+          <ScrollView style={s.itemPickerScroll}>
+            {usableItems.map(item => (
+              <TouchableOpacity
+                key={item.id}
+                style={s.itemPickerRow}
+                onPress={() => {
+                  setShowItemPicker(false);
+                  handleAction('skill', 0, item.id);
+                }}
+              >
+                <Text style={s.itemName}>{item.name}</Text>
+                <Text style={s.itemDesc}>{item.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity style={s.itemPickerCancelBtn} onPress={() => setShowItemPicker(false)}>
+            <Text style={s.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── RESULT OVERLAY ── */}
       {showResult && combatState.result && (
         <ResultOverlay result={combatState.result} onContinue={handleContinue} />
@@ -287,11 +343,12 @@ export function CombatScreen({ gameState, event, onComplete, onToast }: Props) {
 // ─────────────────────────────────────────
 
 function EnemyBlock({
-  enemy, isTarget, onPress,
+  enemy, isTarget, onPress, onBehaviorLongPress,
 }: {
-  enemy:    EnemyCombatant;
-  isTarget: boolean;
-  onPress:  () => void;
+  enemy:                EnemyCombatant;
+  isTarget:             boolean;
+  onPress:              () => void;
+  onBehaviorLongPress:  () => void;
 }) {
   const dead = enemy.currentHP <= 0 || enemy.isFleeing;
   return (
@@ -305,7 +362,13 @@ function EnemyBlock({
         <Text style={[s.enemyName, dead && { color: C.mist }]}>
           {enemy.name}{enemy.isFleeing ? '  (fleeing)' : ''}{enemy.currentHP <= 0 ? '  ✕' : ''}
         </Text>
-        <BehaviorTag behavior={enemy.behavior} />
+        <TouchableOpacity
+          onLongPress={onBehaviorLongPress}
+          onPress={() => {}}
+          activeOpacity={0.9}
+        >
+          <BehaviorTag behavior={enemy.behavior} />
+        </TouchableOpacity>
       </View>
       <HPBar
         current={Math.max(0, enemy.currentHP)}
@@ -485,14 +548,18 @@ function ResultOverlay({
 // Helpers
 // ─────────────────────────────────────────
 
-function buildEnemiesFromContext(event: GameEvent | null, game: GameState) {
+function buildEnemiesFromContext(
+  event: GameEvent | null,
+  game: GameState,
+  random: () => number,
+) {
   const location = getLocation(game.currentLocationId);
 
   if (event?.tags?.includes('boss'))   return buildBossEnemy(game);
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'],  game.currentLocationId);
 
-  const eligible = location.mobs.filter(m => Math.random() * 100 < m.aggroPct && !m.isCompanion);
+  const eligible = location.mobs.filter(m => random() * 100 < m.aggroPct && !m.isCompanion);
   // Guarantee at least one enemy — TurnEngine already confirmed mobs would spawn
   const toSpawn = eligible.length > 0
     ? eligible.slice(0, 2)
@@ -506,11 +573,11 @@ function buildEnemiesFromContext(event: GameEvent | null, game: GameState) {
   );
 }
 
-function getEncounterText(enemies: EnemyCombatant[]): string {
+function getEncounterText(enemies: EnemyCombatant[], random: () => number): string {
   const def = ENEMY_DEFINITIONS.find(d => d.id === enemies[0]?.enemyId);
   if (!def) return 'Something threatens you on the road.';
   const texts = def.encounterText;
-  return texts[Math.floor(Math.random() * texts.length)];
+  return texts[Math.floor(random() * texts.length)];
 }
 
 function canNegotiate(enemies: EnemyCombatant[]): boolean {
@@ -725,9 +792,9 @@ const s = StyleSheet.create({
     borderColor: '#2A1A0A',
     borderRadius: 2,
     borderWidth: 1,
-    flex: 1,
     marginBottom: 8,
-    maxHeight: 90,
+    minHeight: 80,
+    maxHeight: 220,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -817,6 +884,65 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   resultBtnText: {
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize: 12,
+    letterSpacing: 1.5,
+  },
+
+  // Item Picker Overlay
+  itemPickerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(26,18,8,0.95)',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 100,
+  },
+  itemPickerTitle: {
+    color: C.gold,
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize: 20,
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
+  itemPickerScroll: {
+    width: '100%',
+    maxHeight: 280,
+    marginBottom: 16,
+  },
+  itemPickerRow: {
+    backgroundColor: '#22140A',
+    borderColor: '#4E3629',
+    borderRadius: 2,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  itemName: {
+    color: C.parchment,
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize: 14,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  itemDesc: {
+    color: C.parchDark,
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  itemPickerCancelBtn: {
+    backgroundColor: '#3A2015',
+    borderColor: '#5C3826',
+    borderWidth: 1,
+    borderRadius: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  cancelText: {
+    color: C.mist,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize: 12,
     letterSpacing: 1.5,

@@ -2,13 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react-native';
 import { StatusBar } from '@components/StatusBar';
 import { makeGameState } from '../__fixtures__/gameState';
-import { MoraleTier, ReputationTier, WeatherType } from '@engine/types';
-
-jest.mock('@data/locations', () => ({
-  getLocation: jest.fn((id: number) => ({ id, name: 'Okuna' })),
-  LOCATIONS: [],
-  getRegion: jest.fn(() => ({ name: 'Test Region' })),
-}));
 
 describe('StatusBar', () => {
   it('renders day number', () => {
@@ -41,12 +34,11 @@ describe('StatusBar', () => {
     expect(screen.getByText('8.0')).toBeTruthy();
   });
 
-  it('truncates long location name with ellipsis', () => {
-    const { getLocation } = require('@data/locations');
-    (getLocation as jest.Mock).mockReturnValueOnce({ id: 1, name: 'Avery Long Name Here' });
-    const state = makeGameState();
+  it('renders the current location number', () => {
+    const state = makeGameState({ currentLocationId: 47 });
     render(<StatusBar gameState={state} />);
-    expect(screen.getByText('Avery Lon…')).toBeTruthy();
+    expect(screen.getByText('47')).toBeTruthy();
+    expect(screen.getByText('/125')).toBeTruthy();
   });
 
   it('renders food in red when below 3', () => {

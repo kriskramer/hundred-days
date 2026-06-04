@@ -390,6 +390,11 @@ export interface TurnRecord {
   action:          PlayerAction;
   weather:         WeatherType;
   eventsTriggered: string[];
+  eventOutcome?: {
+    eventId:   string;
+    result:    'victory' | 'defeat' | 'fled' | 'negotiated' | 'dialogue_complete';
+    summary?:  string;
+  };
   deltas:          StatDelta[];
   levelUpOccurred: boolean;
   narrativeSummary:string;
@@ -398,9 +403,13 @@ export interface TurnRecord {
 export interface TurnState {
   phase:                  TurnPhase;
   action:                 PlayerAction | null;
+  locationBefore:         number;
   eventsQueue:            GameEvent[];
+  triggeredEventIds:      string[];
   activeInteractiveEvent: GameEvent | null;
+  eventOutcome?:          TurnRecord['eventOutcome'];
   pendingDeltas:          StatDelta[];
+  levelUpOccurred:        boolean;
   log:                    TurnLogEntry[];
 }
 
@@ -411,6 +420,7 @@ export interface TurnState {
 export interface GameState {
   runId:              string;
   seed:               number;
+  rngState:           number;
   dayNumber:          number;
   currentLocationId:  number;
   isComplete:         boolean;
@@ -448,6 +458,7 @@ export interface CombatResult {
   reputationDelta:   number;
   injuriesGained:    string[];
   companionInjuries: Record<string, string[]>;
+  itemsConsumed?:     string[];
 }
 
 // ─────────────────────────────────────────
@@ -459,6 +470,7 @@ export interface LevelUpChoice {
   label:       string;
   description: string;
   effect:      Partial<PlayerStats> & { luckModifier?: number; foodCostModifier?: number; foragingBonus?: number; moralePerTurn?: number };
+  statPreview?: string;
 }
 
 // ─────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
 import {
   computeEquippedBonuses,
   inventoryFromResources,
+  getItemDef,
 } from './ItemSystem';
 
 // ─────────────────────────────────────────
@@ -137,6 +138,7 @@ export interface CombatState {
   log:                  CombatLogEntry[];
   result:               CombatResult | null;
   resourceSideEffects:  ResourceSideEffect;
+  itemsConsumed:        string[];
 }
 
 export type CombatActionType = 'attack' | 'defend' | 'skill' | 'flee' | 'negotiate';
@@ -145,6 +147,7 @@ export interface CombatAction {
   type:             CombatActionType;
   targetEnemyIndex?: number;
   skillId?:         string;
+  itemId?:          string;
 }
 
 // ─────────────────────────────────────────
@@ -550,13 +553,16 @@ export class CombatEngine {
   private state:           CombatState;
   private onStateChange:   (state: CombatState) => void;
   private initialPlayerHP: number;
+  private readonly random: () => number;
 
   constructor(
     enemies:       EnemyCombatant[],
     gameState:     GameState,
     onStateChange: (state: CombatState) => void,
+    random:        () => number = Math.random,
   ) {
     this.onStateChange   = onStateChange;
+    this.random          = random;
     this.state           = this.init(enemies, gameState);
     this.initialPlayerHP = this.state.player.currentHP;
     // Start in awaiting_input (or after surprise round)
@@ -581,7 +587,7 @@ export class CombatEngine {
 
   private init(enemies: EnemyCombatant[], game: GameState): CombatState {
     const fastestEnemy = Math.max(...enemies.map(e => e.speed));
-    const surprised    = Math.random() < Math.max(0, (fastestEnemy - game.player.stats.speed) * 0.04);
+    const surprised    = this.random() < Math.max(0, (fastestEnemy - game.player.stats.speed) * 0.04);
 
     return {
       id:          `combat_${Date.now()}`,
@@ -596,6 +602,7 @@ export class CombatEngine {
       log:                 [],
       result:              null,
       resourceSideEffects: {},
+      itemsConsumed:       [],
     };
   }
 
@@ -644,7 +651,7 @@ export class CombatEngine {
     } else {
       if (action.type === 'attack') this.playerAttack(action.targetEnemyIndex ?? 0);
       if (action.type === 'defend') this.playerDefend();
-      if (action.type === 'skill')  this.playerSkill(action.skillId);
+      if (action.type === 'skill')  this.playerSkill(action.itemId || action.skillId);
     }
 
     if (!this.isOver()) this.companionsAct();
@@ -671,8 +678,11 @@ export class CombatEngine {
 
     const terrified = this.state.player.statusEffects.find(e => e.id === 'terrified');
     const atkMult   = terrified ? (terrified.magnitude ?? 0.7) : 1.0;
+    const attackBuff = this.state.player.statusEffects.find(e => e.id === 'attack_buffed');
+    const flatAtkBonus = attackBuff ? (attackBuff.magnitude ?? 0) : 0;
+
     const { damage, isCritical } = this.calcDamage(
-      this.state.player.attack * atkMult,
+      (this.state.player.attack + flatAtkBonus) * atkMult,
       target.defense,
       target.physicalResistance,
     );
@@ -696,11 +706,94 @@ export class CombatEngine {
     this.log('Player', 'takes a defensive stance.', this.state.round, undefined, undefined, undefined, 'normal');
   }
 
-  private playerSkill(skillId?: string): void {
-    // Skill resolution will be wired to the item system in the next phase.
-    // For now apply a generic battle draught effect as a placeholder.
-    this.state.player.statusEffects.push({ id: 'attack_buffed', remainingRounds: 3, magnitude: 1.5 });
-    this.log('Player', `uses ${skillId ?? 'a skill'}.`, this.state.round, undefined, undefined, undefined, 'effect');
+  private playerSkill(itemId?: string): void {
+    if (!itemId) {
+      this.log('Player', 'uses a skill.', this.state.round, undefined, undefined, undefined, 'effect');
+      return;
+    }
+
+    const def = getItemDef(itemId);
+    if (!def) {
+      this.log('Player', 'uses a skill.', this.state.round, undefined, undefined, undefined, 'effect');
+      return;
+    }
+
+    this.log('Player', `uses ${def.name}.`, this.state.round, undefined, undefined, undefined, 'effect');
+    this.state.itemsConsumed.push(itemId);
+
+    const activeEffect = def.activeEffect;
+    if (!activeEffect) return;
+
+    // Apply active effect
+    if (activeEffect.healthRestore) {
+      const oldHP = this.state.player.currentHP;
+      this.state.player.currentHP = Math.min(this.state.player.maxHP, this.state.player.currentHP + activeEffect.healthRestore);
+      const healed = this.state.player.currentHP - oldHP;
+      this.log('Player', `recovers ${healed} HP.`, this.state.round, healed, undefined, undefined, 'heal');
+    }
+
+    if (activeEffect.moraleRestore) {
+      this.state.resourceSideEffects.moraleLost = (this.state.resourceSideEffects.moraleLost ?? 0) - activeEffect.moraleRestore;
+      this.log('Player', `recovers ${activeEffect.moraleRestore} Morale.`, this.state.round, undefined, undefined, undefined, 'heal');
+    }
+
+    if (activeEffect.clearsStatusEffect) {
+      const effectId = activeEffect.clearsStatusEffect;
+      const hadEffect = this.state.player.statusEffects.some(e => e.id === effectId);
+      if (hadEffect) {
+        this.state.player.statusEffects = this.state.player.statusEffects.filter(e => e.id !== effectId);
+        this.log('Player', `clears the ${effectId} effect.`, this.state.round, undefined, undefined, undefined, 'effect');
+      }
+    }
+
+    if (activeEffect.grantsStatusEffect) {
+      this.state.player.statusEffects.push({
+        id: activeEffect.grantsStatusEffect,
+        remainingRounds: activeEffect.statusDurationTurns ?? 3,
+      });
+      this.log('Player', `grants themselves ${activeEffect.grantsStatusEffect}.`, this.state.round, undefined, undefined, undefined, 'effect');
+    }
+
+    if (activeEffect.tempAttackBonus) {
+      this.state.player.statusEffects.push({
+        id: 'attack_buffed',
+        remainingRounds: activeEffect.buffDurationRounds ?? 3,
+        magnitude: activeEffect.tempAttackBonus,
+      });
+      this.log('Player', `gains +${activeEffect.tempAttackBonus} Attack.`, this.state.round, undefined, undefined, undefined, 'effect');
+    }
+
+    if (activeEffect.tempSpeedBonus) {
+      this.state.player.statusEffects.push({
+        id: 'speed_buffed',
+        remainingRounds: activeEffect.buffDurationRounds ?? 3,
+        magnitude: activeEffect.tempSpeedBonus,
+      });
+      this.log('Player', `gains +${activeEffect.tempSpeedBonus} Speed.`, this.state.round, undefined, undefined, undefined, 'effect');
+    }
+
+    if (activeEffect.combatDamage) {
+      let targets = this.state.enemies.filter(e => e.currentHP > 0 && !e.isFleeing);
+      if (itemId === 'holy_water') {
+        targets = targets.filter(e => e.behavior === EnemyBehavior.Undead || e.behavior === EnemyBehavior.Spectral);
+      }
+      for (const target of targets) {
+        const damage = activeEffect.combatDamage;
+        target.currentHP = Math.max(0, target.currentHP - damage);
+        this.log(def.name, `deals ${damage} damage to ${target.name}.`, this.state.round, damage, undefined, false, 'damage');
+        if (target.currentHP <= 0) {
+          this.log('', `${target.name} has been defeated.`, this.state.round, undefined, undefined, undefined, 'system');
+        }
+      }
+    }
+
+    if (activeEffect.combatEffect === SpecialEffect.Stun) {
+      const targets = this.state.enemies.filter(e => e.currentHP > 0 && !e.isFleeing);
+      for (const target of targets) {
+        target.statusEffects.push({ id: 'stunned', remainingRounds: 1 });
+        this.log('Player', `stuns ${target.name} for 1 round.`, this.state.round, undefined, undefined, undefined, 'effect');
+      }
+    }
   }
 
   // ── Companion AI ──────────────────────────────────────────
@@ -772,6 +865,12 @@ export class CombatEngine {
     for (const enemy of this.state.enemies) {
       if (enemy.currentHP <= 0 || enemy.isFleeing) continue;
 
+      const stunned = enemy.statusEffects.find(e => e.id === 'stunned');
+      if (stunned) {
+        this.log(enemy.name, 'is stunned and cannot act.', this.state.round, undefined, undefined, undefined, 'effect');
+        continue;
+      }
+
       // Opportunist flee check
       if (enemy.behavior === EnemyBehavior.Opportunist && enemy.currentHP / enemy.maxHP < 0.3) {
         enemy.isFleeing = true;
@@ -780,7 +879,7 @@ export class CombatEngine {
       }
 
       // Choose ability or basic attack
-      const ability = enemy.abilities.find(a => Math.random() < a.probability) ?? null;
+      const ability = enemy.abilities.find(a => this.random() < a.probability) ?? null;
       if (ability) {
         this.resolveEnemyAbility(enemy, ability);
       } else {
@@ -878,7 +977,7 @@ export class CombatEngine {
 
     fleeChance = Math.max(0.1, Math.min(0.95, fleeChance));
 
-    if (Math.random() < fleeChance) {
+    if (this.random() < fleeChance) {
       this.endCombat('fled');
     } else {
       this.log('Player', 'tries to flee but can\'t get away!', this.state.round, undefined, undefined, undefined, 'system');
@@ -904,7 +1003,7 @@ export class CombatEngine {
       return;
     }
 
-    if (Math.random() < 0.3) {
+    if (this.random() < 0.3) {
       this.log('Player', 'talks them down. They back off.', this.state.round, undefined, undefined, undefined, 'system');
       this.endCombat('negotiated');
     } else {
@@ -918,8 +1017,8 @@ export class CombatEngine {
   // ── Damage formula ────────────────────────────────────────
 
   private calcDamage(attack: number, defense: number, physRes = 0): { damage: number; isCritical: boolean } {
-    const variance    = 0.8 + Math.random() * 0.4;
-    const isCritical  = Math.random() < 0.10;
+    const variance    = 0.8 + this.random() * 0.4;
+    const isCritical  = this.random() < 0.10;
     const critMult    = isCritical ? 1.75 : 1.0;
     let damage        = Math.max(1, Math.floor((attack - defense * 0.5) * variance * critMult));
     damage            = Math.floor(damage * (1 - physRes));
@@ -959,6 +1058,7 @@ export class CombatEngine {
       reputationDelta:   outcome === 'victory' && this.state.enemies.some(e => e.isFleeing) ? 5 : 0,
       injuriesGained:    healthLost > 40 ? ['wounded'] : [],
       companionInjuries: {},
+      itemsConsumed:     this.state.itemsConsumed,
     };
 
     this.setState({ phase: 'post_combat', result });
@@ -971,6 +1071,12 @@ export class CombatEngine {
       .map(e => ({ ...e, remainingRounds: e.remainingRounds - 1 }))
       .filter(e => e.remainingRounds > 0);
     this.state.player.isDefending = false;
+
+    this.state.enemies.forEach(enemy => {
+      enemy.statusEffects = enemy.statusEffects
+        .map(e => ({ ...e, remainingRounds: e.remainingRounds - 1 }))
+        .filter(e => e.remainingRounds > 0);
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────

@@ -72,11 +72,8 @@ describe('CombatEngine construction', () => {
       resources: { food: 8, gold: 25, items: r.inventory.items, maxSlots: 8, equippedItems: r.inventory.equippedItems },
     });
     const enemies = [makeRatsEnemy()];
-    const { engine } = (() => {
-      const onStateChange = jest.fn();
-      const eng = new CombatEngine(enemies, state, onStateChange);
-      return { engine: eng, onStateChange };
-    })();
+    const onStateChange = jest.fn();
+    const engine = new CombatEngine(enemies, state, onStateChange);
     // travelers_blade gives +4 attack
     expect(engine.getState().player.attack).toBe(12);
   });
@@ -368,5 +365,73 @@ describe('CombatEngine — companion AI', () => {
     const log = eng.getState().log;
     const compLog = log.find(l => l.actor === warrior.name);
     expect(compLog).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────
+// Combat Item Usage
+// ─────────────────────────────────────────
+
+describe('CombatEngine — Item Usage', () => {
+  it('recovers player health when using a healing potion', () => {
+    const { engine } = makeEngine({}, {
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    engine.submitAction({ type: 'skill', itemId: 'healing_potion' });
+
+    const state = engine.getState();
+    // 40 HP + 25 heal = 65 HP. Then rat attacks for 1 damage = 64 HP.
+    expect(state.player.currentHP).toBe(64);
+    expect(state.itemsConsumed).toContain('healing_potion');
+  });
+
+  it('recovers player morale when using a spirit tonic', () => {
+    const { engine } = makeEngine();
+
+    engine.submitAction({ type: 'skill', itemId: 'spirit_tonic' });
+
+    const state = engine.getState();
+    expect(state.itemsConsumed).toContain('spirit_tonic');
+    expect(state.resourceSideEffects.moraleLost).toBe(-20);
+  });
+
+  it('stuns enemies when using flash powder', () => {
+    const { engine } = makeEngine();
+
+    engine.submitAction({ type: 'skill', itemId: 'flash_powder' });
+
+    const state = engine.getState();
+    expect(state.itemsConsumed).toContain('flash_powder');
+    // Stunned remainingRounds was 1, but ticked down to 0 at end of round and got removed.
+    expect(state.enemies[0].statusEffects).toEqual([]);
+  });
+
+  it('stuns enemies prevent them from acting on their turn', () => {
+    const { engine } = makeEngine();
+    engine.submitAction({ type: 'skill', itemId: 'flash_powder' });
+
+    const log = engine.getState().log;
+    const stunLog = log.find(l => l.actor === 'Small Rats' && l.action.includes('stunned'));
+    expect(stunLog).toBeDefined();
+  });
+
+  it('grants attack buff when using a battle draught', () => {
+    const { engine } = makeEngine();
+
+    engine.submitAction({ type: 'skill', itemId: 'battle_draught' });
+
+    const state = engine.getState();
+    expect(state.itemsConsumed).toContain('battle_draught');
+    // Buff started at 3 rounds, but ticked down to 2 at end of round.
+    expect(state.player.statusEffects).toContainEqual({
+      id: 'attack_buffed',
+      remainingRounds: 2,
+      magnitude: 6,
+    });
   });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
-import { TurnRecord, PlayerAction, ACTION_LABELS } from '@engine/types';
+import { TurnRecord, ACTION_LABELS } from '@engine/types';
 
 interface JournalModalProps {
   visible:  boolean;
@@ -58,6 +58,31 @@ export function JournalModal({ visible, history, onClose }: JournalModalProps) {
   );
 }
 
+function formatEventName(eventId: string) {
+  return eventId
+    .replace(/_/g, ' ')
+    .replace(/\bloc\d+\b/gi, '')
+    .replace(/\bday\d+\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function formatEventLabel(record: TurnRecord, eventId: string) {
+  const eventName = formatEventName(eventId);
+  if (record.eventOutcome?.eventId !== eventId) return eventName;
+
+  const actionLabel: Record<NonNullable<TurnRecord['eventOutcome']>['result'], string> = {
+    victory:          'Defeated',
+    defeat:           'Fell To',
+    fled:             'Fled From',
+    negotiated:       'Negotiated With',
+    dialogue_complete:'Spoke With',
+  };
+
+  return `${actionLabel[record.eventOutcome.result]} ${eventName}`;
+}
+
 function JournalEntry({ record }: { record: TurnRecord }) {
   let netFood = 0, netGold = 0, netHealth = 0, netMorale = 0;
   for (const d of record.deltas) {
@@ -79,6 +104,9 @@ function JournalEntry({ record }: { record: TurnRecord }) {
   }
 
   const hasDelta = [netFood, netGold, netHealth, netMorale].some(v => Math.abs(v) >= 0.1);
+  const eventIds = record.eventOutcome?.eventId && !record.eventsTriggered.includes(record.eventOutcome.eventId)
+    ? [...record.eventsTriggered, record.eventOutcome.eventId]
+    : record.eventsTriggered;
 
   return (
     <View style={{
@@ -102,9 +130,9 @@ function JournalEntry({ record }: { record: TurnRecord }) {
         </Text>
       ) : null}
 
-      {record.eventsTriggered.length > 0 && (
+      {eventIds.length > 0 && (
         <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#6B7C6E', letterSpacing: 0.5, marginBottom: 4 }}>
-          {record.eventsTriggered.map(id => id.replace(/_/g, ' ')).join('  ·  ')}
+          {eventIds.map(id => formatEventLabel(record, id)).join('  ·  ')}
         </Text>
       )}
 

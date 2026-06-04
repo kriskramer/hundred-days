@@ -77,6 +77,16 @@ export function LevelUpModal({ visible, choices, playerLevel, onChoose }: LevelU
               }}>
                 {choice.description}
               </Text>
+              {choice.statPreview && (
+                <Text style={{
+                  fontFamily: 'Cinzel_400Regular',
+                  fontSize:    11,
+                  color:       '#B8860B',
+                  marginTop:   4,
+                }}>
+                  {choice.statPreview}
+                </Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>

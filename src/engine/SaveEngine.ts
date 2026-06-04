@@ -174,6 +174,7 @@ class SaveEngine {
   private deserialize(saved: SerializedGameState): GameState {
     return {
       ...saved,
+      rngState:               saved.rngState ?? (saved.seed >>> 0),
       firedEventIds:          new Set(saved.firedEventIds),
       visitedLocationIds:     new Set(saved.visitedLocationIds),
       clearedCombatLocations: new Set(saved.clearedCombatLocations ?? []),
@@ -190,6 +191,7 @@ class SaveEngine {
     if (!s)                                                       return 'Missing gameState';
     if (typeof s.dayNumber !== 'number' || s.dayNumber < 1)       return `Invalid dayNumber: ${s.dayNumber}`;
     if (typeof s.currentLocationId !== 'number')                  return 'Invalid locationId';
+    if (typeof s.rngState !== 'number')                           return 'Invalid rngState';
     if (!s.player || typeof s.player.level !== 'number')          return 'Invalid player data';
     if (!s.resources || typeof s.resources.food !== 'number')     return 'Invalid resources';
     if (!Array.isArray(s.firedEventIds))                          return 'firedEventIds not array';
@@ -254,6 +256,16 @@ class SaveEngine {
         state['storyFlags'] = [];
       }
       current = { ...current, schemaVersion: 5 };
+    }
+
+    // v5 → v6: add rngState if missing
+    if (current.schemaVersion === 5) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['rngState'] === undefined) {
+        const seed = typeof state['seed'] === 'number' ? Number(state['seed']) : 0;
+        state['rngState'] = seed >>> 0;
+      }
+      current = { ...current, schemaVersion: 6 };
     }
 
     if (current.schemaVersion !== SCHEMA_VERSION) return null;

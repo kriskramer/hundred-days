@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
+import { Text } from 'react-native';
 import { JournalModal } from '@components/JournalModal';
 import { TurnRecord, PlayerAction, WeatherType } from '@engine/types';
 
@@ -62,12 +63,12 @@ describe('JournalModal', () => {
       <JournalModal visible={true} history={history} onClose={jest.fn()} />
     );
     // "DAY {n}" renders as array children ['DAY ', n] — collect numeric day values in order
-    const dayTexts = UNSAFE_getAllByType(require('react-native').Text)
-      .filter((t: any) => {
+    const dayTexts = UNSAFE_getAllByType(Text)
+      .filter((t) => {
         const c = t.props.children;
         return Array.isArray(c) && c[0] === 'DAY ';
       })
-      .map((t: any) => Number(t.props.children[1]));
+      .map((t) => Number(t.props.children[1]));
     // Should be [3, 2, 1] — reversed
     expect(dayTexts[0]).toBe(3);
     expect(dayTexts[dayTexts.length - 1]).toBe(1);
@@ -104,6 +105,18 @@ describe('JournalModal', () => {
       eventsTriggered: ['find_abandoned_camp'],
     });
     render(<JournalModal visible={true} history={[record]} onClose={jest.fn()} />);
-    expect(screen.getByText(/find abandoned camp/)).toBeTruthy();
+    expect(screen.getByText(/find abandoned camp/i)).toBeTruthy();
+  });
+
+  it('shows an outcome label for resolved interactive events', () => {
+    const record = makeTurnRecord(1, {
+      eventsTriggered: ['wolves'],
+      eventOutcome: {
+        eventId: 'wolves',
+        result: 'victory',
+      },
+    });
+    render(<JournalModal visible={true} history={[record]} onClose={jest.fn()} />);
+    expect(screen.getByText('Defeated Wolves')).toBeTruthy();
   });
 });

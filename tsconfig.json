@@ -58,7 +58,8 @@
       ]
     },
     "types": [
-      "react-native"
+      "react-native",
+      "jest"
     ]
   },
   "include": [

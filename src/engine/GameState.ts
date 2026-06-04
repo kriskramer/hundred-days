@@ -8,12 +8,13 @@ import {
   ReputationState,
   LevelUpChoice,
 } from './types';
+import { normalizeRngState } from './Random';
 
 // ─────────────────────────────────────────
 // Schema version — increment when GameState
 // structure changes to trigger migration
 // ─────────────────────────────────────────
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 // ─────────────────────────────────────────
 // XP thresholds per level (index = level)
@@ -83,9 +84,11 @@ export const BOSS_POWER_IDEAL     = 240;
 // createNewGameState
 // ─────────────────────────────────────────
 export function createNewGameState(playerName = 'The Traveler'): GameState {
+  const seed = Math.floor(Math.random() * 999_999);
   return {
     runId:             generateRunId(),
-    seed:              Math.floor(Math.random() * 999_999),
+    seed,
+    rngState:          normalizeRngState(seed),
     dayNumber:         1,
     currentLocationId: 1,
     isComplete:        false,
@@ -237,7 +240,20 @@ export function applyLevelUpChoice(
 }
 
 export function getRandomLevelUpChoices(count: number): LevelUpChoice[] {
-  const shuffled = [...LEVEL_UP_CHOICES].sort(() => Math.random() - 0.5);
+  return getRandomLevelUpChoicesWithRng(count, Math.random);
+}
+
+export function getRandomLevelUpChoicesWithRng(
+  count: number,
+  rng: () => number,
+): LevelUpChoice[] {
+  const shuffled = [...LEVEL_UP_CHOICES];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
   return shuffled.slice(0, count);
 }
 

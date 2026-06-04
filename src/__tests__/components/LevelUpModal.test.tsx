@@ -56,4 +56,20 @@ describe('LevelUpModal', () => {
     );
     expect(screen.getByText('+3 attack.')).toBeTruthy();
   });
+
+  it('displays statPreview when provided', () => {
+    const choicesWithPreview: LevelUpChoice[] = [
+      {
+        id: 'fierce',
+        label: 'Fierce',
+        description: '+3 attack.',
+        effect: { attack: 3 },
+        statPreview: 'Attack  10 → 13'
+      }
+    ];
+    render(
+      <LevelUpModal visible={true} choices={choicesWithPreview} playerLevel={2} onChoose={jest.fn()} />
+    );
+    expect(screen.getByText('Attack  10 → 13')).toBeTruthy();
+  });
 });
