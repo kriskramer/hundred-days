@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useGameStore } from '@store/gameStore';
@@ -22,6 +22,7 @@ import {
   Toast,
   JournalModal,
   SettingsModal,
+  CombatAlertModal,
 } from '@components';
 
 import type { GameEvent, LevelUpChoice, CombatResult, AppSettings, GameState } from '@engine/types';
@@ -29,6 +30,7 @@ import { findDialogueForLocation } from '@engine/DialogueEngine';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { getCompanion } from '@data/companions';
 import { getLocation }  from '@data/locations';
+import { isCombatEvent } from '@utils/isCombatEvent';
 
 type Tab = 'road' | 'combat' | 'dialogue' | 'inventory' | 'map';
 
@@ -50,6 +52,9 @@ export default function GameScreen() {
   const [journalOpen, setJournalOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen]       = useState(false);
   const [settings, setSettings]               = useState<AppSettings | null>(null);
+  const [combatAlertVisible, setCombatAlertVisible] = useState(false);
+  const [pendingCombatEvent, setPendingCombatEvent] = useState<GameEvent | null>(null);
+  const [isManualCombat, setIsManualCombat]         = useState(false);
   const engineRef                             = useRef<TurnEngine | null>(null);
   const lastEngineSnapshotRef                 = useRef<GameState | null>(null);
 
@@ -77,7 +82,11 @@ export default function GameScreen() {
       // onAwaitInput (interactive event — combat or dialogue)
       (event: GameEvent) => {
         setActiveEvent(event);
-        if (event.type === 'combat')   setActiveTab('combat');
+        if (isCombatEvent(event)) {
+          setPendingCombatEvent(event);
+          setIsManualCombat(false);
+          setCombatAlertVisible(true);
+        }
         if (event.type === 'dialogue') setActiveTab('dialogue');
       },
       // onLevelUp
@@ -117,6 +126,12 @@ export default function GameScreen() {
     }
     setActiveEvent(null);
     setActiveTab('road');
+  }
+
+  function handleConfirmCombat() {
+    setCombatAlertVisible(false);
+    setPendingCombatEvent(null);
+    setActiveTab('combat');
   }
 
   function handleDialogueComplete(outcome: DialogueSessionOutcome) {
@@ -200,7 +215,7 @@ export default function GameScreen() {
   const currentLocation  = getLocation(gameState.currentLocationId);
   const locationHasMobs  = currentLocation.mobs.some(m => m.aggroPct > 0 && !m.isCompanion);
   const combatAvailable  =
-    activeEvent?.type === 'combat' ||
+    isCombatEvent(activeEvent) ||
     (locationHasMobs && !gameState.clearedCombatLocations.has(gameState.currentLocationId));
   const dialogueAvailable =
     (activeEvent?.interactiveHandlerId === 'dialogue_handler' && !!activeEvent.id) ||
@@ -290,7 +305,16 @@ export default function GameScreen() {
           return (
             <TouchableOpacity
               key={tab.id}
-              onPress={() => { if (!disabled) setActiveTab(tab.id); }}
+              onPress={() => {
+                if (disabled) return;
+                if (tab.id === 'combat' && activeTab !== 'combat' && !activeEvent) {
+                  setPendingCombatEvent(null);
+                  setIsManualCombat(true);
+                  setCombatAlertVisible(true);
+                } else {
+                  setActiveTab(tab.id);
+                }
+              }}
               activeOpacity={disabled ? 1 : 0.7}
               style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
             >
@@ -352,6 +376,15 @@ export default function GameScreen() {
         onClose={() => setSettingsOpen(false)}
         onRestart={handleRestart}
         onSettingsChanged={setSettings}
+      />
+
+      {/* Combat Alert popup */}
+      <CombatAlertModal
+        visible={combatAlertVisible}
+        event={pendingCombatEvent}
+        locationName={currentLocation.name}
+        isManualCombat={isManualCombat}
+        onConfirm={handleConfirmCombat}
       />
 
     </SafeAreaView>

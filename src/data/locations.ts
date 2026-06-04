@@ -3014,6 +3014,5 @@ export const LOCATIONS: Location[] = [
 
 // Derived convenience sets
 export const SHOP_LOCATION_IDS: number[]       = LOCATIONS.filter(l => l.hasShop).map(l => l.id);
-export const BOSS_LOCATION_IDS: number[]       = LOCATIONS.filter(l => l.bossLevel !== null).map(l => l.id);
 export const WILDERNESS_LOCATION_IDS: number[] = LOCATIONS.filter(l => l.type === "wilderness").map(l => l.id);
 export const TOWN_LOCATION_IDS: number[]       = LOCATIONS.filter(l => l.isTown).map(l => l.id);

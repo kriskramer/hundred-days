@@ -16,6 +16,7 @@ import {
   StatusEffect,
   PlayerStats,
 } from './types';
+import { BOSS_EVENT_MAP } from './bosses';
 
 import {
   getMoraleTier,
@@ -67,13 +68,6 @@ export type ActionParams =
 // ─────────────────────────────────────────
 // TurnEngine
 // ─────────────────────────────────────────
-
-const BOSS_EVENT_MAP: Record<number, string> = {
-  32:  'boss_orc_warchief',
-  65:  'boss_lich_of_vorishy',
-  93:  'boss_white_horseman',
-  125: 'boss_dread_sovereign',
-};
 
 export class TurnEngine {
   private state:    GameState;

@@ -3,7 +3,9 @@ import { ScrollView, View, Text, TouchableOpacity, Alert, Animated } from 'react
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation, getLocationRandomText } from '@data/locations';
+import { isBossLocation } from '@engine/bosses';
 import { hasEligibleDialogue } from '@engine/EventSystem';
+import { findDialogueForLocation } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import * as Haptics from 'expo-haptics';
@@ -237,6 +239,13 @@ function FlashingBadge({ children, style, delay = 150 }: FlashingBadgeProps) {
   );
 }
 
+const DIALOGUE_CUES: Record<string, string> = {
+  rex_the_dog: 'A dog runs up to you and barks, looking for attention.',
+  dain_recruitment: 'A Qanisi warrior stands near the road, observing you with a steady gaze.',
+  lefty_recruitment: 'A lean man with a missing finger leans against the wall nearby, sizing you up.',
+  branniks_tent: 'An old man sits quietly by a campfire nearby, gesturing for you to sit.',
+};
+
 export function RoadScreen({
   gameState,
   engine,
@@ -249,13 +258,27 @@ export function RoadScreen({
   const dialogueNearby = hasEligibleDialogue(gameState);
   const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
-  const bossNearby     = location.actions.hasBossFight
+  const bossNearby     = isBossLocation(gameState.currentLocationId)
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
 
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
   const [showingLastEntry, setShowingLastEntry]       = useState(false);
-  const [randomText, setRandomText]                   = useState<string | null>(null);
+  const [randomText, setRandomText]                   = useState<string | null>(() => getLocationRandomText(location));
   const [forceComplete, setForceComplete]             = useState(false);
+  const [locDescFinished, setLocDescFinished]         = useState(false);
+
+  const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
+  const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
+  const baseLocationText = location.locationText || '';
+  const currentRandomText = (location.randomTexts && randomText && location.randomTexts.includes(randomText))
+    ? randomText
+    : null;
+  const displayLocationText = (dialogueCue && !currentRandomText)
+    ? `${baseLocationText}\n\n${dialogueCue}`
+    : baseLocationText;
+  const displayRandomText = (dialogueCue && currentRandomText)
+    ? `${currentRandomText}\n\n${dialogueCue}`
+    : currentRandomText;
 
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
@@ -277,6 +300,7 @@ export function RoadScreen({
 
   useEffect(() => {
     setForceComplete(false);
+    setLocDescFinished(false);
   }, [gameState.currentLocationId, showingLastEntry]);
 
   let netFood = 0;
@@ -502,17 +526,18 @@ export function RoadScreen({
                 <>
                   <TypewriterText
                     key={`loc-${location.id}-${showingLastEntry}`}
-                    text={location.locationText || ''}
+                    text={displayLocationText}
                     interval={textInterval}
                     forceComplete={forceComplete}
+                    onComplete={() => setLocDescFinished(true)}
                     style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                   />
-                  {randomText && (
+                  {currentRandomText && locDescFinished && (
                     <>
                       <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
                       <TypewriterText
                         key={`loc-random-${location.id}-${showingLastEntry}`}
-                        text={randomText}
+                        text={displayRandomText || ''}
                         interval={textInterval}
                         forceComplete={forceComplete}
                         style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
@@ -773,18 +798,26 @@ function TypewriterText({
   style,
   interval = 22,
   forceComplete = false,
+  onComplete,
 }: {
   text: string;
   style?: object;
   interval?: number;
   forceComplete?: boolean;
+  onComplete?: () => void;
 }) {
   const [displayed, setDisplayed] = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     if (!text) {
       setDisplayed('');
+      onCompleteRef.current?.();
       return;
     }
 
@@ -794,6 +827,7 @@ function TypewriterText({
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      onCompleteRef.current?.();
       return;
     }
 
@@ -807,6 +841,7 @@ function TypewriterText({
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
+        onCompleteRef.current?.();
       }
     }, interval);
     return () => {

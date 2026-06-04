@@ -23,8 +23,8 @@ import {
   Location,
   RegionDefinition,
   SHOP_LOCATION_IDS,
-  BOSS_LOCATION_IDS,
 } from '@data/locations';
+import { BOSS_LOCATION_IDS } from '@engine/bosses';
 
 // ─────────────────────────────────────────
 // Props
