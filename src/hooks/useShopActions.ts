@@ -44,34 +44,6 @@ export function useShopActions() {
     const def = getItemDef(itemId);
     if (!def) return { success: false, reason: 'Item definition missing.' } satisfies ActionFailure;
 
-    if (def.activeEffect?.foodRestore) {
-      const shopItem = getShopInventory(
-        locationId,
-        gameState.resources.gold,
-        hasMerchantsRing,
-      ).find(item => item.def.id === itemId);
-
-      if (!shopItem) return { success: false, reason: 'Cannot buy item here.' } satisfies ActionFailure;
-      if (!shopItem.canAfford) return { success: false, reason: 'Not enough gold.' } satisfies ActionFailure;
-
-      const nextState = {
-        ...gameState,
-        resources: {
-          ...gameState.resources,
-          gold: gameState.resources.gold - shopItem.finalPrice,
-          food: gameState.resources.food + def.activeEffect.foodRestore,
-        },
-      };
-      const persisted = await commitState(nextState);
-      if (!persisted.success) return persisted;
-
-      return {
-        success: true as const,
-        foodGained: def.activeEffect.foodRestore,
-        goldSpent: shopItem.finalPrice,
-        itemName: def.name,
-      };
-    }
 
     const inventory = inventoryFromResources(gameState.resources);
     const result = buyInventoryItem(

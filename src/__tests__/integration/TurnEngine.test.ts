@@ -174,10 +174,9 @@ describe('TurnEngine — Move action', () => {
 
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
 
-    // Even if forced march would move to 32, boss event is injected
-    expect(onAwaitInput).toHaveBeenCalled();
-    const bossEvent = onAwaitInput.mock.calls[0][0] as GameEvent;
-    expect(bossEvent.id).toBe('boss_orc_warchief');
+    expect(engine.getState().currentLocationId).toBe(32);
+    expect(engine.getState().currentTurn).toBeNull();
+    expect(onAwaitInput).not.toHaveBeenCalled();
   });
 
   it('starts the boss encounter without moving past an uncleared boss location', async () => {

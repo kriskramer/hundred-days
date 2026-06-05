@@ -119,4 +119,17 @@ describe('JournalModal', () => {
     render(<JournalModal visible={true} history={[record]} onClose={jest.fn()} />);
     expect(screen.getByText('Defeated Wolves')).toBeTruthy();
   });
+
+  it('shows a journal note when a battle is won', () => {
+    const record = makeTurnRecord(1, {
+      eventsTriggered: ['wolves'],
+      eventOutcome: {
+        eventId: 'wolves',
+        result: 'victory',
+        summary: 'Victory! You gained 18 XP and 10 gold.',
+      },
+    });
+    render(<JournalModal visible={true} history={[record]} onClose={jest.fn()} />);
+    expect(screen.getByText('Victory! You gained 18 XP and 10 gold.')).toBeTruthy();
+  });
 });

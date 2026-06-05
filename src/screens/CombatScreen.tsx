@@ -61,6 +61,7 @@ interface Props {
 // ─────────────────────────────────────────
 
 import { Colors as C } from '@theme';
+import { TypewriterText } from '@components';
 
 const BEHAVIOR_DESC: Record<EnemyBehavior, string> = {
   [EnemyBehavior.Aggressive]:  'Attacks every round without hesitation.',
@@ -514,16 +515,20 @@ function ResultOverlay({
 
         <View style={s.resultDivider} />
 
-        {(isGood || isFled ? gains : losses).map((line, i) => (
-          <Text key={i} style={s.resultStat}>{line}</Text>
-        ))}
+        <TypewriterText
+          text={(isGood || isFled ? gains : losses).join('\n')}
+          interval={14}
+          style={s.resultStat}
+        />
 
         {!isGood && !isFled && gains.length > 0 && (
           <>
             <View style={[s.resultDivider, { marginTop: 8 }]} />
-            {gains.map((line, i) => (
-              <Text key={i} style={[s.resultStat, { color: C.mist }]}>{line}</Text>
-            ))}
+            <TypewriterText
+              text={gains.join('\n')}
+              interval={14}
+              style={[s.resultStat, { color: C.mist }]}
+            />
           </>
         )}
 

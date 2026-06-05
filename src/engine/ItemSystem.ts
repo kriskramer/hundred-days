@@ -589,7 +589,18 @@ export function buyItem(
   const result = addItem(inv, itemId);
   if (!result.success) return { success: false, reason: result.reason };
 
-  return { success: true, inventory: result.inventory, goldSpent: finalPrice };
+  let finalInventory = result.inventory;
+  if (!def.isConsumable && def.slot !== ItemSlot.None) {
+    const isSlotEmpty = !finalInventory.equippedItems[def.slot];
+    if (isSlotEmpty) {
+      const equipResult = equipItem(finalInventory, itemId);
+      if (equipResult.success) {
+        finalInventory = equipResult.inventory;
+      }
+    }
+  }
+
+  return { success: true, inventory: finalInventory, goldSpent: finalPrice };
 }
 
 export function sellItem(

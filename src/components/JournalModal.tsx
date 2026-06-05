@@ -83,6 +83,13 @@ function formatEventLabel(record: TurnRecord, eventId: string) {
   return `${actionLabel[record.eventOutcome.result]} ${eventName}`;
 }
 
+function getBattleWonNote(record: TurnRecord) {
+  if (record.eventOutcome?.result !== 'victory') return null;
+
+  const summary = record.eventOutcome.summary?.trim();
+  return summary && summary.length > 0 ? summary : 'Battle won.';
+}
+
 function JournalEntry({ record }: { record: TurnRecord }) {
   let netFood = 0, netGold = 0, netHealth = 0, netMorale = 0;
   for (const d of record.deltas) {
@@ -107,6 +114,7 @@ function JournalEntry({ record }: { record: TurnRecord }) {
   const eventIds = record.eventOutcome?.eventId && !record.eventsTriggered.includes(record.eventOutcome.eventId)
     ? [...record.eventsTriggered, record.eventOutcome.eventId]
     : record.eventsTriggered;
+  const battleWonNote = getBattleWonNote(record);
 
   return (
     <View style={{
@@ -135,6 +143,12 @@ function JournalEntry({ record }: { record: TurnRecord }) {
           {eventIds.map(id => formatEventLabel(record, id)).join('  ·  ')}
         </Text>
       )}
+
+      {battleWonNote ? (
+        <Text style={{ fontFamily: 'CrimsonText_400Regular', fontSize: 13, color: '#2D1F0A', lineHeight: 19, marginBottom: 4 }}>
+          {battleWonNote}
+        </Text>
+      ) : null}
 
       {hasDelta && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 }}>

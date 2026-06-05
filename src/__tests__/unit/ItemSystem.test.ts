@@ -389,4 +389,42 @@ describe('buyItem', () => {
     expect(result.success).toBe(false);
     expect(result.reason).toMatch(/gold/i);
   });
+
+  it('auto-equips equipment when the slot is empty', () => {
+    // travelers_blade is a weapon, slot is ItemSlot.Hand
+    const inv = createEmptyInventory();
+    const result = buyItem(inv, 'travelers_blade', 50, false);
+    expect(result.success).toBe(true);
+    if (!result.success || !result.inventory) return;
+
+    expect(result.inventory.equippedItems[ItemSlot.Hand]).toBe('travelers_blade');
+    const item = result.inventory.items.find(i => i.definitionId === 'travelers_blade');
+    expect(item).toBeDefined();
+    expect(item!.isEquipped).toBe(true);
+  });
+
+  it('does not auto-equip equipment when the slot is already occupied', () => {
+    // Start with hunters_bow equipped in ItemSlot.Hand
+    let inv = makeInvWithItem('hunters_bow', 1);
+    const equipResult = equipItem(inv, 'hunters_bow');
+    expect(equipResult.success).toBe(true);
+    if (equipResult.success) {
+      inv = equipResult.inventory;
+    }
+
+    // Now buy travelers_blade, which also goes into ItemSlot.Hand
+    const result = buyItem(inv, 'travelers_blade', 50, false);
+    expect(result.success).toBe(true);
+    if (!result.success || !result.inventory) return;
+
+    // The slot should still be hunters_bow, and travelers_blade is not equipped
+    expect(result.inventory.equippedItems[ItemSlot.Hand]).toBe('hunters_bow');
+    const bladeItem = result.inventory.items.find(i => i.definitionId === 'travelers_blade');
+    expect(bladeItem).toBeDefined();
+    expect(bladeItem!.isEquipped).toBe(false);
+
+    const bowItem = result.inventory.items.find(i => i.definitionId === 'hunters_bow');
+    expect(bowItem).toBeDefined();
+    expect(bowItem!.isEquipped).toBe(true);
+  });
 });

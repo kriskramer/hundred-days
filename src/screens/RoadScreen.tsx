@@ -8,6 +8,7 @@ import { hasEligibleDialogue } from '@engine/EventSystem';
 import { findDialogueForLocation } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
+import { TypewriterText } from '@components';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
@@ -793,61 +794,3 @@ function ActionButton({ label, sub, variant, onPress }: ActionDef) {
   );
 }
 
-function TypewriterText({
-  text,
-  style,
-  interval = 22,
-  forceComplete = false,
-  onComplete,
-}: {
-  text: string;
-  style?: object;
-  interval?: number;
-  forceComplete?: boolean;
-  onComplete?: () => void;
-}) {
-  const [displayed, setDisplayed] = useState('');
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const onCompleteRef = useRef(onComplete);
-
-  useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
-
-  useEffect(() => {
-    if (!text) {
-      setDisplayed('');
-      onCompleteRef.current?.();
-      return;
-    }
-
-    if (interval === 0 || forceComplete) {
-      setDisplayed(text);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      onCompleteRef.current?.();
-      return;
-    }
-
-    setDisplayed('');
-    let i = 0;
-    intervalRef.current = setInterval(() => {
-      i++;
-      setDisplayed(text.slice(0, i));
-      if (i >= text.length) {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        onCompleteRef.current?.();
-      }
-    }, interval);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [interval, text, forceComplete]);
-
-  return <Text style={style}>{displayed}</Text>;
-}

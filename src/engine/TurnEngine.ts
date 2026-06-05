@@ -542,10 +542,17 @@ export class TurnEngine {
 
   private sampleAndQueueEvents(): void {
     const current = this.state.currentTurn?.eventsQueue ?? [];
-    // At a boss location, force the boss fight instead of normal events
+    // Reaching a boss checkpoint should end the travel turn so the player can
+    // read the location and explicitly start the encounter on the next action.
     const currentLoc = this.state.currentLocationId;
     const bossEventId = BOSS_EVENT_MAP[currentLoc];
     if (bossEventId && !this.state.clearedCombatLocations.has(currentLoc)) {
+      const arrivedThisTurn = this.state.currentTurn?.locationBefore !== currentLoc;
+      if (arrivedThisTurn) {
+        this.updateTurn({ eventsQueue: current });
+        return;
+      }
+
       const bossEvent = EVENT_DEFINITIONS.find(e => e.id === bossEventId);
       if (bossEvent) {
         this.updateTurn({ eventsQueue: [...current, bossEvent] });
