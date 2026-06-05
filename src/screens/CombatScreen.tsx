@@ -21,6 +21,7 @@ import {
   EnemyBehavior,
   ItemCategory,
   ItemDefinition,
+  CompanionArchetype,
 } from '@engine/types';
 
 import {
@@ -91,6 +92,15 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const enemyFlash   = useRef(new Animated.Value(1)).current;
   const playerFlash  = useRef(new Animated.Value(1)).current;
   const prevPlayerHP = useRef<number>(0);
+  const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resultTimeoutRef.current) {
+        clearTimeout(resultTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ── Init engine once ─────────────────────────────────────
 
@@ -118,7 +128,6 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
           if (newState.result.outcome === 'victory') {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           }
-          setTimeout(() => setShowResult(true), 700);
         }
       },
       combatRng,
@@ -155,6 +164,15 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
     setShowResult(false);
     onComplete(combatState.result);
   }, [combatState?.result, onComplete]);
+
+  const handleLogFinished = useCallback(() => {
+    if (combatState?.phase === 'post_combat' && combatState.result && !showResult) {
+      if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = setTimeout(() => {
+        setShowResult(true);
+      }, 500);
+    }
+  }, [combatState?.phase, combatState?.result, showResult]);
 
   // ─────────────────────────────────────────
   // Render
@@ -251,7 +269,10 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
             <LogLine
               key={i}
               entry={entry}
+              companions={combatState.companions}
+              enemies={combatState.enemies}
               animDelay={i >= animateFromIdx ? (i - animateFromIdx) * 120 : -1}
+              onComplete={i === combatState.log.length - 1 ? handleLogFinished : undefined}
             />
           ))}
           {combatState.log.length === 0 && (
@@ -446,17 +467,116 @@ function BehaviorTag({ behavior }: { behavior: EnemyBehavior }) {
   );
 }
 
-function LogLine({ entry, animDelay }: { entry: CombatLogEntry; animDelay: number }) {
-  const color = entry.type === 'damage' ? '#FF9999'
-              : entry.type === 'heal'   ? '#99FF99'
-              : entry.type === 'system' ? C.goldLight
-              : entry.type === 'effect' ? '#FFCC88'
-              : C.parchDark;
-  const text = `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
-  if (animDelay >= 0) {
-    return <TypewriterText text={text} style={[s.logLine, { color }]} interval={18} delay={animDelay} />;
+function LogLine({
+  entry,
+  companions,
+  enemies,
+  animDelay,
+  onComplete,
+}: {
+  entry:       CombatLogEntry;
+  companions:  CompanionCombatant[];
+  enemies:     EnemyCombatant[];
+  animDelay:   number;
+  onComplete?: () => void;
+}) {
+  // Determine actor type: player, companion, enemy, or system
+  const actor = entry.actor;
+  let actorType: 'player' | 'companion' | 'enemy' | 'system' = 'system';
+
+  if (actor && actor.trim() !== '') {
+    const lowerActor = actor.toLowerCase().trim();
+    if (lowerActor === 'player') {
+      actorType = 'player';
+    } else {
+      // Check if actor is an enemy
+      const isEnemy = enemies.some(e => {
+        const lowerName = e.name.toLowerCase();
+        return lowerName === lowerActor || lowerName.includes(lowerActor) || lowerActor.includes(lowerName);
+      });
+
+      if (isEnemy) {
+        actorType = 'enemy';
+      } else {
+        // Check if actor is a companion
+        const isCompanion = companions.some(c => {
+          const lowerName = c.name.toLowerCase();
+          return lowerName === lowerActor || lowerName.includes(lowerActor) || lowerActor.includes(lowerName);
+        });
+
+        if (isCompanion) {
+          actorType = 'companion';
+        } else {
+          // If it has an actor but it's not a companion or enemy, it belongs to the player (e.g. consumable items like "Holy Water")
+          actorType = 'player';
+        }
+      }
+    }
   }
-  return <Text style={[s.logLine, { color }]}>{text}</Text>;
+
+  // Determine the color based on the actor type
+  let color = C.parchDark;
+  if (actorType === 'player') {
+    color = '#64B5F6'; // Blue
+  } else if (actorType === 'companion') {
+    color = '#8CE995'; // Green
+  } else if (actorType === 'enemy') {
+    color = '#FF8080'; // Red
+  } else {
+    color = entry.type === 'damage' ? '#FF9999'
+          : entry.type === 'heal'   ? '#99FF99'
+          : entry.type === 'system' ? C.goldLight
+          : entry.type === 'effect' ? '#FFCC88'
+          : C.parchDark;
+  }
+
+  // Determine if this is a critical or special hit/attack to bold it
+  const isCriticalOrSpecial =
+    entry.isCritical ||
+    entry.type === 'effect' ||
+    entry.action.toLowerCase().includes('critical') ||
+    entry.action.toLowerCase().includes('special') ||
+    entry.action.includes('!') ||
+    entry.action.toLowerCase().startsWith('uses ') ||
+    entry.action.toLowerCase().startsWith('activates ') ||
+    entry.action.toLowerCase().startsWith('rallies ') ||
+    entry.action.toLowerCase().includes('heal') ||
+    entry.action.toLowerCase().includes('drain');
+
+  const text = `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
+
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  });
+
+  useEffect(() => {
+    if (animDelay < 0) {
+      onCompleteRef.current?.();
+    }
+  }, [animDelay]);
+
+  const textStyle = [
+    s.logLine,
+    { color },
+    isCriticalOrSpecial && {
+      fontFamily: 'CrimsonText_600SemiBold',
+      fontWeight: 'bold' as const,
+    },
+  ];
+
+  if (animDelay >= 0) {
+    return (
+      <TypewriterText
+        text={text}
+        style={textStyle}
+        interval={18}
+        delay={animDelay}
+        onComplete={onComplete}
+      />
+    );
+  }
+  return <Text style={textStyle}>{text}</Text>;
 }
 
 function ActionBtn({
@@ -604,9 +724,23 @@ function canNegotiate(enemies: EnemyCombatant[]): boolean {
 }
 
 function calcFleeChance(state: CombatState): number {
-  const fastest = Math.max(...state.enemies.map(e => e.speed));
-  const chance  = 0.4 + (state.player.speed - fastest) * 0.05;
-  return Math.round(Math.max(10, Math.min(95, chance * 100)));
+  const activeEnemies = state.enemies.filter(e => e.currentHP > 0 && !e.isFleeing);
+  const fastest = activeEnemies.length > 0 ? Math.max(...activeEnemies.map(e => e.speed)) : 0;
+  let chance = 0.4 + (state.player.speed - fastest) * 0.05;
+
+  const hasScout = state.companions.some(
+    c => c.archetype === CompanionArchetype.Scout && c.currentHP > 0,
+  );
+  if (hasScout) chance += 0.15;
+
+  chance = Math.max(0.1, Math.min(0.95, chance));
+
+  const mira = state.companions.find(c => c.companionId === 'mira_thorn' && c.currentHP > 0);
+  if (mira?.specialAbilityReady && mira.level >= 5) {
+    chance = 1.0;
+  }
+
+  return Math.round(chance * 100);
 }
 
 function flashAnim(anim: Animated.Value) {

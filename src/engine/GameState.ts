@@ -14,7 +14,7 @@ import { normalizeRngState } from './Random';
 // Schema version — increment when GameState
 // structure changes to trigger migration
 // ─────────────────────────────────────────
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 // ─────────────────────────────────────────
 // XP thresholds per level (index = level)
@@ -72,6 +72,12 @@ export const LEVEL_UP_CHOICES: LevelUpChoice[] = [
     description: '+3 attack. You hit harder than before.',
     effect:      { attack: 3 },
   },
+  {
+    id:          'thief',
+    label:       'Thievery',
+    description: '+3 Stealing skill. You are fleet of finger.',
+    effect:      { stealing: 3 },
+  },
 ];
 
 // ─────────────────────────────────────────
@@ -107,6 +113,7 @@ export function createNewGameState(playerName = 'The Traveler'): GameState {
         endurance:  3,
         perception: 3,
         leadership: 2,
+        stealing:   5,
       },
       statusEffects: [],
     },
@@ -236,6 +243,7 @@ export function applyLevelUpChoice(
     endurance:  stats.endurance  + (e.endurance  ?? 0),
     perception: stats.perception + (e.perception ?? 0),
     leadership: stats.leadership + (e.leadership ?? 0),
+    stealing:   (stats.stealing ?? 0) + (e.stealing ?? 0),
   };
 }
 

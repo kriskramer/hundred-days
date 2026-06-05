@@ -48,6 +48,8 @@ import {
   computeEquippedBonuses,
   inventoryFromResources,
   removeItem,
+  addItem,
+  getItemDef,
 } from './ItemSystem';
 
 import { getLocation, getRegion } from '@data/locations';
@@ -64,6 +66,7 @@ export type ActionParams =
   | { action: PlayerAction.Rest;  atInn: boolean }
   | { action: PlayerAction.Rally; targetCompanionId?: string }
   | { action: PlayerAction.Camp }
+  | { action: PlayerAction.Steal }
 
 // ─────────────────────────────────────────
 // TurnEngine
@@ -131,6 +134,7 @@ export class TurnEngine {
       this.setState({ clearedCombatLocations: newCleared });
     }
     this.updateTurn({
+      activeInteractiveEvent: null,
       eventOutcome: eventOutcomeOverride ?? {
         eventId,
         result: result.outcome,
@@ -210,12 +214,18 @@ export class TurnEngine {
     const newCleared = new Set(this.state.clearedCombatLocations);
     newCleared.add(locationId);
 
+    const bossEventId = BOSS_EVENT_MAP[locationId];
+    const newFired = bossEventId
+      ? new Set([...this.state.firedEventIds, bossEventId])
+      : this.state.firedEventIds;
+
     this.setState({
       player:                 newPlayer,
       morale:                 applyMoraleDelta(morale, result.moraleDelta),
       reputation:             applyReputationDelta(reputation, result.reputationDelta),
       resources:              newResources,
       clearedCombatLocations: newCleared,
+      firedEventIds:          newFired,
     });
 
     await saveEngine.saveRun(this.state);
@@ -324,6 +334,7 @@ export class TurnEngine {
       case PlayerAction.Rally: this.resolveRally(params.targetCompanionId); break;
       case PlayerAction.Camp:  this.resolveCamp();                   break;
       case PlayerAction.Trade: break; // Trade resolves in the shop UI, not the engine
+      case PlayerAction.Steal: this.resolveSteal();                  break;
     }
   }
 
@@ -481,6 +492,70 @@ export class TurnEngine {
     });
 
     this.maybeTriggerAmbush(PlayerAction.Hunt);
+  }
+
+  private resolveSteal(): void {
+    const { resources, player } = this.state;
+    const stealingSkill = player.stats.stealing ?? 5;
+
+    // Success rate is 40% base + 3% per skill level, capped at 95%
+    const successChance = Math.min(0.95, Math.max(0.10, 0.40 + stealingSkill * 0.03));
+    const roll = this.nextRandom();
+    const isSuccess = roll < successChance;
+
+    if (isSuccess) {
+      // 60% chance of gold, 40% chance of item
+      const giveGold = this.nextRandom() < 0.60;
+      let rewardNarrative = '';
+      let goldGained = 0;
+
+      if (giveGold) {
+        goldGained = 5 + Math.floor(this.nextRandom() * 11); // 5 to 15 gold
+        rewardNarrative = `stole ${goldGained} gold.`;
+      } else {
+        const pool = ['dried_rations', 'hunters_jerky', 'healing_potion', 'spirit_tonic'];
+        const chosenItem = pool[Math.floor(this.nextRandom() * pool.length)];
+        const addResult = addItem(resources, chosenItem);
+
+        if (addResult.success && addResult.inventory) {
+          const itemDef = getItemDef(chosenItem);
+          rewardNarrative = `stole a ${itemDef?.name ?? chosenItem}.`;
+          this.setState({ resources: addResult.inventory });
+        } else {
+          // Fallback to gold if inventory is full
+          goldGained = 5 + Math.floor(this.nextRandom() * 11);
+          rewardNarrative = `tried to steal an item, but your pack was full, so you took ${goldGained} gold instead.`;
+        }
+      }
+
+      // Train stealing skill
+      const newSkill = stealingSkill + 1;
+      this.setState({
+        player: {
+          ...player,
+          stats: {
+            ...player.stats,
+            stealing: newSkill,
+          }
+        }
+      });
+
+      this.addDelta({
+        source: 'steal_success',
+        gold: goldGained || undefined,
+        reputation: -5,
+        xp: 4,
+        narrative: `Success! You silently pickpocketed a passerby and ${rewardNarrative} Your Stealing skill increased to ${newSkill}!`,
+      });
+    } else {
+      // Fail
+      this.addDelta({
+        source: 'steal_failure',
+        reputation: -10, // caught, reputation hit is higher
+        morale: -5,
+        narrative: 'Caught! You tried to steal but were spotted and chased away. Your reputation suffers.',
+      });
+    }
   }
 
   private resolveRest(atInn: boolean): void {

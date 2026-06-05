@@ -270,6 +270,7 @@ export function RoadScreen({
   const [showingLastEntry, setShowingLastEntry]       = useState(false);
   const [randomText, setRandomText]                   = useState<string | null>(() => getLocationRandomText(location));
   const [forceComplete, setForceComplete]             = useState(false);
+  const [lastEntryFinished, setLastEntryFinished]     = useState(false);
   const [locDescFinished, setLocDescFinished]         = useState(false);
   const [randomTextFinished, setRandomTextFinished]   = useState(false);
 
@@ -306,11 +307,14 @@ export function RoadScreen({
 
   useEffect(() => {
     setForceComplete(false);
+    setLastEntryFinished(false);
     setLocDescFinished(false);
     setRandomTextFinished(false);
   }, [gameState.currentLocationId, showingLastEntry]);
 
-  const isTyping = !showingLastEntry && (currentRandomText ? !randomTextFinished : !locDescFinished);
+  const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
+  const isLocationTyping = !showingLastEntry && (currentRandomText ? !randomTextFinished : !locDescFinished);
+  const isTyping = isJournalEntryTyping || isLocationTyping;
 
   let netFood = 0;
   let netGold = 0;
@@ -337,10 +341,12 @@ export function RoadScreen({
           onPress: () => onOpenCombat?.(),
         },
         ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        ...(dialogueNearby ? [{ label: 'Steal', sub: 'Attempt theft', variant: 'secondary' as const, onPress: () => submit({ action: PlayerAction.Steal }) }] : []),
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
         ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        ...(dialogueNearby || location.isTown ? [{ label: 'Steal', sub: 'Attempt theft', variant: 'secondary' as const, onPress: () => submit({ action: PlayerAction.Steal }) }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
@@ -527,6 +533,7 @@ export function RoadScreen({
                     text={lastTurn.narrativeSummary || 'The day passed without incident.'}
                     interval={textInterval}
                     forceComplete={forceComplete}
+                    onComplete={() => setLastEntryFinished(true)}
                     style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.ink }}
                   />
                   {hasDelta && (
@@ -632,7 +639,7 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
-      {showingLastEntry && !forceComplete && (
+      {isTyping && !forceComplete && (
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => setForceComplete(true)}

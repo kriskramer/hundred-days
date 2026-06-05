@@ -725,6 +725,12 @@ export class CombatEngine {
     this.log('Player', `uses ${def.name}.`, this.state.round, undefined, undefined, undefined, 'effect');
     this.state.itemsConsumed.push(itemId);
 
+    if (itemId === 'smoke_bomb') {
+      this.log('Player', 'throws a Smoke Bomb and flees the battle!', this.state.round, undefined, undefined, undefined, 'system');
+      this.endCombat('fled');
+      return;
+    }
+
     const activeEffect = def.activeEffect;
     if (!activeEffect) return;
 
@@ -964,15 +970,9 @@ export class CombatEngine {
   // ── Flee / Negotiate ─────────────────────────────────────
 
   private resolveFlee(): void {
-    const fastestEnemy = Math.max(...this.state.enemies.map(e => e.speed));
+    const activeEnemies = this.state.enemies.filter(e => e.currentHP > 0 && !e.isFleeing);
+    const fastestEnemy = activeEnemies.length > 0 ? Math.max(...activeEnemies.map(e => e.speed)) : 0;
     let fleeChance     = 0.4 + (this.state.player.speed - fastestEnemy) * 0.05;
-
-    const mira = this.state.companions.find(c => c.companionId === 'mira_thorn' && c.currentHP > 0);
-    if (mira?.specialAbilityReady && mira.level >= 5) {
-      fleeChance = 1.0;
-      mira.specialAbilityReady = false;
-      this.log('Mira', 'vanishes into shadow, pulling you with her.', this.state.round, undefined, undefined, undefined, 'system');
-    }
 
     const hasScout = this.state.companions.some(
       c => c.archetype === CompanionArchetype.Scout && c.currentHP > 0,
@@ -981,11 +981,19 @@ export class CombatEngine {
 
     fleeChance = Math.max(0.1, Math.min(0.95, fleeChance));
 
+    const mira = this.state.companions.find(c => c.companionId === 'mira_thorn' && c.currentHP > 0);
+    if (mira?.specialAbilityReady && mira.level >= 5) {
+      fleeChance = 1.0;
+      mira.specialAbilityReady = false;
+      this.log('Mira', 'vanishes into shadow, pulling you with her.', this.state.round, undefined, undefined, undefined, 'system');
+    }
+
     if (this.random() < fleeChance) {
       this.endCombat('fled');
     } else {
       this.log('Player', 'tries to flee but can\'t get away!', this.state.round, undefined, undefined, undefined, 'system');
       this.runEnemyTurn();
+      this.tickStatusEffects();
       this.checkEnd();
       if (this.state.phase !== 'post_combat') {
         this.setState({ round: this.state.round + 1, phase: 'awaiting_input' });
@@ -1002,6 +1010,7 @@ export class CombatEngine {
     if (!canNeg) {
       this.log('Player', 'tries to negotiate — they aren\'t listening.', this.state.round, undefined, undefined, undefined, 'system');
       this.runEnemyTurn();
+      this.tickStatusEffects();
       this.checkEnd();
       if (this.state.phase !== 'post_combat') this.setState({ round: this.state.round + 1, phase: 'awaiting_input' });
       return;
@@ -1013,6 +1022,7 @@ export class CombatEngine {
     } else {
       this.log('Player', 'fails to negotiate. They attack.', this.state.round, undefined, undefined, undefined, 'system');
       this.runEnemyTurn();
+      this.tickStatusEffects();
       this.checkEnd();
       if (this.state.phase !== 'post_combat') this.setState({ round: this.state.round + 1, phase: 'awaiting_input' });
     }

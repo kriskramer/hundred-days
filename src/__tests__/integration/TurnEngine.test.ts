@@ -1,5 +1,5 @@
 import { TurnEngine } from '@engine/TurnEngine';
-import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType, GameState } from '@engine/types';
+import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType, GameState, TurnPhase } from '@engine/types';
 import { saveEngine } from '@engine/SaveEngine';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
 import { getLocation, getRegion } from '@data/locations';
@@ -44,12 +44,12 @@ jest.mock('@data/locations', () => ({
 // Factory helper
 // ─────────────────────────────────────────
 
-function makeEngine(stateOverrides = {}) {
+function makeEngine(stateOverrides = {}, randomOverride?: () => number) {
   const state        = makeGameState(stateOverrides);
   const onStateChange = jest.fn();
   const onAwaitInput  = jest.fn();
   const onLevelUp     = jest.fn();
-  const engine = new TurnEngine(state, onStateChange, onAwaitInput, onLevelUp, () => Math.random());
+  const engine = new TurnEngine(state, onStateChange, onAwaitInput, onLevelUp, randomOverride ?? (() => Math.random()));
   return { engine, onStateChange, onAwaitInput, onLevelUp };
 }
 
@@ -340,6 +340,85 @@ describe('TurnEngine — Rally action', () => {
 });
 
 // ─────────────────────────────────────────
+// Steal action
+// ─────────────────────────────────────────
+
+describe('TurnEngine — Steal action', () => {
+  it('increases stealing skill, decreases reputation, and gains gold on successful steal (gold path)', async () => {
+    let rollIndex = 0;
+    const rolls = [0.1, 0.2, 0.5];
+    const customRng = () => rolls[rollIndex++];
+
+    const { engine } = makeEngine({
+      player: {
+        name: 'Thief',
+        level: 1,
+        xp: 0,
+        health: 100,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2, stealing: 5 },
+        statusEffects: [],
+      },
+    }, customRng);
+
+    const before = engine.getState();
+    await engine.submitAction({ action: PlayerAction.Steal });
+    const after = engine.getState();
+
+    expect(after.player.stats.stealing).toBe(6);
+    expect(after.reputation.value).toBeLessThan(before.reputation.value);
+    expect(after.resources.gold).toBeGreaterThan(before.resources.gold);
+  });
+
+  it('gains item on successful steal (item path)', async () => {
+    let rollIndex = 0;
+    const rolls = [0.1, 0.7, 0.0];
+    const customRng = () => rolls[rollIndex++];
+
+    const { engine } = makeEngine({
+      player: {
+        name: 'Thief',
+        level: 1,
+        xp: 0,
+        health: 100,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2, stealing: 5 },
+        statusEffects: [],
+      },
+      resources: { food: 5, gold: 10, items: [], maxSlots: 8, equippedItems: {} },
+    }, customRng);
+
+    const before = engine.getState();
+    await engine.submitAction({ action: PlayerAction.Steal });
+    const after = engine.getState();
+
+    expect(after.player.stats.stealing).toBe(6);
+    expect(after.resources.items.length).toBe(before.resources.items.length + 1);
+  });
+
+  it('decreases reputation and morale on failed steal', async () => {
+    const customRng = () => 0.99;
+
+    const { engine } = makeEngine({
+      player: {
+        name: 'Thief',
+        level: 1,
+        xp: 0,
+        health: 100,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2, stealing: 5 },
+        statusEffects: [],
+      },
+    }, customRng);
+
+    const before = engine.getState();
+    await engine.submitAction({ action: PlayerAction.Steal });
+    const after = engine.getState();
+
+    expect(after.player.stats.stealing).toBe(5);
+    expect(after.reputation.value).toBe(before.reputation.value - 10);
+    expect(after.morale.value).toBe(before.morale.value - 5);
+  });
+});
+
+// ─────────────────────────────────────────
 // Starvation
 // ─────────────────────────────────────────
 
@@ -564,6 +643,40 @@ describe('TurnEngine — interactive events', () => {
     });
   });
 
+  it('clears the resolved interactive event before awaiting a level-up choice', async () => {
+    const banditEvent: GameEvent = {
+      id: 'bandit_ambush', type: EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Bandit Ambush', description: 'Bandits!',
+      conditions: { probability: 1.0 }, repeatable: true, tags: ['combat'],
+    };
+    mockSampleEvents.mockReturnValue([banditEvent]);
+
+    const { engine, onLevelUp } = makeEngine({
+      player: {
+        name: 'Test', level: 1, xp: 30, health: 100,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    await engine.resolveInteractiveEvent({
+      outcome: 'victory', roundsFought: 2, xpGained: 18, goldGained: 10,
+      foodGained: 0, healthLost: 5, moraleDelta: 8, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {},
+    });
+
+    expect(onLevelUp).toHaveBeenCalled();
+    expect(engine.getState().currentTurn?.activeInteractiveEvent).toBeNull();
+    expect(engine.getState().currentTurn?.phase).toBe(TurnPhase.AwaitingLevelUp);
+
+    const [choices] = onLevelUp.mock.calls[0];
+    await engine.submitLevelUpChoice(choices[0].id);
+
+    expect(engine.getState().currentTurn).toBeNull();
+  });
+
   it('applies combat healing from net health delta on interactive events', async () => {
     const banditEvent: GameEvent = {
       id: 'bandit_ambush', type: EventType.Combat,
@@ -623,6 +736,20 @@ describe('TurnEngine — interactive events', () => {
     expect(after.reputation.value).toBeGreaterThan(0);
     expect(after.resources.items.some(item => item.definitionId === 'healing_potion')).toBe(false);
     expect(after.clearedCombatLocations.has(1)).toBe(true);
+  });
+
+  it('marks boss event as fired when resolving a boss location combat', async () => {
+    const { engine } = makeEngine({ currentLocationId: 32 });
+
+    await engine.resolveLocationCombat(32, {
+      outcome: 'victory', roundsFought: 2, xpGained: 10, goldGained: 5,
+      foodGained: 0, healthLost: 5, healthDelta: -5, moraleDelta: 3, reputationDelta: 1,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    const after = engine.getState();
+    expect(after.clearedCombatLocations.has(32)).toBe(true);
+    expect(after.firedEventIds.has('boss_orc_warchief')).toBe(true);
   });
 });
 

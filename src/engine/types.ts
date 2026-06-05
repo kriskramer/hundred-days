@@ -22,6 +22,7 @@ export enum PlayerAction {
   Trade   = 'trade',
   Rally   = 'rally',
   Camp    = 'camp',
+  Steal   = 'steal',
 }
 
 export const ACTION_LABELS: Record<PlayerAction, string> = {
@@ -31,6 +32,7 @@ export const ACTION_LABELS: Record<PlayerAction, string> = {
   [PlayerAction.Trade]: 'Traded',
   [PlayerAction.Rally]: 'Rallied',
   [PlayerAction.Camp]:  'Made Camp',
+  [PlayerAction.Steal]: 'Stole',
 };
 
 export enum MoraleTier {
@@ -150,6 +152,7 @@ export interface PlayerStats {
   endurance:   number;
   perception:  number;
   leadership:  number;
+  stealing?:   number;
 }
 
 export interface StatusEffect {

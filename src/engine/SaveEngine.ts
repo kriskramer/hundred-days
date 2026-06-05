@@ -268,6 +268,21 @@ class SaveEngine {
       current = { ...current, schemaVersion: 6 };
     }
 
+    // v6 → v7: add stealing: 5 to player stats if missing
+    if (current.schemaVersion === 6) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['player'] && typeof state['player'] === 'object') {
+        const playerObj = state['player'] as Record<string, unknown>;
+        if (playerObj['stats'] && typeof playerObj['stats'] === 'object') {
+          const statsObj = playerObj['stats'] as Record<string, unknown>;
+          if (statsObj['stealing'] === undefined) {
+            statsObj['stealing'] = 5;
+          }
+        }
+      }
+      current = { ...current, schemaVersion: 7 };
+    }
+
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
     return current;
   }

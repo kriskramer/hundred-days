@@ -811,7 +811,7 @@ export const LOCATIONS: Location[] = [
     name: "Hantoh Tavern",
     type: 'wilderness',
     region: 'Eastern Wilds',
-    isTown: false,
+    isTown: true,
     hasShop: false,
     mobs: [
       { name: "Bandits", aggroPct: 15 },

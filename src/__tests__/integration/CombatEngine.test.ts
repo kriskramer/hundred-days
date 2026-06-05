@@ -7,7 +7,9 @@ import {
 } from '@engine/CombatEngine';
 import { CompanionArchetype, EnemyBehavior, SpecialEffect } from '@engine/types';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
-import { mockRandomSequence, mockRandomValue } from '../utils/mockRandom';
+import { mockRandomValue } from '../utils/mockRandom';
+import { equipItem } from '@engine/ItemSystem';
+import { makeInvWithItem } from '../__fixtures__/inventory';
 
 function makeRatsEnemy(): EnemyCombatant {
   const def = ENEMY_DEFINITIONS.find(e => e.id === 'small_rats')!;
@@ -63,9 +65,7 @@ describe('CombatEngine construction', () => {
   });
 
   it('applies item bonuses to player stats', () => {
-    const { makeInvWithItem } = require('../__fixtures__/inventory');
-    const { equipItem } = require('@engine/ItemSystem');
-    let inv = makeInvWithItem('travelers_blade', 1);
+    const inv = makeInvWithItem('travelers_blade', 1);
     const r = equipItem(inv, 'travelers_blade');
     if (!r.success) throw new Error();
     const state = makeGameState({
@@ -223,6 +223,75 @@ describe('CombatEngine — flee', () => {
     expect(afterState.phase).toBe('awaiting_input');
     expect(afterState.player.currentHP).toBeLessThanOrEqual(hpBefore);
   });
+
+  it('smoke_bomb usage consumes the item and guarantees flee success immediately', () => {
+    const { engine } = makeEngine();
+    // Smoke Bomb should succeed even with high random roll
+    randomSpy.mockRestore();
+    randomSpy = mockRandomValue(0.99);
+
+    engine.submitAction({ type: 'skill', itemId: 'smoke_bomb' });
+
+    const state = engine.getState();
+    expect(state.result?.outcome).toBe('fled');
+    expect(state.itemsConsumed).toContain('smoke_bomb');
+  });
+
+  it('Mira special ability guarantees flee success (100% chance)', () => {
+    // With Mira level 5 and specialAbilityReady, flee should succeed even if roll is 0.99
+    // Player speed 5, rat speed 6. Flee chance normally 0.35, but Mira sets to 1.0.
+    randomSpy.mockRestore();
+    randomSpy = mockRandomValue(0.99);
+
+    const companion = makeCompanion({ id: 'mira_thorn', level: { current: 5, xp: 0 } });
+    const { engine } = makeEngine({}, { companions: [companion] });
+
+    // Enable Mira specialAbilityReady
+    engine.getState().companions[0].specialAbilityReady = true;
+
+    engine.submitAction({ type: 'flee' });
+
+    expect(engine.getState().result?.outcome).toBe('fled');
+    expect(engine.getState().companions[0].specialAbilityReady).toBe(false);
+  });
+
+  it('flee chance filters out dead or fleeing enemies from speed calculation', () => {
+    // If we have one fast rat (speed 10) who is already fleeing, and one slow rat (speed 2) who is alive,
+    // the flee chance should be based on speed 2, not 10.
+    // fleeChance = 0.4 + (5 - 2) * 0.05 = 0.55
+    // If fast rat speed 10 was counted, fleeChance would be 0.4 + (5 - 10) * 0.05 = 0.15.
+    // If mock roll is 0.50, it should succeed (0.50 < 0.55) if fast rat is ignored, and fail if fast rat is counted.
+    randomSpy.mockRestore();
+    randomSpy = mockRandomValue(0.50);
+
+    const rat1 = { ...makeRatsEnemy(), speed: 10, isFleeing: true };
+    const rat2 = { ...makeRatsEnemy(), speed: 2, currentHP: 10 };
+    const state = makeGameState();
+    const engine = new CombatEngine([rat1, rat2], state, jest.fn());
+
+    engine.submitAction({ type: 'flee' });
+
+    expect(engine.getState().result?.outcome).toBe('fled');
+  });
+
+  it('failed flee ticks status effects (durations decrement)', () => {
+    randomSpy.mockRestore();
+    randomSpy = mockRandomValue(0.8);
+
+    const { engine } = makeEngine();
+    // Add a status effect to player with 3 rounds remaining
+    engine.getState().player.statusEffects.push({
+      id: 'attack_buffed',
+      remainingRounds: 3,
+      magnitude: 5
+    });
+
+    engine.submitAction({ type: 'flee' });
+
+    const state = engine.getState();
+    expect(state.phase).toBe('awaiting_input');
+    expect(state.player.statusEffects[0].remainingRounds).toBe(2);
+  });
 });
 
 // ─────────────────────────────────────────
@@ -284,6 +353,7 @@ describe('CombatEngine — stun', () => {
     const log = engine.getState().log;
     const stunnedLog = log.find(l => l.action.includes('stunned'));
     expect(stunnedLog).toBeDefined();
+    expect(engine.getState().enemies[0].currentHP).toBe(hpBefore);
     // isPlayerStunned should have reset to false
     expect(engine.getState().isPlayerStunned).toBe(false);
   });

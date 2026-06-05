@@ -271,6 +271,7 @@ function CharacterSheetModal({ visible, gameState, onClose }: CharacterSheetModa
               {renderStatRow('Endurance', base.endurance)}
               {renderStatRow('Perception', base.perception)}
               {renderStatRow('Leadership', base.leadership)}
+              {renderStatRow('Stealing', base.stealing ?? 0)}
             </View>
           </View>
 
