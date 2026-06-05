@@ -243,7 +243,7 @@ describe('CombatEngine — flee', () => {
     randomSpy.mockRestore();
     randomSpy = mockRandomValue(0.99);
 
-    const companion = makeCompanion({ id: 'mira_thorn', level: { current: 5, xp: 0 } });
+    const companion = makeCompanion({ id: 'mira_thorn', level: { current: 5, xp: 0, xpToNext: 20 } });
     const { engine } = makeEngine({}, { companions: [companion] });
 
     // Enable Mira specialAbilityReady

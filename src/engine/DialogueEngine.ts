@@ -829,6 +829,277 @@ export const DIALOGUES: Dialogue[] = [
       },
     },
   },
+
+  // ── Coron the Priest ───────────────────────────────────────
+  {
+    id:          'coron_priest',
+    title:       'Coron, the Wandering Priest',
+    triggerType: 'event_fired',
+    triggerConditions: { notAlreadyMet: true },
+    rootNodeId:  'coron_01',
+    repeatable:  false,
+    tags:        ['story', 'priest'],
+    nodes: {
+      coron_01: {
+        id:          'coron_01',
+        speakerName: 'Coron',
+        speakerPortraitId: 'portrait_coron',
+        text:        'A gentle-faced priest in travel-worn robes stands at the wayside. "Peace be with you, traveler. The road is dark and filled with peril. May I offer you a blessing or heal your wounds?"',
+        choices: [
+          {
+            id:   'coron_heal',
+            text: '"I require healing." (Costs 10 Gold)',
+            tone: 'curious',
+            conditions: { minGold: 10 },
+            outcome: {
+              nextNodeId: 'coron_healed',
+              resourceDelta: { gold: -10, health: 30 },
+              moraleDelta: 5,
+            },
+          },
+          {
+            id:   'coron_bless',
+            text: '"I seek your blessing."',
+            tone: 'heroic',
+            conditions: { minReputation: 60 },
+            outcome: {
+              nextNodeId: 'coron_blessed',
+              moraleDelta: 15,
+            },
+          },
+          {
+            id:   'coron_no_rep',
+            text: '"I seek your blessing."',
+            tone: 'pragmatic',
+            conditions: { maxReputation: 59 },
+            outcome: {
+              nextNodeId: 'coron_refuse_blessing',
+            },
+          },
+          {
+            id:   'coron_leave',
+            text: '"I need nothing. Farewell."',
+            tone: 'pragmatic',
+            outcome: { nextNodeId: null },
+          },
+        ],
+      },
+      coron_healed: {
+        id:          'coron_healed',
+        speakerName: 'Coron',
+        text:        '"May your body be restored for the journey ahead," he prays, placing his warm hands upon your brow. You feel a soothing light wash over you.',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      coron_blessed: {
+        id:          'coron_blessed',
+        speakerName: 'Coron',
+        text:        '"Your noble deeds on this road precede you," he smiles, tracing a sign of protection in the air. "Go with the light, traveler. You are blessed."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      coron_refuse_blessing: {
+        id:          'coron_refuse_blessing',
+        speakerName: 'Coron',
+        text:        'He looks at you with sad eyes. "I sense conflict and dark rumors in your wake, traveler. I pray that you find your way back to the path of light, but I cannot offer a blessing today."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+    },
+  },
+
+  // ── Sylas the Collector ────────────────────────────────────
+  {
+    id:          'sylas_collector',
+    title:       'Sylas, the Shady Collector',
+    triggerType: 'event_fired',
+    triggerConditions: { notAlreadyMet: true },
+    rootNodeId:  'sylas_01',
+    repeatable:  false,
+    tags:        ['story', 'collector'],
+    nodes: {
+      sylas_01: {
+        id:          'sylas_01',
+        speakerName: 'Sylas',
+        speakerPortraitId: 'portrait_sylas',
+        text:        'A sharp-looking man in fine silk coat stands beside a covered cart. "Ah, a fellow wanderer! I collect... rare curios. If you happen to have gold, I can sell you some maps, or I could buy any junk you found."',
+        choices: [
+          {
+            id:   'sylas_buy_map',
+            text: '"Sell me a treasure map." (Costs 15 Gold)',
+            tone: 'cunning',
+            conditions: { minGold: 15 },
+            outcome: {
+              nextNodeId: 'sylas_bought',
+              resourceDelta: { gold: -15 },
+              moraleDelta: 5,
+              reputationDelta: -2,
+            },
+          },
+          {
+            id:   'sylas_sell_scraps',
+            text: '"I have some trinkets to sell."',
+            tone: 'pragmatic',
+            outcome: {
+              nextNodeId: 'sylas_sold',
+              resourceDelta: { gold: 12 },
+            },
+          },
+          {
+            id:   'sylas_leave',
+            text: '"I must keep moving."',
+            tone: 'pragmatic',
+            outcome: { nextNodeId: null },
+          },
+        ],
+      },
+      sylas_bought: {
+        id:          'sylas_bought',
+        speakerName: 'Sylas',
+        text:        'He winks and hands you a dusty parchment map. "A fine choice! Let\'s hope it leads you to fortune, and not to your doom."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      sylas_sold: {
+        id:          'sylas_sold',
+        speakerName: 'Sylas',
+        text:        'He looks over your gear, nodding greedily, and hands you some gold coins. "A pleasure doing business with you, traveler. Let me know if you find more."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+    },
+  },
+
+  // ── Griselda the Herbalist ─────────────────────────────────
+  {
+    id:          'griselda_herbalist',
+    title:       'Griselda, the Herbalist',
+    triggerType: 'event_fired',
+    triggerConditions: { notAlreadyMet: true },
+    rootNodeId:  'griselda_01',
+    repeatable:  false,
+    tags:        ['story', 'herbalist'],
+    nodes: {
+      griselda_01: {
+        id:          'griselda_01',
+        speakerName: 'Griselda',
+        speakerPortraitId: 'portrait_griselda',
+        text:        'An old woman is crouching by a patch of wildflowers, humming quietly. She looks up with a pleasant smile. "Hello, traveler. Are you hungry, or do you have food to share with an old lady?"',
+        choices: [
+          {
+            id:   'griselda_share',
+            text: '"Here is some of my food." (Lose 1 Food)',
+            tone: 'heroic',
+            conditions: { minFood: 1 },
+            outcome: {
+              nextNodeId: 'griselda_thankful',
+              resourceDelta: { food: -1 },
+              reputationDelta: 8,
+              moraleDelta: 10,
+            },
+          },
+          {
+            id:   'griselda_ask',
+            text: '"Do you have any potions to sell?"',
+            tone: 'pragmatic',
+            conditions: { minGold: 10 },
+            outcome: {
+              nextNodeId: 'griselda_sold',
+              resourceDelta: { gold: -10 },
+            },
+          },
+          {
+            id:   'griselda_leave',
+            text: 'Nod politely and continue walking.',
+            tone: 'pragmatic',
+            outcome: { nextNodeId: null },
+          },
+        ],
+      },
+      griselda_thankful: {
+        id:          'griselda_thankful',
+        speakerName: 'Griselda',
+        text:        '"Bless your kind soul!" she beams, taking the food. "Here, take this herbal poultice. It will soothe your burns and heal your spirits on the road."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      griselda_sold: {
+        id:          'griselda_sold',
+        speakerName: 'Griselda',
+        text:        'She reaches into her pocket and pulls out a small green bottle of herbal tincture. "Drink this when you are weary, it will restore your vigor."',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+    },
+  },
+
+  // ── Finn the Pickpocket ────────────────────────────────────
+  {
+    id:          'finn_pickpocket',
+    title:       'Finn, the Quick-Fingered Kid',
+    triggerType: 'event_fired',
+    triggerConditions: { notAlreadyMet: true },
+    rootNodeId:  'finn_01',
+    repeatable:  false,
+    tags:        ['story', 'pickpocket'],
+    nodes: {
+      finn_01: {
+        id:          'finn_01',
+        speakerName: 'Narrator',
+        text:        'A young boy in dirty rags bumps hard into you as he runs past, muttering a quick apology before ducking into an alleyway.',
+        choices: [
+          {
+            id:   'finn_confront',
+            text: 'Confront him about your coin purse.',
+            tone: 'intimidating',
+            outcome: {
+              nextNodeId: 'finn_caught',
+            },
+          },
+          {
+            id:   'finn_steal_back',
+            text: 'Pickpocket him back as he passes.',
+            tone: 'cunning',
+            outcome: {
+              nextNodeId: 'finn_stole_back',
+              resourceDelta: { gold: 10 },
+              reputationDelta: -2,
+            },
+          },
+          {
+            id:   'finn_ignore',
+            text: 'Ignore it and keep moving.',
+            tone: 'pragmatic',
+            outcome: { nextNodeId: null },
+          },
+        ],
+      },
+      finn_caught: {
+        id:          'finn_caught',
+        speakerName: 'Finn',
+        speakerPortraitId: 'portrait_finn',
+        text:        'You grab his shoulder. He looks up in panic, showing a missing coin purse. "Alright, alright! Take it back! Don\'t call the guards!" He hands it over and scurries off.',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      finn_stole_back: {
+        id:          'finn_stole_back',
+        speakerName: 'Narrator',
+        text:        'With supreme stealth, you snatch his own pouch as he brushes past. Inside you find 10 gold. You feel a small thrill of thievish pride.',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+    },
+  },
 ];
 
 // ─────────────────────────────────────────
@@ -837,6 +1108,35 @@ export const DIALOGUES: Dialogue[] = [
 
 export function getDialogue(id: string): Dialogue | undefined {
   return DIALOGUES.find(d => d.id === id);
+}
+
+const NPC_DIALOGUE_DISPLAY_NAMES: Record<string, string> = {
+  coron_priest:       'Coron',
+  finn_pickpocket:    'Finn',
+  griselda_herbalist: 'Griselda',
+  rex_the_dog:        'Rex',
+  sylas_collector:    'Sylas',
+  wounded_stranger:   'Wounded Stranger',
+};
+
+export function getDialogueDisplayName(id: string): string {
+  const explicitName = NPC_DIALOGUE_DISPLAY_NAMES[id];
+  if (explicitName) return explicitName;
+
+  const dialogue = getDialogue(id);
+  if (!dialogue) {
+    return id
+      .split('_')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  const rootNode = dialogue.nodes[dialogue.rootNodeId];
+  if (rootNode && rootNode.speakerName !== 'Narrator') {
+    return rootNode.speakerName;
+  }
+
+  return dialogue.title.split(',')[0] ?? dialogue.title;
 }
 
 export function findDialogueForLocation(

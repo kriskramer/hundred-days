@@ -1,3 +1,5 @@
+import type { RunLayout } from './RunLayout';
+
 // ============================================================
 // 100 Days to Save the World — Shared Types
 // Single source of truth for all engine types.
@@ -444,6 +446,7 @@ export interface GameState {
   clearedCombatLocations: Set<number>;
   currentTurn:            TurnState | null;
   turnHistory:        TurnRecord[];
+  runLayout:          RunLayout;
 }
 
 // ─────────────────────────────────────────

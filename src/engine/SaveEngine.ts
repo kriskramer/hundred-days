@@ -7,6 +7,7 @@ import {
   AppSettings,
 } from './types';
 import { SCHEMA_VERSION } from './GameState';
+import { generateRunLayout } from './RunLayout';
 import { getRegion } from '@data/locations';
 
 // ─────────────────────────────────────────
@@ -268,7 +269,7 @@ class SaveEngine {
       current = { ...current, schemaVersion: 6 };
     }
 
-    // v6 → v7: add stealing: 5 to player stats if missing
+    // v6 → v7: add stealing: 5 to player stats and generate runLayout if missing
     if (current.schemaVersion === 6) {
       const state = current.gameState as unknown as Record<string, unknown>;
       if (state['player'] && typeof state['player'] === 'object') {
@@ -279,6 +280,10 @@ class SaveEngine {
             statsObj['stealing'] = 5;
           }
         }
+      }
+      if (state['runLayout'] === undefined) {
+        const seed = typeof state['seed'] === 'number' ? state['seed'] : 0;
+        state['runLayout'] = generateRunLayout(seed);
       }
       current = { ...current, schemaVersion: 7 };
     }

@@ -12,6 +12,7 @@ import { CombatScreen }    from '@screens/CombatScreen';
 import { DialogueScreen }  from '@screens/DialogueScreen';
 import { InventoryScreen } from '@screens/InventoryScreen';
 import { MapScreen }       from '@screens/MapScreen';
+import { NpcInteractionScreen } from '@screens/NpcInteractionScreen';
 import { ShopScreen }      from '@screens/ShopScreen';
 
 // Components
@@ -26,13 +27,24 @@ import {
 } from '@components';
 
 import type { GameEvent, LevelUpChoice, CombatResult, AppSettings, GameState } from '@engine/types';
+import { PlayerAction, TurnPhase } from '@engine/types';
 import { findDialogueForLocation } from '@engine/DialogueEngine';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { getCompanion } from '@data/companions';
 import { getLocation }  from '@data/locations';
+import {
+  applyLevelUpChoice,
+  applyMoraleDelta,
+  applyReputationDelta,
+  applyXP,
+  clamp,
+  getRandomLevelUpChoicesWithRng,
+  LEVEL_UP_CHOICES,
+  XP_THRESHOLDS,
+} from '@engine/GameState';
 import { isCombatEvent } from '@utils/isCombatEvent';
 
-type Tab = 'road' | 'combat' | 'dialogue' | 'inventory' | 'map';
+type Tab = 'road' | 'combat' | 'dialogue' | 'npc' | 'inventory' | 'map';
 type NavItemId = Tab | 'journal' | 'settings';
 
 const TABS: { id: NavItemId; label: string; icon: string }[] = [
@@ -47,6 +59,7 @@ export default function GameScreen() {
   const insets                                = useSafeAreaInsets();
   const [activeTab, setActiveTab]             = useState<Tab>('road');
   const [activeEvent, setActiveEvent]         = useState<GameEvent | null>(null);
+  const [activeNpcDialogueId, setActiveNpcDialogueId] = useState<string | null>(null);
   const [levelUpChoices, setLevelUpChoices]   = useState<LevelUpChoice[] | null>(null);
   const [toastMsg, setToastMsg]               = useState('');
   const [shopOpen, setShopOpen]               = useState(false);
@@ -114,6 +127,68 @@ export default function GameScreen() {
     setTimeout(() => setToastMsg(''), 2500);
   }
 
+  function syncExternalGameState(nextState: GameState) {
+    lastEngineSnapshotRef.current = nextState;
+    setGame(nextState);
+    engineRef.current?.syncExternalState(nextState);
+    saveEngine.saveRun(nextState).catch(console.error);
+  }
+
+  function buildDirectLevelUpChoices(stats: GameState['player']['stats']): LevelUpChoice[] {
+    const rawChoices = getRandomLevelUpChoicesWithRng(3, () => engineRef.current?.nextRandom() ?? Math.random());
+    const statLabels: Record<keyof GameState['player']['stats'], string> = {
+      maxHealth:  'Max HP',
+      attack:     'Attack',
+      defense:    'Defense',
+      speed:      'Speed',
+      endurance:  'Endurance',
+      perception: 'Perception',
+      leadership: 'Leadership',
+      stealing:   'Stealing',
+    };
+
+    return rawChoices.map(choice => {
+      const cloned = { ...choice };
+      const previews: string[] = [];
+
+      (Object.keys(statLabels) as Array<keyof GameState['player']['stats']>).forEach(key => {
+        const delta = choice.effect[key];
+        if (delta !== undefined && delta !== 0) {
+          const before = stats[key] ?? 0;
+          const after = before + delta;
+          previews.push(`${statLabels[key]}  ${before} → ${after}`);
+        }
+      });
+
+      if (previews.length > 0) {
+        cloned.statPreview = previews.join(', ');
+      }
+
+      return cloned;
+    });
+  }
+
+  function tickDirectCompanionXp(companions: GameState['companions']): GameState['companions'] {
+    const XP_TO_NEXT = [0, 20, 50, 95, 160];
+
+    return companions.map(companion => {
+      const newXP = companion.level.xp + 5;
+      const nextLevel = companion.level.current < 5 ? XP_TO_NEXT[companion.level.current] : Infinity;
+      const levelsUp = newXP >= nextLevel && companion.level.current < 5;
+
+      return {
+        ...companion,
+        level: {
+          current:  levelsUp ? companion.level.current + 1 : companion.level.current,
+          xp:       newXP,
+          xpToNext: levelsUp
+            ? XP_TO_NEXT[Math.min(companion.level.current + 1, 4)]
+            : companion.level.xpToNext,
+        },
+      };
+    });
+  }
+
   async function handleInteractiveEventComplete(result: CombatResult) {
     if (activeEvent) {
       // Event-driven combat: feed result back into the turn engine
@@ -154,6 +229,11 @@ export default function GameScreen() {
   function handleOpenDialogue() {
     if (!dialogueAvailable) return;
     setActiveTab('dialogue');
+  }
+
+  function handleOpenNpc(dialogueId: string) {
+    setActiveNpcDialogueId(dialogueId);
+    setActiveTab('npc');
   }
 
   async function handleDialogueComplete(outcome: DialogueSessionOutcome) {
@@ -203,10 +283,108 @@ export default function GameScreen() {
     await handleInteractiveEventComplete(result);
   }
 
+  async function handleNpcDialogueComplete(outcome: DialogueSessionOutcome) {
+    if (!gameState) return;
+
+    const companionIds = new Set(gameState.companions.map(companion => companion.id));
+    const updatedCompanions = [...gameState.companions];
+    for (const effect of outcome.companionEffects) {
+      if (effect?.type !== 'recruit' || companionIds.has(effect.companionId)) continue;
+      const companion = getCompanion(effect.companionId);
+      if (!companion) continue;
+      companionIds.add(effect.companionId);
+      updatedCompanions.push(companion);
+    }
+
+    const storyFlags = new Set(gameState.storyFlags);
+    outcome.flagsSet.forEach(flag => storyFlags.add(flag));
+
+    const firedEventIds = new Set(gameState.firedEventIds);
+    const dialogueId = activeNpcDialogueId ?? outcome.dialogueId;
+    if (dialogueId) {
+      firedEventIds.add(dialogueId);
+    }
+
+    let nextState: GameState = {
+      ...gameState,
+      player: applyXP({
+        ...gameState.player,
+        health: clamp(
+          gameState.player.health + outcome.resourceDeltas.health,
+          0,
+          gameState.player.stats.maxHealth
+        ),
+      }, outcome.xpGained),
+      resources: {
+        ...gameState.resources,
+        food: Math.max(0, gameState.resources.food + outcome.resourceDeltas.food),
+        gold: Math.max(0, gameState.resources.gold + outcome.resourceDeltas.gold),
+      },
+      morale: applyMoraleDelta(gameState.morale, outcome.moraleDelta),
+      reputation: applyReputationDelta(gameState.reputation, outcome.reputationDelta),
+      companions: updatedCompanions,
+      firedEventIds,
+      storyFlags,
+    };
+
+    const nextThreshold = XP_THRESHOLDS[nextState.player.level];
+    if (nextThreshold && nextState.player.xp >= nextThreshold && nextState.player.level < 10) {
+      nextState = {
+        ...nextState,
+        player: {
+          ...nextState.player,
+          level: nextState.player.level + 1,
+          stats: {
+            ...nextState.player.stats,
+            maxHealth: nextState.player.stats.maxHealth + 8,
+            attack: nextState.player.stats.attack + 1,
+          },
+        },
+        companions: tickDirectCompanionXp(nextState.companions),
+      };
+      setLevelUpChoices(buildDirectLevelUpChoices(nextState.player.stats));
+    }
+
+    syncExternalGameState(nextState);
+    setActiveNpcDialogueId(null);
+    setActiveTab('road');
+  }
+
   function handleLevelUpChoice(choiceId: string) {
-    engineRef.current?.submitLevelUpChoice(choiceId);
+    if (engineRef.current?.getState().currentTurn?.phase === TurnPhase.AwaitingLevelUp) {
+      engineRef.current.submitLevelUpChoice(choiceId);
+      setLevelUpChoices(null);
+      showToast('Level up applied!');
+      return;
+    }
+
+    if (!gameState) return;
+
+    const choice = LEVEL_UP_CHOICES.find(levelUpChoice => levelUpChoice.id === choiceId);
+    if (!choice) return;
+
+    const nextState: GameState = {
+      ...gameState,
+      player: {
+        ...gameState.player,
+        stats: applyLevelUpChoice(gameState.player.stats, choice),
+      },
+    };
+
+    syncExternalGameState(nextState);
     setLevelUpChoices(null);
     showToast('Level up applied!');
+  }
+
+  function handleNpcSteal() {
+    if (!engineRef.current) {
+      showToast('Engine not ready');
+      return;
+    }
+
+    setActiveNpcDialogueId(null);
+    setActiveTab('road');
+    engineRef.current.submitAction({ action: PlayerAction.Steal }).catch(console.error);
   }
 
   async function handleRestart() {
@@ -270,6 +448,7 @@ export default function GameScreen() {
             onOpenShop={() => setShopOpen(true)}
             onOpenCombat={handleOpenCombat}
             onOpenDialogue={handleOpenDialogue}
+            onOpenNpc={handleOpenNpc}
             textInterval={settings?.textSpeed === 'slow'
               ? 45
               : settings?.textSpeed === 'fast'
@@ -296,6 +475,19 @@ export default function GameScreen() {
             onComplete={handleDialogueComplete}
             onToast={showToast}
             onBackToRoad={() => setActiveTab('road')}
+          />
+        )}
+        {activeTab === 'npc' && activeNpcDialogueId && (
+          <NpcInteractionScreen
+            gameState={gameState}
+            dialogueId={activeNpcDialogueId}
+            onComplete={handleNpcDialogueComplete}
+            onToast={showToast}
+            onSteal={handleNpcSteal}
+            onBackToRoad={() => {
+              setActiveNpcDialogueId(null);
+              setActiveTab('road');
+            }}
           />
         )}
         {activeTab === 'inventory' && (

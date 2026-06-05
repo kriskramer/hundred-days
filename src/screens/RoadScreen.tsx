@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, Alert, Animated } from 'react-native';
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
-import { getLocation, getLocationRandomText } from '@data/locations';
+import { getLocation } from '@data/locations';
+import { pickLocationText } from '@engine/GameState';
 import { isBossLocation } from '@engine/bosses';
 import { hasEligibleDialogue } from '@engine/EventSystem';
-import { findDialogueForLocation } from '@engine/DialogueEngine';
+import { findDialogueForLocation, getDialogueDisplayName } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText } from '@components';
@@ -18,6 +19,7 @@ interface Props {
   onOpenShop?:     () => void;
   onOpenCombat?:   () => void;
   onOpenDialogue?: () => void;
+  onOpenNpc?:      (dialogueId: string) => void;
   textInterval?: number;
   confirmActions?: boolean;
 }
@@ -256,6 +258,7 @@ export function RoadScreen({
   onOpenShop,
   onOpenCombat,
   onOpenDialogue,
+  onOpenNpc,
   textInterval = 22,
   confirmActions = true,
 }: Props) {
@@ -268,32 +271,24 @@ export function RoadScreen({
 
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
   const [showingLastEntry, setShowingLastEntry]       = useState(false);
-  const [randomText, setRandomText]                   = useState<string | null>(() => getLocationRandomText(location));
   const [forceComplete, setForceComplete]             = useState(false);
   const [lastEntryFinished, setLastEntryFinished]     = useState(false);
   const [locDescFinished, setLocDescFinished]         = useState(false);
-  const [randomTextFinished, setRandomTextFinished]   = useState(false);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
-  const baseLocationText = location.locationText || '';
-  const currentRandomText = (location.randomTexts && randomText && location.randomTexts.includes(randomText))
-    ? randomText
-    : null;
-  const displayLocationText = (dialogueCue && !currentRandomText)
+  const currentNpcSlot = gameState.runLayout?.npcSlots.find(
+    slot => slot.locationId === gameState.currentLocationId && !gameState.firedEventIds.has(slot.npcEventId)
+  ) ?? null;
+  const currentNpcName = currentNpcSlot ? getDialogueDisplayName(currentNpcSlot.npcEventId) : null;
+  const baseLocationText = pickLocationText(location, gameState.dayNumber, gameState.seed) || '';
+  const displayLocationText = dialogueCue
     ? `${baseLocationText}\n\n${dialogueCue}`
     : baseLocationText;
-  const displayRandomText = (dialogueCue && currentRandomText)
-    ? `${currentRandomText}\n\n${dialogueCue}`
-    : currentRandomText;
 
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
-
-  useEffect(() => {
-    setRandomText(getLocationRandomText(location));
-  }, [gameState.currentLocationId]);
 
   useEffect(() => {
     if (!lastTurnKey) {
@@ -309,11 +304,10 @@ export function RoadScreen({
     setForceComplete(false);
     setLastEntryFinished(false);
     setLocDescFinished(false);
-    setRandomTextFinished(false);
   }, [gameState.currentLocationId, showingLastEntry]);
 
   const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
-  const isLocationTyping = !showingLastEntry && (currentRandomText ? !randomTextFinished : !locDescFinished);
+  const isLocationTyping = !showingLastEntry && !locDescFinished;
   const isTyping = isJournalEntryTyping || isLocationTyping;
 
   let netFood = 0;
@@ -332,6 +326,10 @@ export function RoadScreen({
 
   const hasDelta = lastTurn && [netFood, netGold, netHealth, netMorale].some(v => Math.abs(v) >= 0.1);
 
+  const activeShortcuts = gameState.runLayout?.activeShortcuts.filter(
+    s => s.from === gameState.currentLocationId && (gameState.player.stats.perception ?? 0) >= s.perceptionThreshold
+  ) ?? [];
+
   const actionButtons = (bossNearby
     ? [
         {
@@ -341,20 +339,33 @@ export function RoadScreen({
           onPress: () => onOpenCombat?.(),
         },
         ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
-        ...(dialogueNearby ? [{ label: 'Steal', sub: 'Attempt theft', variant: 'secondary' as const, onPress: () => submit({ action: PlayerAction.Steal }) }] : []),
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
         ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
-        ...(dialogueNearby || location.isTown ? [{ label: 'Steal', sub: 'Attempt theft', variant: 'secondary' as const, onPress: () => submit({ action: PlayerAction.Steal }) }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
-        ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+        ...activeShortcuts.map(s => ({
+          label: s.label,
+          sub: `To loc ${s.to} · 2 food`,
+          variant: 'primary' as const,
+          onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to })
+        })),
+        ...((location.hasShop || (gameState.runLayout && gameState.runLayout.merchantLocations.includes(gameState.currentLocationId))) ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
         ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
         { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
         { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) },
       ]).map(btn => ({ ...btn, disabled: isTyping }));
+  const npcActionButtons = currentNpcSlot && currentNpcName
+    ? [{
+        label: currentNpcName,
+        sub: 'Talk · Steal',
+        variant: 'npc' as const,
+        onPress: () => onOpenNpc?.(currentNpcSlot.npcEventId),
+        disabled: isTyping,
+      }]
+    : [];
 
   function renderDelta(val: number, label: string, icon: string) {
     if (Math.abs(val) < 0.1) return null;
@@ -389,7 +400,14 @@ export function RoadScreen({
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
 
-    const moveFoodThreshold = params.action === PlayerAction.Move && params.forcedMarch ? 1.5 : 1;
+    let moveFoodThreshold = 1.0;
+    if (params.action === PlayerAction.Move) {
+      if (params.shortcutTo) {
+        moveFoodThreshold = 2.0;
+      } else if (params.forcedMarch) {
+        moveFoodThreshold = 1.5;
+      }
+    }
 
     if (params.action === PlayerAction.Move && gameState.resources.food < moveFoodThreshold) {
       Alert.alert(
@@ -458,7 +476,7 @@ export function RoadScreen({
                     TOWN
                   </Text>
                 )}
-                {location.hasShop && (
+                {(location.hasShop || (gameState.runLayout && gameState.runLayout.merchantLocations.includes(gameState.currentLocationId))) && (
                   <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.gold }}>
                     SHOP
                   </Text>
@@ -559,19 +577,6 @@ export function RoadScreen({
                     onComplete={() => setLocDescFinished(true)}
                     style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                   />
-                  {currentRandomText && locDescFinished && (
-                    <>
-                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
-                      <TypewriterText
-                        key={`loc-random-${location.id}-${showingLastEntry}`}
-                        text={displayRandomText || ''}
-                        interval={textInterval}
-                        forceComplete={forceComplete}
-                        onComplete={() => setRandomTextFinished(true)}
-                        style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
-                      />
-                    </>
-                  )}
                 </>
               )}
             </TouchableOpacity>
@@ -605,10 +610,18 @@ export function RoadScreen({
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
-                <SectionHeader label="Actions" right="Choose wisely" centered />
-                <ActionGrid actions={actionButtons} />
-              </View>
+              <>
+                <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                  <SectionHeader label="Actions" right="Choose wisely" centered />
+                  <ActionGrid actions={actionButtons} />
+                </View>
+                {npcActionButtons.length > 0 && (
+                  <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                    <SectionHeader label="NPC" right="Talk or take your chances" centered />
+                    <ActionGrid actions={npcActionButtons} />
+                  </View>
+                )}
+              </>
             )}
 
             {/* Companions */}
@@ -765,7 +778,7 @@ function SectionHeader({ label, right, centered }: { label: string; right?: stri
 type ActionDef = {
   label:   string;
   sub:     string;
-  variant: 'primary' | 'secondary' | 'default';
+  variant: 'primary' | 'secondary' | 'default' | 'npc';
   onPress: () => void;
   disabled?: boolean;
 };
@@ -790,11 +803,13 @@ function ActionGrid({ actions }: { actions: ActionDef[] }) {
 function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
   const bg          = variant === 'primary'   ? Colors.blood
                     : variant === 'secondary' ? Colors.gold
+                    : variant === 'npc'       ? '#D8EEF9'
                     : Colors.ink;
   const borderColor = variant === 'primary'   ? '#C94040'
                     : variant === 'secondary' ? '#D4A017'
+                    : variant === 'npc'       ? '#7BAFCC'
                     : '#3A2E1C';
-  const textColor   = variant === 'secondary' ? Colors.ink : Colors.parchment;
+  const textColor   = variant === 'secondary' || variant === 'npc' ? Colors.ink : Colors.parchment;
 
   return (
     <TouchableOpacity

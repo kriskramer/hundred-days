@@ -50,6 +50,7 @@ import {
   removeItem,
   addItem,
   getItemDef,
+  resourcesToInventory,
 } from './ItemSystem';
 
 import { getLocation, getRegion } from '@data/locations';
@@ -60,7 +61,7 @@ import { nextMulberry32, normalizeRngState } from './Random';
 // ─────────────────────────────────────────
 
 export type ActionParams =
-  | { action: PlayerAction.Move;  forcedMarch: boolean }
+  | { action: PlayerAction.Move;  forcedMarch: boolean; shortcutTo?: number }
   | { action: PlayerAction.Hunt;  method: 'forage' | 'hunt' }
   | { action: PlayerAction.Trade; purchases: { itemId: string; cost: number }[] }
   | { action: PlayerAction.Rest;  atInn: boolean }
@@ -162,6 +163,10 @@ export class TurnEngine {
       player: nextState.player,
       resources: nextState.resources,
       morale: nextState.morale,
+      reputation: nextState.reputation,
+      companions: nextState.companions,
+      firedEventIds: nextState.firedEventIds,
+      storyFlags: nextState.storyFlags,
     };
   }
 
@@ -328,7 +333,7 @@ export class TurnEngine {
 
   private resolveAction(params: ActionParams): void {
     switch (params.action) {
-      case PlayerAction.Move:  this.resolveMove(params.forcedMarch); break;
+      case PlayerAction.Move:  this.resolveMove(params.forcedMarch, params.shortcutTo); break;
       case PlayerAction.Hunt:  this.resolveHunt(params.method);      break;
       case PlayerAction.Rest:  this.resolveRest(params.atInn);       break;
       case PlayerAction.Rally: this.resolveRally(params.targetCompanionId); break;
@@ -338,7 +343,7 @@ export class TurnEngine {
     }
   }
 
-  private resolveMove(forcedMarch: boolean): void {
+  private resolveMove(forcedMarch: boolean, shortcutTo?: number): void {
     const { morale, weather, resources, companions } = this.state;
     const currentLoc = this.state.currentLocationId;
     if (BOSS_EVENT_MAP[currentLoc] && !this.state.clearedCombatLocations.has(currentLoc)) {
@@ -368,40 +373,44 @@ export class TurnEngine {
     const marchCostAdjust  = itemBonuses.forcedMarchCostReduction ?? 0; // e.g. Chainmail +0.3
 
     let baseFoodCost = 1.0;
+    let luckyThird = false;
 
-    // Forced march
-    if (forcedMarch && resources.food >= 1.5) {
-      locations    = 2;
-      baseFoodCost = 1.5 + marchCostAdjust;   // Chainmail makes marching more expensive
-    } else if (forcedMarch) {
-      this.addLog('Not enough food to force march. Moving at normal pace.');
+    if (shortcutTo) {
+      baseFoodCost = 2.0; // Shortcut costs 1 extra food (normal move is 1.0, so 1 extra is 2.0)
+    } else {
+      // Forced march
+      if (forcedMarch && resources.food >= 1.5) {
+        locations    = 2;
+        baseFoodCost = 1.5 + marchCostAdjust;   // Chainmail makes marching more expensive
+      } else if (forcedMarch) {
+        this.addLog('Not enough food to force march. Moving at normal pace.');
+      }
+
+      // Severe weather override (using effective weather — Warm Cloak may have softened it)
+      if (effectiveWeather === WeatherType.Severe) {
+        locations    = 1;
+        baseFoodCost = 1.0;
+        if (forcedMarch) this.addLog('The storm forces you to a crawl.');
+      } else if (weather === WeatherType.Severe && effectiveWeather === WeatherType.Poor) {
+        this.addLog('Your cloak blunts the worst of the storm. The march continues.');
+      }
+
+      // Luck roll for 3rd location — item bonus stacks on top of morale luck
+      const luckThreshold = getLuckThreshold(morale) + (itemBonuses.luckModifier ?? 0);
+      const luckRoll      = this.nextRandom();
+
+      if (
+        locations === 2 &&
+        effectiveWeather !== WeatherType.Severe &&
+        effectiveWeather !== WeatherType.Poor &&
+        luckRoll <= luckThreshold
+      ) {
+        locations  = 3;
+        luckyThird = true;
+      }
+
+      locations = Math.min(locations, 3);
     }
-
-    // Severe weather override (using effective weather — Warm Cloak may have softened it)
-    if (effectiveWeather === WeatherType.Severe) {
-      locations    = 1;
-      baseFoodCost = 1.0;
-      if (forcedMarch) this.addLog('The storm forces you to a crawl.');
-    } else if (weather === WeatherType.Severe && effectiveWeather === WeatherType.Poor) {
-      this.addLog('Your cloak blunts the worst of the storm. The march continues.');
-    }
-
-    // Luck roll for 3rd location — item bonus stacks on top of morale luck
-    const luckThreshold = getLuckThreshold(morale) + (itemBonuses.luckModifier ?? 0);
-    const luckRoll      = this.nextRandom();
-    let luckyThird      = false;
-
-    if (
-      locations === 2 &&
-      effectiveWeather !== WeatherType.Severe &&
-      effectiveWeather !== WeatherType.Poor &&
-      luckRoll <= luckThreshold
-    ) {
-      locations  = 3;
-      luckyThird = true;
-    }
-
-    locations = Math.min(locations, 3);
 
     const totalFood = (baseFoodCost + companionFoodPerTurn)
       * companionFoodModifier
@@ -423,7 +432,7 @@ export class TurnEngine {
       });
     }
 
-    const rawNewLoc  = Math.min(currentLoc + locations, 125);
+    const rawNewLoc  = shortcutTo ?? Math.min(currentLoc + locations, 125);
     // Stop at the nearest uncleared boss location in the path
     const bossCheckpoint = Object.keys(BOSS_EVENT_MAP)
       .map(Number)
@@ -431,11 +440,20 @@ export class TurnEngine {
       .find(b => b > currentLoc && b <= rawNewLoc && !this.state.clearedCombatLocations.has(b));
     const newLoc = bossCheckpoint ?? rawNewLoc;
 
+    let narrative = '';
+    if (shortcutTo) {
+      const activeShortcut = this.state.runLayout?.activeShortcuts.find(s => s.from === currentLoc && s.to === shortcutTo);
+      const suffix = newLoc < shortcutTo ? ` (stopped at Location ${newLoc} by a powerful boss)` : '';
+      narrative = `You took a shortcut: "${activeShortcut?.label ?? 'The hidden path'}" directly to Location ${newLoc}${suffix}.`;
+    } else {
+      narrative = this.buildMoveNarrative(locations, effectiveWeather, luckyThird, forcedMarch);
+    }
+
     this.addDelta({
       source:    'move',
       food:      -totalFood,
       morale:    forcedMarch && locations > 1 ? -1 : undefined,
-      narrative: this.buildMoveNarrative(locations, effectiveWeather, luckyThird, forcedMarch),
+      narrative,
     });
 
     this.setState({
@@ -520,7 +538,7 @@ export class TurnEngine {
         if (addResult.success && addResult.inventory) {
           const itemDef = getItemDef(chosenItem);
           rewardNarrative = `stole a ${itemDef?.name ?? chosenItem}.`;
-          this.setState({ resources: addResult.inventory });
+          this.setState({ resources: resourcesToInventory(resources, addResult.inventory) });
         } else {
           // Fallback to gold if inventory is full
           goldGained = 5 + Math.floor(this.nextRandom() * 11);
@@ -642,6 +660,31 @@ export class TurnEngine {
         return;
       }
     }
+
+    // Roaming Elite Mobs
+    const eliteSpawn = this.state.runLayout?.eliteSpawns.find(s => s.locationId === currentLoc);
+    if (eliteSpawn && !this.state.clearedCombatLocations.has(currentLoc)) {
+      const arrivedThisTurn = this.state.currentTurn?.locationBefore !== currentLoc;
+      if (arrivedThisTurn) {
+        this.updateTurn({ eventsQueue: current });
+        return;
+      }
+
+      const eliteEvent: GameEvent = {
+        id: `elite_spawn_${currentLoc}`,
+        type: EventType.Combat,
+        resolutionType: ResolutionType.Interactive,
+        name: `Elite: ${eliteSpawn.enemyType}`,
+        description: `A formidable ${eliteSpawn.enemyType} blocks the path.`,
+        conditions: { probability: 1.0 },
+        interactiveHandlerId: 'combat_handler',
+        repeatable: false,
+        tags: ['combat', 'danger', 'location_ambush'],
+      };
+      this.updateTurn({ eventsQueue: [...current, eliteEvent] });
+      return;
+    }
+
     const events = sampleEventsForTurn(this.state, () => this.nextRandom());
     this.updateTurn({ eventsQueue: [...current, ...events] });
   }
@@ -922,6 +965,7 @@ export class TurnEngine {
       endurance: 'Endurance',
       perception:'Perception',
       leadership:'Leadership',
+      stealing:  'Stealing',
     };
 
     const choices = rawChoices.map(choice => {
@@ -931,7 +975,7 @@ export class TurnEngine {
       (Object.keys(statLabels) as Array<keyof PlayerStats>).forEach(key => {
         const delta = choice.effect[key];
         if (delta !== undefined && delta !== 0) {
-          const before = stats[key];
+          const before = stats[key] ?? 0;
           const after = before + delta;
           previews.push(`${statLabels[key]}  ${before} → ${after}`);
         }

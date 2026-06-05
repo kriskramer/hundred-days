@@ -8,7 +8,9 @@ import {
   ReputationState,
   LevelUpChoice,
 } from './types';
-import { normalizeRngState } from './Random';
+import { normalizeRngState, nextMulberry32 } from './Random';
+import { Location } from '../data/locations';
+import { generateRunLayout } from './RunLayout';
 
 // ─────────────────────────────────────────
 // Schema version — increment when GameState
@@ -91,6 +93,7 @@ export const BOSS_POWER_IDEAL     = 240;
 // ─────────────────────────────────────────
 export function createNewGameState(playerName = 'The Traveler'): GameState {
   const seed = Math.floor(Math.random() * 999_999);
+  const runLayout = generateRunLayout(seed);
   return {
     runId:             generateRunId(),
     seed,
@@ -99,6 +102,7 @@ export function createNewGameState(playerName = 'The Traveler'): GameState {
     currentLocationId: 1,
     isComplete:        false,
     outcome:           null,
+    runLayout,
 
     player: {
       name:   playerName,
@@ -306,4 +310,18 @@ export function clamp(value: number, min: number, max: number): number {
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function pickLocationText(
+  location: Location,
+  dayNumber: number,
+  seed: number,
+): string {
+  if (!location.randomTexts || location.randomTexts.length === 0) {
+    return location.locationText || '';
+  }
+  const xorState = (seed ^ location.id ^ dayNumber) >>> 0;
+  const { value } = nextMulberry32(xorState);
+  const index = Math.floor(value * location.randomTexts.length);
+  return location.randomTexts[index] || location.locationText || '';
 }

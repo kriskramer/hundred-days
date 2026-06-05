@@ -692,6 +692,13 @@ function buildEnemiesFromContext(
   const isLocationBossFight = !event && isBossLocation(game.currentLocationId) && !game.clearedCombatLocations.has(game.currentLocationId);
 
   if (isBossEvent || isLocationBossFight) return buildBossEnemy(game);
+
+  // Elite Mob Spawns
+  const eliteSpawn = game.runLayout?.eliteSpawns.find(s => s.locationId === game.currentLocationId);
+  if (eliteSpawn && event?.tags?.includes('location_ambush')) {
+    return buildEnemiesForLocation([eliteSpawn.enemyType], game.currentLocationId);
+  }
+
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'],  game.currentLocationId);
 

@@ -28,6 +28,7 @@ import {
   ChoiceTone,
   DIALOGUES,
   findDialogueForLocation,
+  getDialogue,
 } from '@engine/DialogueEngine';
 
 // ─────────────────────────────────────────
@@ -40,6 +41,8 @@ interface Props {
   onComplete: (outcome: DialogueSessionOutcome) => void;
   onToast:    (msg: string) => void;
   onBackToRoad?: () => void;
+  dialogueId?: string;
+  footerContent?: React.ReactNode;
 }
 
 // ─────────────────────────────────────────
@@ -76,7 +79,15 @@ const TONE_META: Record<ChoiceTone, { color: string; label: string }> = {
 // DialogueScreen
 // ─────────────────────────────────────────
 
-export function DialogueScreen({ gameState, event, onComplete, onToast, onBackToRoad }: Props) {
+export function DialogueScreen({
+  gameState,
+  event,
+  onComplete,
+  onToast,
+  onBackToRoad,
+  dialogueId,
+  footerContent,
+}: Props) {
   const [currentNode,    setCurrentNode]    = useState<DialogueNode | null>(null);
   const [visibleChoices, setVisibleChoices] = useState<DialogueChoice[]>([]);
   const [outcome,        setOutcome]        = useState<DialogueSessionOutcome | null>(null);
@@ -93,8 +104,12 @@ export function DialogueScreen({ gameState, event, onComplete, onToast, onBackTo
     // Determine which dialogue to run
     let dialogue = null;
 
+    if (dialogueId) {
+      dialogue = getDialogue(dialogueId) ?? null;
+    }
+
     // From a triggered event
-    if (event?.interactiveHandlerId === 'dialogue_handler' && event.id) {
+    if (!dialogue && event?.interactiveHandlerId === 'dialogue_handler' && event.id) {
       dialogue = DIALOGUES.find(d => d.id === event.id) ?? null;
     }
 
@@ -300,6 +315,8 @@ export function DialogueScreen({ gameState, event, onComplete, onToast, onBackTo
           ))}
         </View>
       )}
+
+      {footerContent}
     </ScrollView>
   );
 }
