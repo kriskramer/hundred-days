@@ -12,10 +12,12 @@ import { TypewriterText } from '@components';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
-  gameState:   GameState;
-  engine:      TurnEngine | null;
-  onToast:     (msg: string) => void;
-  onOpenShop?: () => void;
+  gameState:       GameState;
+  engine:          TurnEngine | null;
+  onToast:         (msg: string) => void;
+  onOpenShop?:     () => void;
+  onOpenCombat?:   () => void;
+  onOpenDialogue?: () => void;
   textInterval?: number;
   confirmActions?: boolean;
 }
@@ -252,6 +254,8 @@ export function RoadScreen({
   engine,
   onToast,
   onOpenShop,
+  onOpenCombat,
+  onOpenDialogue,
   textInterval = 22,
   confirmActions = true,
 }: Props) {
@@ -330,10 +334,13 @@ export function RoadScreen({
           label: 'Fight Boss',
           sub: 'Begin combat',
           variant: 'primary' as const,
-          onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }),
+          onPress: () => onOpenCombat?.(),
         },
+        ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
       ]
     : [
+        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
+        ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...(location.hasShop ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
@@ -440,8 +447,16 @@ export function RoadScreen({
                 <Text className="font-display-bold text-ink" style={{ fontSize: 22, flexShrink: 1 }}>
                   {location.name}
                 </Text>
-                {location.isTown  && <Text style={{ fontSize: 17, lineHeight: 26 }}>🏰</Text>}
-                {location.hasShop && <Text style={{ fontSize: 17, lineHeight: 26 }}>⚖</Text>}
+                {location.isTown && (
+                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.mist }}>
+                    TOWN
+                  </Text>
+                )}
+                {location.hasShop && (
+                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.gold }}>
+                    SHOP
+                  </Text>
+                )}
               </View>
               {/* Weather · Forage row */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
@@ -617,6 +632,13 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
+      {showingLastEntry && !forceComplete && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setForceComplete(true)}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+        />
+      )}
     </View>
   );
 }
@@ -802,4 +824,3 @@ function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
     </TouchableOpacity>
   );
 }
-

@@ -33,13 +33,14 @@ import { getLocation }  from '@data/locations';
 import { isCombatEvent } from '@utils/isCombatEvent';
 
 type Tab = 'road' | 'combat' | 'dialogue' | 'inventory' | 'map';
+type NavItemId = Tab | 'journal' | 'settings';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'road',      label: 'Road',   icon: '◆' },
-  { id: 'combat',    label: 'Combat', icon: '⚔' },
-  { id: 'dialogue',  label: 'Talk',   icon: '◇' },
-  { id: 'inventory', label: 'Gear',   icon: '▲' },
-  { id: 'map',       label: 'Map',    icon: '◈' },
+const TABS: { id: NavItemId; label: string; icon: string }[] = [
+  { id: 'road',      label: 'Road',     icon: '◆' },
+  { id: 'inventory', label: 'Gear',     icon: '▲' },
+  { id: 'map',       label: 'Map',      icon: '◈' },
+  { id: 'journal',   label: 'Journal',  icon: '◎' },
+  { id: 'settings',  label: 'Settings', icon: '⚙' },
 ];
 
 export default function GameScreen() {
@@ -135,6 +136,24 @@ export default function GameScreen() {
     setCombatAlertVisible(false);
     setPendingCombatEvent(null);
     setActiveTab('combat');
+  }
+
+  function handleOpenCombat() {
+    if (!combatAvailable) return;
+
+    if (!activeEvent) {
+      setPendingCombatEvent(null);
+      setIsManualCombat(true);
+      setCombatAlertVisible(true);
+      return;
+    }
+
+    handleConfirmCombat();
+  }
+
+  function handleOpenDialogue() {
+    if (!dialogueAvailable) return;
+    setActiveTab('dialogue');
   }
 
   async function handleDialogueComplete(outcome: DialogueSessionOutcome) {
@@ -236,16 +255,6 @@ export default function GameScreen() {
       <View>
         <StatusBar gameState={gameState} />
         <JourneyBar locationId={gameState.currentLocationId} dreadActive={gameState.morale.dreadActive} />
-
-        {/* Utility bar — journal + settings */}
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', backgroundColor: '#1A1208', paddingHorizontal: 14, paddingBottom: 6, gap: 16 }}>
-          <TouchableOpacity onPress={() => setJournalOpen(true)} activeOpacity={0.7}>
-            <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#A0B8AA', letterSpacing: 1 }}>◎ JOURNAL</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setSettingsOpen(true)} activeOpacity={0.7}>
-            <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: '#A0B8AA', letterSpacing: 1 }}>⚙ SETTINGS</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Toast */}
@@ -259,6 +268,8 @@ export default function GameScreen() {
             engine={engine}
             onToast={showToast}
             onOpenShop={() => setShopOpen(true)}
+            onOpenCombat={handleOpenCombat}
+            onOpenDialogue={handleOpenDialogue}
             textInterval={settings?.textSpeed === 'slow'
               ? 45
               : settings?.textSpeed === 'fast'
@@ -304,25 +315,27 @@ export default function GameScreen() {
       {/* Bottom navigation */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#1A1208', borderTopWidth: 2, borderTopColor: '#B8860B', flexDirection: 'row', paddingBottom: insets.bottom }}>
         {TABS.map(tab => {
-          const active    = activeTab === tab.id;
-          const disabled  =
-            (tab.id === 'combat' && !combatAvailable) ||
-            (tab.id === 'dialogue' && !dialogueAvailable);
-          const textColor = active ? '#D4A017' : disabled ? '#3A3A3A' : '#A0B8AA';
+          const active    = tab.id === 'road' || tab.id === 'inventory' || tab.id === 'map'
+            ? activeTab === tab.id
+            : false;
+          const textColor = active ? '#D4A017' : '#A0B8AA';
           return (
             <TouchableOpacity
               key={tab.id}
               onPress={() => {
-                if (disabled) return;
-                if (tab.id === 'combat' && activeTab !== 'combat' && !activeEvent) {
-                  setPendingCombatEvent(null);
-                  setIsManualCombat(true);
-                  setCombatAlertVisible(true);
-                } else {
-                  setActiveTab(tab.id);
+                if (tab.id === 'journal') {
+                  setJournalOpen(true);
+                  return;
                 }
+
+                if (tab.id === 'settings') {
+                  setSettingsOpen(true);
+                  return;
+                }
+
+                setActiveTab(tab.id);
               }}
-              activeOpacity={disabled ? 1 : 0.7}
+              activeOpacity={0.7}
               style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
             >
               <Text style={{ fontSize: 18, color: textColor }}>
@@ -337,17 +350,6 @@ export default function GameScreen() {
               }}>
                 {tab.label.toUpperCase()}
               </Text>
-              {disabled && (
-                <Text style={{
-                  fontFamily:    'Cinzel_400Regular',
-                  fontSize:      8,
-                  color:         '#555',
-                  marginTop:     1,
-                  letterSpacing: 0.5,
-                }}>
-                  LOCKED
-                </Text>
-              )}
             </TouchableOpacity>
           );
         })}

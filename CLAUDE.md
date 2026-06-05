@@ -14,7 +14,11 @@ is in wiring and content-completion phase.
 - AsyncStorage for persistence (src/engine/SaveEngine.ts)
 - Path aliases: @engine, @data, @screens, @components, @hooks, @store, @utils
 
-## Architecture — read these files first
+## Full architecture reference
+See docs/ARCHITECTURE.md for a comprehensive overview: game systems, turn lifecycle
+diagram, state model, combat/dialogue/event/item system descriptions, and UI layout.
+
+## Architecture — key files
 - src/engine/types.ts         — ALL shared types and enums (start here)
 - src/engine/TurnEngine.ts    — 10-phase turn lifecycle, orchestrates everything
 - src/engine/GameState.ts     — createNewGameState(), XP thresholds, pure helpers

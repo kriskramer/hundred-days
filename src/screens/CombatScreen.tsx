@@ -42,6 +42,7 @@ import {
 import type { TurnEngine } from '@engine/TurnEngine';
 
 import { getLocation } from '@data/locations';
+import { isBossLocation } from '@engine/bosses';
 import * as Haptics from 'expo-haptics';
 
 // ─────────────────────────────────────────
@@ -567,7 +568,10 @@ function buildEnemiesFromContext(
 ) {
   const location = getLocation(game.currentLocationId);
 
-  if (event?.tags?.includes('boss'))   return buildBossEnemy(game);
+  const isBossEvent = event?.tags?.includes('boss');
+  const isLocationBossFight = !event && isBossLocation(game.currentLocationId) && !game.clearedCombatLocations.has(game.currentLocationId);
+
+  if (isBossEvent || isLocationBossFight) return buildBossEnemy(game);
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'],  game.currentLocationId);
 
