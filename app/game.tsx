@@ -113,19 +113,22 @@ export default function GameScreen() {
     setTimeout(() => setToastMsg(''), 2500);
   }
 
-  function handleInteractiveEventComplete(result: CombatResult) {
+  async function handleInteractiveEventComplete(result: CombatResult) {
     if (activeEvent) {
       // Event-driven combat: feed result back into the turn engine
-      engineRef.current?.resolveInteractiveEvent(result);
+      await engineRef.current?.resolveInteractiveEvent(result);
     } else {
       // Location-initiated combat: apply result and mark location cleared
       const locationId = gameState?.currentLocationId;
       if (locationId !== undefined) {
-        engineRef.current?.resolveLocationCombat(locationId, result).catch(console.error);
+        await engineRef.current?.resolveLocationCombat(locationId, result).catch(console.error);
       }
     }
-    setActiveEvent(null);
-    setActiveTab('road');
+    const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
+    if (!nextInteractiveEvent) {
+      setActiveEvent(null);
+      setActiveTab('road');
+    }
   }
 
   function handleConfirmCombat() {
@@ -134,7 +137,7 @@ export default function GameScreen() {
     setActiveTab('combat');
   }
 
-  function handleDialogueComplete(outcome: DialogueSessionOutcome) {
+  async function handleDialogueComplete(outcome: DialogueSessionOutcome) {
     const completedEventId = activeEvent?.id ?? outcome.dialogueId;
 
     // Mark the dialogue as seen at this location so it won't re-trigger here
@@ -164,17 +167,20 @@ export default function GameScreen() {
       companionInjuries: {},
     };
     if (activeEvent) {
-      engineRef.current?.resolveInteractiveEvent(result, {
+      await engineRef.current?.resolveInteractiveEvent(result, {
         eventId: completedEventId,
         result: 'dialogue_complete',
         summary: 'Dialogue completed.',
       }).catch(console.error);
-      setActiveEvent(null);
-      setActiveTab('road');
+      const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
+      if (!nextInteractiveEvent) {
+        setActiveEvent(null);
+        setActiveTab('road');
+      }
       return;
     }
 
-    handleInteractiveEventComplete(result);
+    await handleInteractiveEventComplete(result);
   }
 
   function handleLevelUpChoice(choiceId: string) {

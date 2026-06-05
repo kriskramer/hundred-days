@@ -568,6 +568,10 @@ export class CombatEngine {
     // Start in awaiting_input (or after surprise round)
     if (this.state.surpriseRound) {
       this.runEnemyTurn();
+      this.checkEnd();
+      if (this.state.phase !== 'post_combat') {
+        this.setState({ phase: 'awaiting_input' });
+      }
     } else {
       this.setState({ phase: 'awaiting_input' });
     }
