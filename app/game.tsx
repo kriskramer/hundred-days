@@ -161,6 +161,7 @@ export default function GameScreen() {
       goldGained:        outcome.resourceDeltas.gold,
       foodGained:        outcome.resourceDeltas.food,
       healthLost:        -(outcome.resourceDeltas.health ?? 0),
+      healthDelta:       outcome.resourceDeltas.health ?? 0,
       moraleDelta:       outcome.moraleDelta,
       reputationDelta:   outcome.reputationDelta,
       injuriesGained:    [],

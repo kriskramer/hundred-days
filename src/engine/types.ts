@@ -454,6 +454,7 @@ export interface CombatResult {
   goldGained:        number;
   foodGained:        number;
   healthLost:        number;
+  healthDelta?:      number;
   moraleDelta:       number;
   reputationDelta:   number;
   injuriesGained:    string[];

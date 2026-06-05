@@ -267,6 +267,7 @@ export function RoadScreen({
   const [randomText, setRandomText]                   = useState<string | null>(() => getLocationRandomText(location));
   const [forceComplete, setForceComplete]             = useState(false);
   const [locDescFinished, setLocDescFinished]         = useState(false);
+  const [randomTextFinished, setRandomTextFinished]   = useState(false);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
@@ -302,7 +303,10 @@ export function RoadScreen({
   useEffect(() => {
     setForceComplete(false);
     setLocDescFinished(false);
+    setRandomTextFinished(false);
   }, [gameState.currentLocationId, showingLastEntry]);
+
+  const isTyping = !showingLastEntry && (currentRandomText ? !randomTextFinished : !locDescFinished);
 
   let netFood = 0;
   let netGold = 0;
@@ -320,7 +324,7 @@ export function RoadScreen({
 
   const hasDelta = lastTurn && [netFood, netGold, netHealth, netMorale].some(v => Math.abs(v) >= 0.1);
 
-  const actionButtons = bossNearby
+  const actionButtons = (bossNearby
     ? [
         {
           label: 'Fight Boss',
@@ -337,7 +341,7 @@ export function RoadScreen({
         { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
         { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) },
-      ];
+      ]).map(btn => ({ ...btn, disabled: isTyping }));
 
   function renderDelta(val: number, label: string, icon: string) {
     if (Math.abs(val) < 0.1) return null;
@@ -541,6 +545,7 @@ export function RoadScreen({
                         text={displayRandomText || ''}
                         interval={textInterval}
                         forceComplete={forceComplete}
+                        onComplete={() => setRandomTextFinished(true)}
                         style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                       />
                     </>
@@ -733,6 +738,7 @@ type ActionDef = {
   sub:     string;
   variant: 'primary' | 'secondary' | 'default';
   onPress: () => void;
+  disabled?: boolean;
 };
 
 function ActionGrid({ actions }: { actions: ActionDef[] }) {
@@ -752,7 +758,7 @@ function ActionGrid({ actions }: { actions: ActionDef[] }) {
   );
 }
 
-function ActionButton({ label, sub, variant, onPress }: ActionDef) {
+function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
   const bg          = variant === 'primary'   ? Colors.blood
                     : variant === 'secondary' ? Colors.gold
                     : Colors.ink;
@@ -763,11 +769,13 @@ function ActionButton({ label, sub, variant, onPress }: ActionDef) {
 
   return (
     <TouchableOpacity
+      disabled={disabled}
       onPress={() => {
+        if (disabled) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress();
       }}
-      activeOpacity={0.75}
+      activeOpacity={disabled ? 1 : 0.75}
       style={{
         flex: 1,
         backgroundColor: bg,
@@ -779,9 +787,10 @@ function ActionButton({ label, sub, variant, onPress }: ActionDef) {
         paddingHorizontal: 6,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.35,
+        shadowOpacity: disabled ? 0 : 0.35,
         shadowRadius: 3,
-        elevation: 4,
+        elevation: disabled ? 0 : 4,
+        opacity: disabled ? 0.4 : 1,
       }}
     >
       <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: textColor, fontSize: 12, letterSpacing: 1 }}>

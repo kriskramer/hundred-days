@@ -71,6 +71,7 @@ export function useShopActions() {
       success: true as const,
       goldSpent: result.goldSpent ?? 0,
       itemName: def.name,
+      foodGained: undefined as number | undefined,
     };
   }, [commitState]);
 

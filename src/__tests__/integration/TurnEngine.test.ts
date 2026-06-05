@@ -563,6 +563,67 @@ describe('TurnEngine — interactive events', () => {
       summary: 'Dialogue completed.',
     });
   });
+
+  it('applies combat healing from net health delta on interactive events', async () => {
+    const banditEvent: GameEvent = {
+      id: 'bandit_ambush', type: EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Bandit Ambush', description: 'Bandits!',
+      conditions: { probability: 1.0 }, repeatable: true, tags: ['combat'],
+    };
+    mockSampleEvents.mockReturnValue([banditEvent]);
+
+    const { engine } = makeEngine({
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    await engine.resolveInteractiveEvent({
+      outcome: 'victory', roundsFought: 2, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 0, healthDelta: 24, moraleDelta: 0, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: ['healing_potion'],
+    });
+
+    const after = engine.getState();
+    expect(after.player.health).toBe(66);
+    expect(after.resources.items.some(item => item.definitionId === 'healing_potion')).toBe(false);
+  });
+
+  it('applies full combat rewards for location combat results', async () => {
+    const { engine } = makeEngine({
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+      resources: {
+        food: 8,
+        gold: 25,
+        items: [{ definitionId: 'healing_potion', quantity: 1, isEquipped: false }],
+        maxSlots: 8,
+        equippedItems: {},
+      },
+    });
+
+    await engine.resolveLocationCombat(1, {
+      outcome: 'victory', roundsFought: 2, xpGained: 0, goldGained: 3,
+      foodGained: 1, healthLost: 0, healthDelta: 24, moraleDelta: 5, reputationDelta: 2,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: ['healing_potion'],
+    });
+
+    const after = engine.getState();
+    expect(after.player.health).toBe(64);
+    expect(after.resources.gold).toBe(28);
+    expect(after.resources.food).toBe(9);
+    expect(after.morale.value).toBeGreaterThan(50);
+    expect(after.reputation.value).toBeGreaterThan(0);
+    expect(after.resources.items.some(item => item.definitionId === 'healing_potion')).toBe(false);
+    expect(after.clearedCombatLocations.has(1)).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────

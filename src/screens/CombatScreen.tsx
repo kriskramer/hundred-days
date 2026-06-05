@@ -83,6 +83,8 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [encounterText, setEncounterText] = useState('');
 
+  const [animateFromIdx, setAnimateFromIdx] = useState(0);
+
   const engineRef    = useRef<CombatEngine | null>(null);
   const logScrollRef = useRef<ScrollView>(null);
   const enemyFlash   = useRef(new Animated.Value(1)).current;
@@ -143,8 +145,9 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
       flashAnim(enemyFlash);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
+    setAnimateFromIdx(combatState?.log.length ?? 0);
     engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId });
-  }, [combatState?.phase, enemyFlash]);
+  }, [combatState?.log.length, combatState?.phase, enemyFlash]);
 
   const handleContinue = useCallback(() => {
     if (!combatState?.result) return;
@@ -244,7 +247,11 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
           showsVerticalScrollIndicator={false}
         >
           {combatState.log.map((entry, i) => (
-            <LogLine key={i} entry={entry} />
+            <LogLine
+              key={i}
+              entry={entry}
+              animDelay={i >= animateFromIdx ? (i - animateFromIdx) * 120 : -1}
+            />
           ))}
           {combatState.log.length === 0 && (
             <Text style={[s.logLine, { color: C.mist }]}>
@@ -438,17 +445,17 @@ function BehaviorTag({ behavior }: { behavior: EnemyBehavior }) {
   );
 }
 
-function LogLine({ entry }: { entry: CombatLogEntry }) {
+function LogLine({ entry, animDelay }: { entry: CombatLogEntry; animDelay: number }) {
   const color = entry.type === 'damage' ? '#FF9999'
               : entry.type === 'heal'   ? '#99FF99'
               : entry.type === 'system' ? C.goldLight
               : entry.type === 'effect' ? '#FFCC88'
               : C.parchDark;
-  return (
-    <Text style={[s.logLine, { color }]}>
-      {entry.actor ? `${entry.actor}: ` : ''}{entry.action}
-    </Text>
-  );
+  const text = `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
+  if (animDelay >= 0) {
+    return <TypewriterText text={text} style={[s.logLine, { color }]} interval={18} delay={animDelay} />;
+  }
+  return <Text style={[s.logLine, { color }]}>{text}</Text>;
 }
 
 function ActionBtn({

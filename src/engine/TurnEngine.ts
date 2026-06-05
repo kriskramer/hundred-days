@@ -190,22 +190,30 @@ export class TurnEngine {
    * event system).  Applies the result, marks the location cleared, and saves.
    */
   async resolveLocationCombat(locationId: number, result: CombatResult): Promise<void> {
-    const { player, resources } = this.state;
-    const newPlayer = {
+    const { player, resources, morale, reputation } = this.state;
+    const existingEffects = new Set(player.statusEffects.map(effect => effect.id));
+    const newPlayer = applyXP({
       ...player,
-      health: clamp(player.health - result.healthLost, 0, player.stats.maxHealth),
-    };
-    const applyXPResult = applyXP(newPlayer, result.xpGained);
-    const newResources  = {
+      health: clamp(player.health + this.getCombatHealthDelta(result), 0, player.stats.maxHealth),
+      statusEffects: [
+        ...player.statusEffects,
+        ...result.injuriesGained
+          .filter(effectId => !existingEffects.has(effectId))
+          .map(effectId => ({ id: effectId, durationTurns: 3 })),
+      ],
+    }, result.xpGained);
+    const newResources = this.applyConsumedItems({
       ...resources,
       gold: Math.max(0, resources.gold + result.goldGained),
       food: Math.max(0, resources.food + result.foodGained),
-    };
+    }, result.itemsConsumed);
     const newCleared = new Set(this.state.clearedCombatLocations);
     newCleared.add(locationId);
 
     this.setState({
-      player:                 applyXPResult,
+      player:                 newPlayer,
+      morale:                 applyMoraleDelta(morale, result.moraleDelta),
+      reputation:             applyReputationDelta(reputation, result.reputationDelta),
       resources:              newResources,
       clearedCombatLocations: newCleared,
     });
@@ -665,28 +673,14 @@ export class TurnEngine {
       xp:        result.xpGained,
       gold:      result.goldGained,
       food:      result.foodGained,
-      health:    -result.healthLost,
+      health:    this.getCombatHealthDelta(result),
       morale:    result.moraleDelta,
       reputation:result.reputationDelta,
       statusEffectsAdded: result.injuriesGained,
       narrative: this.buildCombatResultNarrative(result),
     });
 
-    if (result.itemsConsumed && result.itemsConsumed.length > 0) {
-      let currentInv = this.state.resources;
-      for (const itemId of result.itemsConsumed) {
-        const removeRes = removeItem(currentInv, itemId, 1);
-        if (removeRes.success && removeRes.inventory) {
-          currentInv = {
-            ...currentInv,
-            items: removeRes.inventory.items,
-            equippedItems: removeRes.inventory.equippedItems,
-            maxSlots: removeRes.inventory.maxSlots,
-          };
-        }
-      }
-      this.setState({ resources: currentInv });
-    }
+    this.setState({ resources: this.applyConsumedItems(this.state.resources, result.itemsConsumed) });
   }
 
   // ─────────────────────────────────────────
@@ -1165,5 +1159,35 @@ export class TurnEngine {
       case 'fled':       return 'You escaped. Morale takes a small hit from the retreat.';
       case 'negotiated': return 'A peaceful resolution. Your reputation grows.';
     }
+  }
+
+  private getCombatHealthDelta(result: CombatResult): number {
+    return result.healthDelta ?? -result.healthLost;
+  }
+
+  private applyConsumedItems(
+    resources: GameState['resources'],
+    itemsConsumed?: string[],
+  ): GameState['resources'] {
+    if (!itemsConsumed || itemsConsumed.length === 0) {
+      return resources;
+    }
+
+    let nextResources = resources;
+    for (const itemId of itemsConsumed) {
+      const removeRes = removeItem(nextResources, itemId, 1);
+      if (!removeRes.success || !removeRes.inventory) {
+        continue;
+      }
+
+      nextResources = {
+        ...nextResources,
+        items: removeRes.inventory.items,
+        equippedItems: removeRes.inventory.equippedItems,
+        maxSlots: removeRes.inventory.maxSlots,
+      };
+    }
+
+    return nextResources;
   }
 }

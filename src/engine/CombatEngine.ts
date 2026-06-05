@@ -409,7 +409,7 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
     id: 'orc_warchief', name: 'The Orc Warchief',
     description: 'The warlord who holds Samson\'s Bridge. Armies have broken against him.',
-    baseHP: 50, baseAttack: 13, baseDefense: 8, baseSpeed: 5,
+    baseHP: 100, baseAttack: 13, baseDefense: 8, baseSpeed: 5,
     behavior: EnemyBehavior.Aggressive, minLocationId: 32, scaling: 1.0,
     abilities: [
       { id: 'warchief_strike', name: 'Warchief Strike', probability: 0.30, damageMultiplier: 1.5 },
@@ -525,7 +525,7 @@ export function buildBossEnemy(game: GameState): EnemyCombatant[] {
   const level = game.player.level;
   // Scale boss HP/attack/defense with player level so the fight is
   // always meaningful regardless of when the boss location is reached.
-  const hp      = def.baseHP   + level * 15;
+  const hp      = game.currentLocationId === 32 ? 100 : def.baseHP + level * 15;
   const attack  = def.baseAttack  + level * 2;
   const defense = def.baseDefense + level;
 
@@ -1045,6 +1045,7 @@ export class CombatEngine {
     const goldGained = defeated.reduce((s, e) => s + (ENEMY_DEFINITIONS.find(d => d.id === e.enemyId)?.goldReward ?? 0), 0);
     const foodGained = defeated.reduce((s, e) => s + (ENEMY_DEFINITIONS.find(d => d.id === e.enemyId)?.foodReward ?? 0), 0);
     const healthLost = Math.max(0, this.initialPlayerHP - this.state.player.currentHP);
+    const healthDelta = this.state.player.currentHP - this.initialPlayerHP;
 
     const moraleDelta = outcome === 'victory'    ?  8
                       : outcome === 'fled'        ? -3
@@ -1058,6 +1059,7 @@ export class CombatEngine {
       goldGained:        goldGained - (this.state.resourceSideEffects.goldStolen ?? 0),
       foodGained:        foodGained - (this.state.resourceSideEffects.foodStolen ?? 0),
       healthLost,
+      healthDelta,
       moraleDelta:       moraleDelta - (this.state.resourceSideEffects.moraleLost ?? 0),
       reputationDelta:   outcome === 'victory' && this.state.enemies.some(e => e.isFleeing) ? 5 : 0,
       injuriesGained:    healthLost > 40 ? ['wounded'] : [],
