@@ -1,0 +1,20 @@
+{
+  "xpThresholds": [0, 30, 75, 140, 230, 350, 500, 680, 900, 1200],
+  "startingResources": {
+    "food": 8,
+    "gold": 25,
+    "health": 100,
+    "maxInventorySlots": 8
+  },
+  "bossPowerThreshold": 180,
+  "bossPowerIdeal": 240,
+  "levelUpChoices": [
+    { "id": "strength", "label": "Strength", "stat": "attack", "bonus": 3 },
+    { "id": "endurance", "label": "Endurance", "stat": "defense", "bonus": 3 },
+    { "id": "agility", "label": "Agility", "stat": "speed", "bonus": 3 },
+    { "id": "leadership", "label": "Leadership", "stat": "leadership", "bonus": 2 },
+    { "id": "vitality", "label": "Vitality", "stat": "maxHealth", "bonus": 15 },
+    { "id": "fortune", "label": "Fortune", "stat": "luck", "bonus": 5 },
+    { "id": "resilience", "label": "Resilience", "stat": "defense", "bonus": 2 }
+  ]
+}

@@ -4,6 +4,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  memo,
 } from 'react';
 import {
   View,
@@ -24,6 +25,7 @@ import {
   RegionDefinition,
   SHOP_LOCATION_IDS,
 } from '@data/locations';
+import { getEnemyDefinition } from '@data/enemies';
 import { BOSS_LOCATION_IDS } from '@engine/bosses';
 
 // ─────────────────────────────────────────
@@ -296,7 +298,7 @@ function RegionBanner({ region }: { region: RegionDefinition }) {
 // Location row (alternating left / right)
 // ─────────────────────────────────────────
 
-function LocationRow({
+const LocationRow = memo(function LocationRow({
   loc, side, isCurrent, isVisited, isSelected, onPress,
 }: {
   loc:        Location;
@@ -344,7 +346,13 @@ function LocationRow({
             .filter(m => m.aggroPct > 0)
             .sort((a, b) => b.aggroPct - a.aggroPct)
             .slice(0, 2)
-            .map(m => m.name)
+            .map(m => {
+              try {
+                return getEnemyDefinition(m.enemyId).name;
+              } catch (e) {
+                return m.enemyId;
+              }
+            })
             .join('  ·  ')}
         </Text>
       )}
@@ -373,7 +381,7 @@ function LocationRow({
       {side === 'right' ? card : spacer}
     </View>
   );
-}
+});
 
 function Badge({ label, color, bg, border }: {
   label:  string;
@@ -478,15 +486,21 @@ function LocationDetail({
               .filter(m => m.aggroPct > 0)
               .sort((a, b) => b.aggroPct - a.aggroPct)
               .slice(0, 3)
-              .map(m => (
-                <DetailLine
-                  key={m.name}
-                  icon="⚔"
-                  text={m.name}
-                  sub={`${m.aggroPct}%`}
-                  subColor={m.aggroPct >= 40 ? '#FF8080' : C.mist}
-                />
-              ))
+              .map(m => {
+                let enemyName = m.enemyId;
+                try {
+                  enemyName = getEnemyDefinition(m.enemyId).name;
+                } catch (e) {}
+                return (
+                  <DetailLine
+                    key={m.enemyId}
+                    icon="⚔"
+                    text={enemyName}
+                    sub={`${m.aggroPct}%`}
+                    subColor={m.aggroPct >= 40 ? '#FF8080' : C.mist}
+                  />
+                );
+              })
           ) : (
             <Text style={s.detailNone}>Safe passage</Text>
           )}

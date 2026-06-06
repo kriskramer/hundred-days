@@ -44,7 +44,7 @@ afterEach(() => {
 describe('sampleEventsForTurn', () => {
   it('returns empty array when unknown location', () => {
     const state = makeGameState({ currentLocationId: 999 });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events).toHaveLength(0);
   });
 
@@ -53,7 +53,7 @@ describe('sampleEventsForTurn', () => {
     // Day 1, loc 5: excludes bandit (minDay:3), wolf (minLoc:10), wounded_stranger (minLoc:10),
     // bad_dream (minDay:30), find_hidden_stash (minLoc:20). weather events have prob≤0.30 < 0.99.
     const state = makeGameState({ currentLocationId: 5, dayNumber: 1 });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events).toHaveLength(0);
   });
 
@@ -61,7 +61,7 @@ describe('sampleEventsForTurn', () => {
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0); // always fires
     // Day 50, loc 50: many events eligible; capped at 2
     const state = makeGameState({ currentLocationId: 15, dayNumber: 50 });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.length).toBeLessThanOrEqual(2);
   });
 
@@ -70,7 +70,7 @@ describe('sampleEventsForTurn', () => {
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const firedEventIds = new Set(['wounded_stranger']);
     const state = makeGameState({ currentLocationId: 15, dayNumber: 50, firedEventIds });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'wounded_stranger')).toBeUndefined();
   });
 
@@ -78,7 +78,7 @@ describe('sampleEventsForTurn', () => {
     // 'bad_dream' has minDay: 30
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const state = makeGameState({ currentLocationId: 15, dayNumber: 5 });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'bad_dream')).toBeUndefined();
   });
 
@@ -86,7 +86,7 @@ describe('sampleEventsForTurn', () => {
     // 'find_abandoned_camp' has maxDay: 85
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const state = makeGameState({ currentLocationId: 15, dayNumber: 90 });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'find_abandoned_camp')).toBeUndefined();
   });
 
@@ -94,7 +94,7 @@ describe('sampleEventsForTurn', () => {
     // 'find_hidden_stash' has minLocationId: 20
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const state = makeGameState({ currentLocationId: 15, dayNumber: 50 }); // loc 15 < 20
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'find_hidden_stash')).toBeUndefined();
   });
 
@@ -102,7 +102,7 @@ describe('sampleEventsForTurn', () => {
     // 'find_abandoned_camp' locationTypes: ['wilderness']
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const state = makeGameState({ currentLocationId: 20 }); // town location
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'find_abandoned_camp')).toBeUndefined();
   });
 
@@ -117,7 +117,7 @@ describe('sampleEventsForTurn', () => {
         statusEffects: [{ id: 'in_storm', durationTurns: 3 }],
       },
     });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'weather_storm_rolls_in')).toBeUndefined();
   });
 
@@ -125,7 +125,7 @@ describe('sampleEventsForTurn', () => {
     // 'weather_clears' has requiredStatusEffects: ['in_storm'] — needs storm active
     randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
     const state = makeGameState({ currentLocationId: 20 }); // no in_storm
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'weather_clears')).toBeUndefined();
   });
 
@@ -139,7 +139,7 @@ describe('sampleEventsForTurn', () => {
         statusEffects: [{ id: 'in_storm', durationTurns: 3 }],
       },
     });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     // weather_clears should be eligible — but may not appear due to max-2 cap
     // Just verify it's not filtered when condition is met
     const eligible = EVENT_DEFINITIONS.find(e => e.id === 'weather_clears');
@@ -152,7 +152,7 @@ describe('sampleEventsForTurn', () => {
     const state = makeGameState({
       currentLocationId: 15, weather: WeatherType.Severe,
     });
-    const events = sampleEventsForTurn(state);
+    const events = sampleEventsForTurn(state, Math.random);
     expect(events.find(e => e.id === 'forage_roadside')).toBeUndefined();
   });
 });

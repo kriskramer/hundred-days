@@ -452,6 +452,34 @@ describe('TurnEngine — starvation', () => {
     // Camp recovery: +10 HP, so net is -15 + 10 = -5 minimum
     expect(after.player.health).toBeLessThan(hpBefore);
   });
+
+  it('amplifies starvation damage when morale is broken', async () => {
+    const baseState = {
+      resources: { food: 0, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      player: {
+        name: 'Test',
+        level: 1,
+        xp: 0,
+        health: 80,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    };
+
+    const { engine: steadyEngine } = makeEngine({
+      ...baseState,
+      morale: { value: 65, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+    const { engine: brokenEngine } = makeEngine({
+      ...baseState,
+      morale: { value: 10, tier: MoraleTier.Broken, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    await steadyEngine.submitAction({ action: PlayerAction.Camp });
+    await brokenEngine.submitAction({ action: PlayerAction.Camp });
+
+    expect(brokenEngine.getState().player.health).toBe(steadyEngine.getState().player.health - 5);
+  });
 });
 
 // ─────────────────────────────────────────
@@ -519,6 +547,28 @@ describe('TurnEngine — win/loss', () => {
 
     expect(engine.getState().isComplete).toBe(true);
     expect(engine.getState().outcome).toBe('defeat');
+  });
+
+  it('increments metaProgress victories on victory', async () => {
+    const { engine } = makeEngine({
+      currentLocationId: 125,
+      clearedCombatLocations: new Set([125]),
+      metaProgress: {
+        victoriesCount: 2,
+        ngPlusLevel: 1,
+        unlockedCompanionIds: ['rex_the_dog'],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Camp });
+
+    expect(engine.getState().isComplete).toBe(true);
+    expect(engine.getState().outcome).toBe('victory');
+    expect(engine.getState().metaProgress).toEqual({
+      victoriesCount: 3,
+      ngPlusLevel: 1,
+      unlockedCompanionIds: ['rex_the_dog'],
+    });
   });
 
   it('victory when at location 125 with boss cleared', async () => {
@@ -777,6 +827,23 @@ describe('TurnEngine — companion desertion', () => {
     // Desertion depends on actual loyalty tick amount — just verify no crash
     expect(typeof stillPresent).toBe('boolean');
   });
+
+  it('can trigger a broken-morale mutiny even when loyalty is otherwise safe', async () => {
+    const comp = makeCompanion({
+      id: 'steady_comp',
+      name: 'Steady Companion',
+      loyalty: { value: 80, desertsBelow: 15, complainsBelow: 35 },
+    });
+    const rolls = [0.99, 0.10, 0.00];
+    const { engine } = makeEngine({
+      companions: [comp],
+      morale: { value: 10, tier: MoraleTier.Broken, tierChangedThisTurn: false, dreadActive: false },
+    }, () => rolls.shift() ?? 0.99);
+
+    await engine.submitAction({ action: PlayerAction.Camp });
+
+    expect(engine.getState().companions).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────
@@ -833,5 +900,129 @@ describe('TurnEngine — Weather consequences', () => {
     await engine.submitAction({ action: PlayerAction.Camp });
 
     expect(engine.getState().morale.value).toBe(53);
+  });
+
+  it('decays storm recovery faster when rallying', async () => {
+    const { engine } = makeEngine({
+      consecutiveStormDays: 3,
+    });
+
+    await engine.submitAction({ action: PlayerAction.Rally });
+
+    expect(engine.getState().consecutiveStormDays).toBe(1);
+  });
+
+  it('applies correct morale hits for forced marches in sequence and poor/severe weather', async () => {
+    // 1st forced march in neutral weather (Starting morale = 80)
+    const { engine } = makeEngine({
+      weather: WeatherType.Neutral,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    randomSpy.mockReset();
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    // 1. First forced march: drops morale by 5 (80 -> 75)
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(engine.getState().morale.value).toBe(75);
+    expect(engine.getState().consecutiveForcedMarches).toBe(1);
+
+    // 2. Second forced march: drops morale by 6 (75 -> 69)
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(engine.getState().morale.value).toBe(69);
+    expect(engine.getState().consecutiveForcedMarches).toBe(2);
+
+    // 3. Normal move: no forced march penalty, morale unchanged, counter decays by 1 (2 -> 1)
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    expect(engine.getState().morale.value).toBe(69);
+    expect(engine.getState().consecutiveForcedMarches).toBe(1);
+
+    // 4. Forced march: increments counter (1 -> 2), penalty is -6 (69 -> 63)
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(engine.getState().morale.value).toBe(63);
+    expect(engine.getState().consecutiveForcedMarches).toBe(2);
+
+    // 5. Hunt action: decays counter by 1 (2 -> 1)
+    await engine.submitAction({ action: PlayerAction.Hunt, method: 'forage' });
+    expect(engine.getState().consecutiveForcedMarches).toBe(1);
+
+    // 6. Rest action: decays counter by 2 (1 -> 0)
+    await engine.submitAction({ action: PlayerAction.Rest, atInn: false });
+    expect(engine.getState().consecutiveForcedMarches).toBe(0);
+  });
+
+  it('applies correct morale hits for movement in poor and severe weather', async () => {
+    // 1. Move in Poor weather (storm): drops morale by 2
+    const { engine: enginePoor } = makeEngine({
+      weather: WeatherType.Poor,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+    randomSpy.mockReset();
+    randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    await enginePoor.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    expect(enginePoor.getState().morale.value).toBe(78); // 80 - 2
+
+    // 2. Forced march in Poor weather (storm): drops morale by 7 (5 + 2)
+    const { engine: enginePoorFM } = makeEngine({
+      weather: WeatherType.Poor,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+    await enginePoorFM.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(enginePoorFM.getState().morale.value).toBe(73); // 80 - 5 - 2
+
+    // 3. Move in Severe weather (severe storm): drops morale by 3
+    const { engine: engineSevere } = makeEngine({
+      weather: WeatherType.Severe,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+    await engineSevere.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    expect(engineSevere.getState().morale.value).toBe(77); // 80 - 3
+
+    // 4. Forced march in Severe weather (cancelled by storm, counts as normal move): drops morale by 3
+    const { engine: engineSevereFM } = makeEngine({
+      weather: WeatherType.Severe,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+    await engineSevereFM.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(engineSevereFM.getState().morale.value).toBe(77); // 80 - 3 (no forced march since it was cancelled)
+    expect(engineSevereFM.getState().consecutiveForcedMarches).toBe(0);
+  });
+
+  it('preserves a direct location combat streak through the same day turn cleanup', async () => {
+    const { engine } = makeEngine();
+
+    await engine.resolveLocationCombat(1, {
+      outcome: 'victory', roundsFought: 1, xpGained: 5, goldGained: 0,
+      foodGained: 0, healthLost: 0, healthDelta: 0, moraleDelta: 0, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    expect(engine.getState().consecutiveCombatDays).toBe(1);
+
+    await engine.submitAction({ action: PlayerAction.Camp });
+
+    expect(engine.getState().consecutiveCombatDays).toBe(1);
+  });
+
+  it('applies combat fatigue on consecutive direct location combats', async () => {
+    const { engine } = makeEngine({
+      morale: { value: 50, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+      consecutiveCombatDays: 1,
+    });
+
+    await engine.resolveLocationCombat(1, {
+      outcome: 'victory', roundsFought: 1, xpGained: 5, goldGained: 0,
+      foodGained: 0, healthLost: 0, healthDelta: 0, moraleDelta: 8, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    expect(engine.getState().consecutiveCombatDays).toBe(2);
+    expect(engine.getState().morale.value).toBe(55);
   });
 });

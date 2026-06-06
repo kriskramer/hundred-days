@@ -41,6 +41,8 @@ import {
   getRandomLevelUpChoicesWithRng,
   LEVEL_UP_CHOICES,
   XP_THRESHOLDS,
+  tickCompanionXP,
+  buildLevelUpChoicePreviews,
 } from '@engine/GameState';
 import { isCombatEvent } from '@utils/isCombatEvent';
 
@@ -134,60 +136,7 @@ export default function GameScreen() {
     saveEngine.saveRun(nextState).catch(console.error);
   }
 
-  function buildDirectLevelUpChoices(stats: GameState['player']['stats']): LevelUpChoice[] {
-    const rawChoices = getRandomLevelUpChoicesWithRng(3, () => engineRef.current?.nextRandom() ?? Math.random());
-    const statLabels: Record<keyof GameState['player']['stats'], string> = {
-      maxHealth:  'Max HP',
-      attack:     'Attack',
-      defense:    'Defense',
-      speed:      'Speed',
-      endurance:  'Endurance',
-      perception: 'Perception',
-      leadership: 'Leadership',
-      stealing:   'Stealing',
-    };
 
-    return rawChoices.map(choice => {
-      const cloned = { ...choice };
-      const previews: string[] = [];
-
-      (Object.keys(statLabels) as Array<keyof GameState['player']['stats']>).forEach(key => {
-        const delta = choice.effect[key];
-        if (delta !== undefined && delta !== 0) {
-          const before = stats[key] ?? 0;
-          const after = before + delta;
-          previews.push(`${statLabels[key]}  ${before} → ${after}`);
-        }
-      });
-
-      if (previews.length > 0) {
-        cloned.statPreview = previews.join(', ');
-      }
-
-      return cloned;
-    });
-  }
-
-  function tickDirectCompanionXp(companions: GameState['companions']): GameState['companions'] {
-    const XP_TO_NEXT = [0, 20, 50, 95, 160];
-
-    return companions.map(companion => {
-      const newXP = companion.level.xp + 5;
-      const nextLevel = companion.level.current < 5 ? XP_TO_NEXT[companion.level.current] : Infinity;
-      const levelsUp = newXP >= nextLevel && companion.level.current < 5;
-
-      return {
-        ...companion,
-        level: {
-          current:  levelsUp ? companion.level.current + 1 : companion.level.current,
-          xp:       newXP,
-          xpToNext: levelsUp
-            ? XP_TO_NEXT[Math.min(companion.level.current + 1, 4)]
-            : companion.level.xpToNext,
-        },
-      };
-    });
-  }
 
   async function handleInteractiveEventComplete(result: CombatResult) {
     if (activeEvent) {
@@ -340,9 +289,10 @@ export default function GameScreen() {
             attack: nextState.player.stats.attack + 1,
           },
         },
-        companions: tickDirectCompanionXp(nextState.companions),
+        companions: tickCompanionXP(nextState.companions, 5),
       };
-      setLevelUpChoices(buildDirectLevelUpChoices(nextState.player.stats));
+      const rawChoices = getRandomLevelUpChoicesWithRng(3, () => engineRef.current?.nextRandom() ?? Math.random());
+      setLevelUpChoices(buildLevelUpChoicePreviews(rawChoices, nextState.player.stats));
     }
 
     syncExternalGameState(nextState);
@@ -431,8 +381,8 @@ export default function GameScreen() {
 
       {/* Fixed top chrome */}
       <View>
-        <StatusBar gameState={gameState} />
-        <JourneyBar locationId={gameState.currentLocationId} dreadActive={gameState.morale.dreadActive} />
+        <StatusBar />
+        <JourneyBar />
       </View>
 
       {/* Toast */}
@@ -549,8 +499,6 @@ export default function GameScreen() {
 
       {/* Shop modal */}
       <ShopScreen
-        gameState={gameState}
-        locationId={gameState.currentLocationId}
         visible={shopOpen}
         onClose={() => setShopOpen(false)}
         onToast={showToast}
@@ -560,14 +508,12 @@ export default function GameScreen() {
       <LevelUpModal
         visible={!!levelUpChoices}
         choices={levelUpChoices ?? []}
-        playerLevel={gameState.player.level ?? 0}
         onChoose={handleLevelUpChoice}
       />
 
       {/* Journal modal */}
       <JournalModal
         visible={journalOpen}
-        history={gameState.turnHistory}
         onClose={() => setJournalOpen(false)}
       />
 

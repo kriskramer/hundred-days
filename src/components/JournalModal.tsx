@@ -1,14 +1,15 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { TurnRecord, ACTION_LABELS } from '@engine/types';
+import { useTurnHistory } from '@store/gameStore';
 
 interface JournalModalProps {
   visible:  boolean;
-  history:  TurnRecord[];
   onClose:  () => void;
 }
 
-export function JournalModal({ visible, history, onClose }: JournalModalProps) {
+export function JournalModal({ visible, onClose }: JournalModalProps) {
+  const history = useTurnHistory();
   const reversed = [...history].reverse();
 
   return (

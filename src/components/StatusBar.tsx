@@ -1,41 +1,55 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
-import { GameState } from '@engine/types';
 import { Colors } from '@theme';
 import { computeEquippedBonuses, inventoryFromResources, XP_THRESHOLDS } from '@engine';
+import {
+  useDay,
+  useLocation,
+  useResources,
+  usePlayer,
+  useCompanions,
+  useMorale,
+  useReputation,
+} from '@store/gameStore';
 
-export function StatusBar({ gameState }: { gameState: GameState }) {
+export function StatusBar() {
   const [showStats, setShowStats] = useState(false);
-  const foodLow  = gameState.resources.food < 3;
-  const foodWarn = gameState.resources.food < 5;
+  const day = useDay();
+  const currentLocationId = useLocation();
+  const resources = useResources();
+  const player = usePlayer();
+
+  if (!resources || !player) return null;
+
+  const foodLow  = resources.food < 3;
+  const foodWarn = resources.food < 5;
 
   return (
     <View style={{ backgroundColor: Colors.ink, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.inkLight }}>
       <StatusPill
         label="DAY"
-        value={`${gameState.dayNumber}`}
+        value={`${day}`}
         sub="/ 100"
       />
       <StatusPill
         label="LOC"
-        value={String(gameState.currentLocationId)}
+        value={String(currentLocationId)}
         sub="/125"
       />
       <StatusPill
         label="FOOD"
-        value={gameState.resources.food.toFixed(1)}
+        value={resources.food.toFixed(1)}
         valueColor={foodLow ? '#ff8080' : foodWarn ? '#ffcc44' : undefined}
       />
-      <StatusPill label="GOLD" value={String(gameState.resources.gold)} />
+      <StatusPill label="GOLD" value={String(resources.gold)} />
       <StatusPill
         label="LV"
-        value={String(gameState.player.level)}
+        value={String(player.level)}
         onPress={() => setShowStats(true)}
       />
 
       <CharacterSheetModal
         visible={showStats}
-        gameState={gameState}
         onClose={() => setShowStats(false)}
       />
     </View>
@@ -86,16 +100,20 @@ function StatusPill({
 
 interface CharacterSheetModalProps {
   visible: boolean;
-  gameState: GameState;
   onClose: () => void;
 }
 
-function CharacterSheetModal({ visible, gameState, onClose }: CharacterSheetModalProps) {
-  const player = gameState.player;
+function CharacterSheetModal({ visible, onClose }: CharacterSheetModalProps) {
+  const player = usePlayer();
+  const resources = useResources();
+  const companions = useCompanions();
+
+  if (!player || !resources) return null;
+
   const base = player.stats;
 
   // Compute equipment bonuses
-  const inventory = inventoryFromResources(gameState.resources);
+  const inventory = inventoryFromResources(resources);
   const equippedBonuses = computeEquippedBonuses(inventory);
 
   // Compute XP needed for next level
@@ -159,7 +177,7 @@ function CharacterSheetModal({ visible, gameState, onClose }: CharacterSheetModa
 
   // Build companion passive lines
   const compLines: { companionName: string; text: string }[] = [];
-  for (const comp of gameState.companions) {
+  for (const comp of companions) {
     const lines: string[] = [];
     const b = comp.passiveBonus;
     if (b.moralePerTurn) lines.push(`+${b.moralePerTurn} Morale/turn`);
@@ -268,6 +286,7 @@ function CharacterSheetModal({ visible, gameState, onClose }: CharacterSheetModa
               {renderStatRow('Attack', base.attack, equippedBonuses.attackBonus)}
               {renderStatRow('Defense', base.defense, equippedBonuses.defenseBonus)}
               {renderStatRow('Speed', base.speed, equippedBonuses.speedBonus)}
+              {renderStatRow('Luck', base.luck ?? 0)}
               {renderStatRow('Endurance', base.endurance)}
               {renderStatRow('Perception', base.perception)}
               {renderStatRow('Leadership', base.leadership)}

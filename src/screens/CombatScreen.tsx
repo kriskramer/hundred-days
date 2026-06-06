@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   useCallback,
+  memo,
 } from 'react';
 import {
   View,
@@ -22,6 +23,7 @@ import {
   ItemCategory,
   ItemDefinition,
   CompanionArchetype,
+  MoraleTier,
 } from '@engine/types';
 
 import {
@@ -202,7 +204,7 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const inv = inventoryFromResources(gameState.resources);
   const usableItems = inv.items
     .map(i => getItemDef(i.definitionId))
-    .filter((def): def is ItemDefinition => !!def?.activeEffect && def.category === ItemCategory.Consumable);
+    .filter((def): def is ItemDefinition => !!def && def.usableInCombat);
 
   return (
     <View style={s.root}>
@@ -349,19 +351,26 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
         <View style={s.itemPickerOverlay}>
           <Text style={s.itemPickerTitle}>USE ITEM</Text>
           <ScrollView style={s.itemPickerScroll}>
-            {usableItems.map(item => (
-              <TouchableOpacity
-                key={item.id}
-                style={s.itemPickerRow}
-                onPress={() => {
-                  setShowItemPicker(false);
-                  handleAction('skill', 0, item.id);
-                }}
-              >
-                <Text style={s.itemName}>{item.name}</Text>
-                <Text style={s.itemDesc}>{item.description}</Text>
-              </TouchableOpacity>
-            ))}
+            {usableItems.map(item => {
+              const usedCount = combatState.itemsConsumed.filter(id => id === item.id).length;
+              const isLimitReached = item.combatUsesPerBattle !== null && usedCount >= item.combatUsesPerBattle;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[s.itemPickerRow, isLimitReached && { opacity: 0.4 }]}
+                  disabled={isLimitReached}
+                  onPress={() => {
+                    setShowItemPicker(false);
+                    handleAction('skill', 0, item.id);
+                  }}
+                >
+                  <Text style={s.itemName}>
+                    {item.name} {item.combatUsesPerBattle !== null ? `(${usedCount}/${item.combatUsesPerBattle})` : ''}
+                  </Text>
+                  <Text style={s.itemDesc}>{item.description}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
           <TouchableOpacity style={s.itemPickerCancelBtn} onPress={() => setShowItemPicker(false)}>
             <Text style={s.cancelText}>Cancel</Text>
@@ -476,7 +485,7 @@ function BehaviorTag({ behavior }: { behavior: EnemyBehavior }) {
   );
 }
 
-function LogLine({
+const LogLine = memo(function LogLine({
   entry,
   companions,
   enemies,
@@ -586,7 +595,7 @@ function LogLine({
     );
   }
   return <Text style={textStyle}>{text}</Text>;
-}
+});
 
 function ActionBtn({
   label, sub, icon, bgColor, borderColor, disabled, onPress, wide,
@@ -633,6 +642,10 @@ function ResultOverlay({
     result.goldGained > 0 ? `+${result.goldGained} gold`   : null,
     result.foodGained > 0 ? `+${result.foodGained} food`   : null,
     result.moraleDelta> 0 ? `+${result.moraleDelta} morale`: null,
+    ...(result.lootedItems?.map(id => {
+      const def = getItemDef(id);
+      return def ? `Found: ${def.name}` : null;
+    }) ?? []),
   ].filter(Boolean) as string[];
 
   const losses = [
@@ -720,7 +733,7 @@ function buildEnemiesFromContext(
         .sort((a, b) => b.aggroPct - a.aggroPct)
         .slice(0, 1);
   return buildEnemiesForLocation(
-    toSpawn.map(m => m.name),
+    toSpawn.map(m => m.enemyId),
     game.currentLocationId,
   );
 }
@@ -728,7 +741,7 @@ function buildEnemiesFromContext(
 function getEncounterText(enemies: EnemyCombatant[], random: () => number): string {
   const def = ENEMY_DEFINITIONS.find(d => d.id === enemies[0]?.enemyId);
   if (!def) return 'Something threatens you on the road.';
-  const texts = def.encounterText;
+  const texts = def.encounterTexts;
   return texts[Math.floor(random() * texts.length)];
 }
 
@@ -749,10 +762,18 @@ function calcFleeChance(state: CombatState): number {
   );
   if (hasScout) chance += 0.15;
 
+  // Morale penalty
+  const tier = state.playerMorale.tier;
+  if (tier === MoraleTier.Weary)      chance -= 0.10;
+  else if (tier === MoraleTier.Desperate)  chance -= 0.20;
+  else if (tier === MoraleTier.Broken)     chance -= 0.35;
+
   chance = Math.max(0.1, Math.min(0.95, chance));
 
-  const mira = state.companions.find(c => c.companionId === 'mira_thorn' && c.currentHP > 0);
-  if (mira?.specialAbilityReady && mira.level >= 5) {
+  const fleeCompanion = state.companions.find(
+    c => c.guaranteedFleeAtLevel !== undefined && c.level >= c.guaranteedFleeAtLevel && c.currentHP > 0
+  );
+  if (fleeCompanion?.specialAbilityReady) {
     chance = 1.0;
   }
 

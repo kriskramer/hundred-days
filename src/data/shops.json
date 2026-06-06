@@ -1,0 +1,120 @@
+[
+  {
+    "id": "okuna_general",
+    "locationId": 1,
+    "merchantName": "The Dockside Trader",
+    "stock": [
+      { "itemId": "dried_rations",   "maxQuantity": 5 },
+      { "itemId": "healing_potion",  "maxQuantity": 3 },
+      { "itemId": "travelers_blade", "maxQuantity": 1 },
+      { "itemId": "leather_armor",   "maxQuantity": 1 },
+      { "itemId": "stone_of_comfort","maxQuantity": 2 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "amrik_trader",
+    "locationId": 4,
+    "merchantName": "The Village Merchant",
+    "stock": [
+      { "itemId": "dried_rations",  "maxQuantity": 4 },
+      { "itemId": "hunters_jerky",  "maxQuantity": 2 },
+      { "itemId": "healing_potion", "maxQuantity": 2 },
+      { "itemId": "warm_cloak",     "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "kanlin_waystation",
+    "locationId": 6,
+    "merchantName": "Kanlin's Supplies",
+    "stock": [
+      { "itemId": "dried_rations",  "maxQuantity": 5 },
+      { "itemId": "hunters_jerky",  "maxQuantity": 3 },
+      { "itemId": "healing_potion", "maxQuantity": 2 },
+      { "itemId": "flash_powder",   "maxQuantity": 1 },
+      { "itemId": "travelers_pack", "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "lahonis_market",
+    "locationId": 9,
+    "merchantName": "The Lahonis Market",
+    "stock": [
+      { "itemId": "dried_rations",    "maxQuantity": 4 },
+      { "itemId": "hearty_meal",      "maxQuantity": 2 },
+      { "itemId": "healing_potion",   "maxQuantity": 3 },
+      { "itemId": "spirit_tonic",     "maxQuantity": 2 },
+      { "itemId": "hunters_bow",      "maxQuantity": 1 },
+      { "itemId": "leather_armor",    "maxQuantity": 1 },
+      { "itemId": "foragers_satchel", "maxQuantity": 1 },
+      { "itemId": "lucky_coin",       "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "zilam_outfitters",
+    "locationId": 19,
+    "merchantName": "The Zilam Outfitters",
+    "stock": [
+      { "itemId": "dried_rations",    "maxQuantity": 3 },
+      { "itemId": "hearty_meal",      "maxQuantity": 2 },
+      { "itemId": "healing_potion",   "maxQuantity": 3 },
+      { "itemId": "spirit_tonic",     "maxQuantity": 2 },
+      { "itemId": "battle_draught",   "maxQuantity": 2 },
+      { "itemId": "flash_powder",     "maxQuantity": 2 },
+      { "itemId": "chainmail",        "maxQuantity": 1 },
+      { "itemId": "scout_kit",        "maxQuantity": 1 },
+      { "itemId": "merchants_ring",   "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "sdrakam_armory",
+    "locationId": 27,
+    "merchantName": "The Sdrakam Armory",
+    "stock": [
+      { "itemId": "hearty_meal",      "maxQuantity": 2 },
+      { "itemId": "healing_potion",   "maxQuantity": 3 },
+      { "itemId": "spirit_tonic",     "maxQuantity": 2 },
+      { "itemId": "battle_draught",   "maxQuantity": 2 },
+      { "itemId": "smoke_bomb",       "maxQuantity": 2 },
+      { "itemId": "chainmail",        "maxQuantity": 1 },
+      { "itemId": "amulet_of_resolve","maxQuantity": 1 },
+      { "itemId": "merchants_ring",   "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "kita_emporium",
+    "locationId": 35,
+    "merchantName": "The Kita Emporium",
+    "stock": [
+      { "itemId": "healing_potion",        "maxQuantity": 2 },
+      { "itemId": "greater_healing_potion","maxQuantity": 1 },
+      { "itemId": "battle_draught",        "maxQuantity": 3 },
+      { "itemId": "smoke_bomb",            "maxQuantity": 2 },
+      { "itemId": "flash_powder",          "maxQuantity": 2 },
+      { "itemId": "silver_blade",          "maxQuantity": 1 },
+      { "itemId": "lucky_coin",            "maxQuantity": 1 }
+    ],
+    "goldFindMultiplier": 1.0
+  },
+  {
+    "id": "nabis_vaults",
+    "locationId": 100,
+    "merchantName": "The Nabis Vaults",
+    "stock": [
+      { "itemId": "greater_healing_potion","maxQuantity": 3 },
+      { "itemId": "battle_draught",        "maxQuantity": 3 },
+      { "itemId": "holy_water",            "maxQuantity": 2 },
+      { "itemId": "flash_powder",          "maxQuantity": 2 },
+      { "itemId": "smoke_bomb",            "maxQuantity": 2 },
+      { "itemId": "silver_blade",          "maxQuantity": 1 },
+      { "itemId": "amulet_of_resolve",     "maxQuantity": 1 },
+      { "itemId": "stone_of_comfort",      "maxQuantity": 2 }
+    ],
+    "goldFindMultiplier": 1.0
+  }
+]

@@ -1,15 +1,17 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LevelUpChoice } from '@engine/types';
+import { usePlayer } from '@store/gameStore';
 
 interface LevelUpModalProps {
   visible:     boolean;
   choices:     LevelUpChoice[];
-  playerLevel: number;
   onChoose:    (choiceId: string) => void;
 }
 
-export function LevelUpModal({ visible, choices, playerLevel, onChoose }: LevelUpModalProps) {
+export function LevelUpModal({ visible, choices, onChoose }: LevelUpModalProps) {
+  const player = usePlayer();
+  const playerLevel = player?.level ?? 0;
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={{

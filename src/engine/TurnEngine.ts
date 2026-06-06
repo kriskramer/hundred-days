@@ -34,7 +34,10 @@ import {
   LEVEL_UP_CHOICES,
   clamp,
   getRandomLevelUpChoicesWithRng,
+  tickCompanionXP as tickCompanionXPState,
+  buildLevelUpChoicePreviews,
 } from './GameState';
+import { GameBalance } from './GameBalance';
 
 import {
   sampleEventsForTurn,
@@ -51,10 +54,17 @@ import {
   addItem,
   getItemDef,
   resourcesToInventory,
+  ITEM_DEFINITIONS,
 } from './ItemSystem';
 
 import { getLocation, getRegion } from '@data/locations';
 import { nextMulberry32, normalizeRngState } from './Random';
+import {
+  calculateFoodCostForMove,
+  applyCompanionFoodCosts,
+  rollLucky3rdLocation,
+  findBossCheckpoint,
+} from './helpers/TravelCalculator';
 
 // ─────────────────────────────────────────
 // Action param types
@@ -80,6 +90,7 @@ export class TurnEngine {
   private onLevelUp:      (choices: LevelUpChoice[]) => void;
   private bossResults: Map<number, CombatResult> = new Map();
   private readonly randomOverride?: () => number;
+  private combatOccurredThisTurn: boolean = false;
 
   constructor(
     initialState:   GameState,
@@ -211,11 +222,32 @@ export class TurnEngine {
           .map(effectId => ({ id: effectId, durationTurns: 3 })),
       ],
     }, result.xpGained);
-    const newResources = this.applyConsumedItems({
+
+    let nextResources = this.applyConsumedItems({
       ...resources,
       gold: Math.max(0, resources.gold + result.goldGained),
       food: Math.max(0, resources.food + result.foodGained),
     }, result.itemsConsumed);
+
+    if (result.lootedItems && result.lootedItems.length > 0) {
+      let inv = inventoryFromResources(nextResources);
+      for (const itemId of result.lootedItems) {
+        const addRes = addItem(inv, itemId);
+        if (addRes.success && addRes.inventory) {
+          inv = addRes.inventory;
+        }
+      }
+      nextResources = resourcesToInventory(nextResources, inv);
+    }
+
+    this.combatOccurredThisTurn = true;
+    const existingConsecutive = this.state.consecutiveCombatDays ?? 0;
+    const nextConsecutive = existingConsecutive + 1;
+    let fatiguePenalty = 0;
+    if (nextConsecutive > 1) {
+      fatiguePenalty = -3 * (nextConsecutive - 1);
+    }
+
     const newCleared = new Set(this.state.clearedCombatLocations);
     newCleared.add(locationId);
 
@@ -226,11 +258,12 @@ export class TurnEngine {
 
     this.setState({
       player:                 newPlayer,
-      morale:                 applyMoraleDelta(morale, result.moraleDelta),
+      morale:                 applyMoraleDelta(morale, result.moraleDelta + fatiguePenalty),
       reputation:             applyReputationDelta(reputation, result.reputationDelta),
-      resources:              newResources,
+      resources:              nextResources,
       clearedCombatLocations: newCleared,
       firedEventIds:          newFired,
+      consecutiveCombatDays:  nextConsecutive,
     });
 
     await saveEngine.saveRun(this.state);
@@ -332,6 +365,26 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private resolveAction(params: ActionParams): void {
+    if (params.action !== PlayerAction.Move) {
+      let fmDecay = 1;
+      let stormDecay = 1;
+
+      if (params.action === PlayerAction.Rest || params.action === PlayerAction.Camp) {
+        fmDecay = 2;
+        stormDecay = 2;
+      } else if (params.action === PlayerAction.Rally) {
+        fmDecay = 2;
+        stormDecay = 2;
+      }
+
+      const nextFM = Math.max(0, (this.state.consecutiveForcedMarches ?? 0) - fmDecay);
+      const nextStorm = Math.max(0, (this.state.consecutiveStormDays ?? 0) - stormDecay);
+
+      this.setState({
+        consecutiveForcedMarches: nextFM,
+        consecutiveStormDays:     nextStorm,
+      });
+    }
     switch (params.action) {
       case PlayerAction.Move:  this.resolveMove(params.forcedMarch, params.shortcutTo); break;
       case PlayerAction.Hunt:  this.resolveHunt(params.method);      break;
@@ -344,7 +397,7 @@ export class TurnEngine {
   }
 
   private resolveMove(forcedMarch: boolean, shortcutTo?: number): void {
-    const { morale, weather, resources, companions } = this.state;
+    const { weather, resources } = this.state;
     const currentLoc = this.state.currentLocationId;
     if (BOSS_EVENT_MAP[currentLoc] && !this.state.clearedCombatLocations.has(currentLoc)) {
       this.addLog('The road ahead is sealed by a powerful foe.');
@@ -361,61 +414,43 @@ export class TurnEngine {
       ? WeatherType.Poor
       : weather;
 
-    // Companion food costs
-    const companionFoodPerTurn = companions.reduce(
-      (sum, c) => sum + c.foodCostPerTurn, 0,
-    );
-    const companionFoodModifier = companions.reduce(
-      (mult, c) => mult * (c.passiveBonus.foodCostModifier ?? 1.0), 1.0,
-    );
-    const moraleFoodMult   = getFoodCostMultiplier(morale);
-    const itemFoodMult     = 1 - (itemBonuses.foodCostReduction ?? 0);  // e.g. Traveler's Pack -10%
-    const marchCostAdjust  = itemBonuses.forcedMarchCostReduction ?? 0; // e.g. Chainmail +0.3
-
-    let baseFoodCost = 1.0;
-    let luckyThird = false;
-
     if (shortcutTo) {
-      baseFoodCost = 2.0; // Shortcut costs 1 extra food (normal move is 1.0, so 1 extra is 2.0)
+      locations = 1;
     } else {
-      // Forced march
-      if (forcedMarch && resources.food >= 1.5) {
-        locations    = 2;
-        baseFoodCost = 1.5 + marchCostAdjust;   // Chainmail makes marching more expensive
+      if (forcedMarch && resources.food >= GameBalance.FORCED_MARCH_FOOD_MULTIPLIER) {
+        locations = 2;
       } else if (forcedMarch) {
         this.addLog('Not enough food to force march. Moving at normal pace.');
       }
 
       // Severe weather override (using effective weather — Warm Cloak may have softened it)
       if (effectiveWeather === WeatherType.Severe) {
-        locations    = 1;
-        baseFoodCost = 1.0;
+        locations = 1;
         if (forcedMarch) this.addLog('The storm forces you to a crawl.');
       } else if (weather === WeatherType.Severe && effectiveWeather === WeatherType.Poor) {
         this.addLog('Your cloak blunts the worst of the storm. The march continues.');
       }
 
-      // Luck roll for 3rd location — item bonus stacks on top of morale luck
-      const luckThreshold = getLuckThreshold(morale) + (itemBonuses.luckModifier ?? 0);
-      const luckRoll      = this.nextRandom();
+      // Roll lucky 3rd location using helper
+      const roll = this.nextRandom();
+      const isLucky = rollLucky3rdLocation(this.state, roll);
 
       if (
         locations === 2 &&
         effectiveWeather !== WeatherType.Severe &&
         effectiveWeather !== WeatherType.Poor &&
-        luckRoll <= luckThreshold
+        isLucky
       ) {
-        locations  = 3;
-        luckyThird = true;
+        locations = 3;
       }
 
-      locations = Math.min(locations, 3);
+      locations = Math.min(locations, GameBalance.MAX_LOCATIONS_PER_TURN);
     }
 
-    const totalFood = (baseFoodCost + companionFoodPerTurn)
-      * companionFoodModifier
-      * moraleFoodMult
-      * itemFoodMult;
+    // Decomposed food calculations
+    const playerFoodCost = calculateFoodCostForMove(this.state, locations, forcedMarch, !!shortcutTo);
+    const companionFoodDelta = applyCompanionFoodCosts(this.state, locations);
+    const totalFood = playerFoodCost + -(companionFoodDelta.food ?? 0);
 
     if (resources.food < totalFood) {
       const turns = this.state.starvationTurns + 1;
@@ -432,15 +467,12 @@ export class TurnEngine {
       });
     }
 
-    const rawNewLoc  = shortcutTo ?? Math.min(currentLoc + locations, 125);
-    // Stop at the nearest uncleared boss location in the path
-    const bossCheckpoint = Object.keys(BOSS_EVENT_MAP)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .find(b => b > currentLoc && b <= rawNewLoc && !this.state.clearedCombatLocations.has(b));
+    const rawNewLoc = shortcutTo ?? Math.min(currentLoc + locations, 125);
+    const bossCheckpoint = findBossCheckpoint(currentLoc, rawNewLoc, this.state.clearedCombatLocations);
     const newLoc = bossCheckpoint ?? rawNewLoc;
 
     let narrative = '';
+    const luckyThird = (locations === 3);
     if (shortcutTo) {
       const activeShortcut = this.state.runLayout?.activeShortcuts.find(s => s.from === currentLoc && s.to === shortcutTo);
       const suffix = newLoc < shortcutTo ? ` (stopped at Location ${newLoc} by a powerful boss)` : '';
@@ -449,16 +481,54 @@ export class TurnEngine {
       narrative = this.buildMoveNarrative(locations, effectiveWeather, luckyThird, forcedMarch);
     }
 
+    // Determine if forced march was actually executed:
+    // 1. Not taking a shortcut
+    // 2. Forced march requested
+    // 3. Enough food to perform it
+    // 4. Effective weather is not Severe
+    const isForcedMarchExecuted = !shortcutTo && forcedMarch && resources.food >= GameBalance.FORCED_MARCH_FOOD_MULTIPLIER && effectiveWeather !== WeatherType.Severe;
+
+    let forcedMarchMoralePenalty = 0;
+    let nextConsecutive = 0;
+
+    if (isForcedMarchExecuted) {
+      nextConsecutive = (this.state.consecutiveForcedMarches ?? 0) + 1;
+      forcedMarchMoralePenalty = -(4 + nextConsecutive); // -5 for 1st, -6 for 2nd, etc.
+    } else {
+      nextConsecutive = Math.max(0, (this.state.consecutiveForcedMarches ?? 0) - 1);
+    }
+
+    // Weather penalties: storm (Poor) = -2 base, severe storm (Severe) = -3 base
+    // Both accumulate with consecutive storm days.
+    let weatherMoralePenalty = 0;
+    let nextStormDays = 0;
+
+    if (!shortcutTo && (effectiveWeather === WeatherType.Poor || effectiveWeather === WeatherType.Severe)) {
+      const stormDays = this.state.consecutiveStormDays ?? 0;
+      if (effectiveWeather === WeatherType.Poor) {
+        weatherMoralePenalty = -(2 + stormDays);
+      } else {
+        weatherMoralePenalty = -(3 + 2 * stormDays);
+      }
+      nextStormDays = stormDays + 1;
+    } else {
+      nextStormDays = Math.max(0, (this.state.consecutiveStormDays ?? 0) - 1);
+    }
+
+    const totalMoralePenalty = forcedMarchMoralePenalty + weatherMoralePenalty;
+
     this.addDelta({
       source:    'move',
       food:      -totalFood,
-      morale:    forcedMarch && locations > 1 ? -1 : undefined,
+      morale:    totalMoralePenalty !== 0 ? totalMoralePenalty : undefined,
       narrative,
     });
 
     this.setState({
       currentLocationId:  newLoc,
       visitedLocationIds: new Set([...this.state.visitedLocationIds, newLoc]),
+      consecutiveForcedMarches: nextConsecutive,
+      consecutiveStormDays:     nextStormDays,
     });
   }
 
@@ -531,8 +601,8 @@ export class TurnEngine {
         goldGained = 5 + Math.floor(this.nextRandom() * 11); // 5 to 15 gold
         rewardNarrative = `stole ${goldGained} gold.`;
       } else {
-        const pool = ['dried_rations', 'hunters_jerky', 'healing_potion', 'spirit_tonic'];
-        const chosenItem = pool[Math.floor(this.nextRandom() * pool.length)];
+        const pool = ITEM_DEFINITIONS.filter(def => def.stealable);
+        const chosenItem = pool[Math.floor(this.nextRandom() * pool.length)].id;
         const addResult = addItem(resources, chosenItem);
 
         if (addResult.success && addResult.inventory) {
@@ -604,7 +674,8 @@ export class TurnEngine {
 
   private resolveRally(targetCompanionId?: string): void {
     const { player, companions } = this.state;
-    const moraleGain = 10 + (player.stats.leadership * 2);
+    const moraleGain = GameBalance.RALLY_BASE_MORALE_GAIN
+      + (player.stats.leadership * GameBalance.RALLY_LEADERSHIP_MULTIPLIER);
 
     const companionLoyalty: Record<string, number> = {};
     for (const c of companions) {
@@ -786,19 +857,48 @@ export class TurnEngine {
   }
 
   private applyEventResult(result: CombatResult): void {
+    const activeEvent = this.state.currentTurn?.activeInteractiveEvent;
+    const isCombat = activeEvent?.type === 'combat';
+
+    let nextConsecutive = this.state.consecutiveCombatDays ?? 0;
+    let fatiguePenalty = 0;
+
+    if (isCombat) {
+      this.combatOccurredThisTurn = true;
+      nextConsecutive = nextConsecutive + 1;
+      if (nextConsecutive > 1) {
+        fatiguePenalty = -3 * (nextConsecutive - 1);
+      }
+    }
+
     this.addDelta({
       source:    'event_result',
       xp:        result.xpGained,
       gold:      result.goldGained,
       food:      result.foodGained,
       health:    this.getCombatHealthDelta(result),
-      morale:    result.moraleDelta,
+      morale:    result.moraleDelta + fatiguePenalty,
       reputation:result.reputationDelta,
       statusEffectsAdded: result.injuriesGained,
       narrative: this.buildCombatResultNarrative(result),
     });
 
-    this.setState({ resources: this.applyConsumedItems(this.state.resources, result.itemsConsumed) });
+    let nextResources = this.applyConsumedItems(this.state.resources, result.itemsConsumed);
+    if (result.lootedItems && result.lootedItems.length > 0) {
+      let inv = inventoryFromResources(nextResources);
+      for (const itemId of result.lootedItems) {
+        const addRes = addItem(inv, itemId);
+        if (addRes.success && addRes.inventory) {
+          inv = addRes.inventory;
+        }
+      }
+      nextResources = resourcesToInventory(nextResources, inv);
+    }
+
+    this.setState({ 
+      resources: nextResources,
+      ...(isCombat ? { consecutiveCombatDays: nextConsecutive } : {})
+    });
   }
 
   // ─────────────────────────────────────────
@@ -843,7 +943,7 @@ export class TurnEngine {
     // Dread
     const dreadNow = isDreadActive(this.state.dayNumber, this.state.currentLocationId);
     if (dreadNow) {
-      moraleDelta -= 3;
+      moraleDelta -= GameBalance.DREAD_MORALE_PENALTY_PER_TURN;
       if (!this.state.morale.dreadActive) {
         this.addLog('A creeping dread settles in. Time is running short.');
       }
@@ -867,19 +967,35 @@ export class TurnEngine {
   }
 
   private checkCompanionDesertion(): void {
-    const deserters = this.state.companions.filter(
+    const { companions, morale } = this.state;
+    if (companions.length === 0) return;
+
+    let deserters = companions.filter(
       c => c.loyalty.value <= c.loyalty.desertsBelow,
     );
-    const survivors = this.state.companions.filter(
+    let survivors = companions.filter(
       c => c.loyalty.value > c.loyalty.desertsBelow,
     );
 
+    // Broken morale mutiny: 15% chance a random survivor deserts anyway
+    if (morale.tier === MoraleTier.Broken && survivors.length > 0 && this.nextRandom() < 0.15) {
+      const idx = Math.floor(this.nextRandom() * survivors.length);
+      const mutineer = survivors[idx];
+      deserters = [...deserters, mutineer];
+      survivors = survivors.filter(c => c.id !== mutineer.id);
+    }
+
     for (const d of deserters) {
+      const isMutineer = morale.tier === MoraleTier.Broken && d.loyalty.value > d.loyalty.desertsBelow;
+      const narrative = isMutineer
+        ? `Broken spirits claim the party. ${d.name} deserts immediately, stating they have lost all confidence in your survival.`
+        : d.departureNarrative;
+
       this.addDelta({
         source:    `desertion:${d.id}`,
         morale:    -15,
         food:      -(d.foodCostPerTurn * 2),
-        narrative: d.departureNarrative,
+        narrative,
       });
     }
 
@@ -919,9 +1035,20 @@ export class TurnEngine {
   }
 
   private getStarvationPenalty(turns: number): { healthLost: number; moraleLost: number } {
+    let healthLost = Math.min(
+      GameBalance.STARVATION_HEALTH_BASE + (turns - 1) * GameBalance.STARVATION_HEALTH_PER_TURN,
+      GameBalance.STARVATION_HEALTH_MAX,
+    );
+    if (this.state.morale.tier === MoraleTier.Broken) {
+      healthLost = Math.floor(healthLost * 1.5);
+    }
+
     return {
-      healthLost: Math.min(10 + (turns - 1) * 5, 40),
-      moraleLost: Math.min(8 + (turns - 1) * 2, 20),
+      healthLost,
+      moraleLost: Math.min(
+        GameBalance.STARVATION_MORALE_BASE + (turns - 1) * GameBalance.STARVATION_MORALE_PER_TURN,
+        GameBalance.STARVATION_MORALE_MAX,
+      ),
     };
   }
 
@@ -951,41 +1078,13 @@ export class TurnEngine {
     };
     this.setState({ player: newPlayer });
 
-    // Also tick companion XP
-    this.tickCompanionXP(5);
+    // Also tick companion XP using shared helper
+    const updatedCompanions = tickCompanionXPState(this.state.companions, 5);
+    this.setState({ companions: updatedCompanions });
 
     // Present 3 random choices to player
     const rawChoices = getRandomLevelUpChoicesWithRng(3, () => this.nextRandom());
-    const stats = this.state.player.stats;
-    const statLabels: Record<keyof PlayerStats, string> = {
-      maxHealth: 'Max HP',
-      attack:    'Attack',
-      defense:   'Defense',
-      speed:     'Speed',
-      endurance: 'Endurance',
-      perception:'Perception',
-      leadership:'Leadership',
-      stealing:  'Stealing',
-    };
-
-    const choices = rawChoices.map(choice => {
-      const cloned = { ...choice };
-      const previews: string[] = [];
-
-      (Object.keys(statLabels) as Array<keyof PlayerStats>).forEach(key => {
-        const delta = choice.effect[key];
-        if (delta !== undefined && delta !== 0) {
-          const before = stats[key] ?? 0;
-          const after = before + delta;
-          previews.push(`${statLabels[key]}  ${before} → ${after}`);
-        }
-      });
-
-      if (previews.length > 0) {
-        cloned.statPreview = previews.join(', ');
-      }
-      return cloned;
-    });
+    const choices = buildLevelUpChoicePreviews(rawChoices, this.state.player.stats);
 
     this.updateTurn({ levelUpOccurred: true });
     this.setPhase(TurnPhase.AwaitingLevelUp);
@@ -1001,26 +1100,6 @@ export class TurnEngine {
       player: { ...this.state.player, stats: newStats },
     });
     this.addLog(`Level ${this.state.player.level}! You chose: ${choice.label}.`);
-  }
-
-  private tickCompanionXP(amount: number): void {
-    const XP_TO_NEXT = [0, 20, 50, 95, 160];
-    const updated = this.state.companions.map(c => {
-      const newXP      = c.level.xp + amount;
-      const nextLevel  = c.level.current < 5 ? XP_TO_NEXT[c.level.current] : Infinity;
-      const levelsUp   = newXP >= nextLevel && c.level.current < 5;
-      return {
-        ...c,
-        level: {
-          current:  levelsUp ? c.level.current + 1 : c.level.current,
-          xp:       newXP,
-          xpToNext: levelsUp
-            ? XP_TO_NEXT[Math.min(c.level.current + 1, 4)]
-            : c.level.xpToNext,
-        },
-      };
-    });
-    this.setState({ companions: updated });
   }
 
   // ─────────────────────────────────────────
@@ -1068,6 +1147,7 @@ export class TurnEngine {
 
   private async cleanup(): Promise<void> {
     this.applyAllDeltas();
+    this.combatOccurredThisTurn = false;
 
     const record = this.buildTurnRecord();
 
@@ -1087,6 +1167,7 @@ export class TurnEngine {
 
   private async skipToCleanup(): Promise<void> {
     this.applyAllDeltas();
+    this.combatOccurredThisTurn = false;
     this.setState({
       dayNumber:   this.state.dayNumber + 1,
       currentTurn: null,
@@ -1153,12 +1234,18 @@ export class TurnEngine {
         .filter(e => e.durationTurns > 0),
     };
 
+    let nextCombatDays = this.state.consecutiveCombatDays ?? 0;
+    if (!this.combatOccurredThisTurn) {
+      nextCombatDays = Math.max(0, nextCombatDays - 1);
+    }
+
     this.setState({
       resources,
       morale,
       reputation,
       player,
       companions,
+      consecutiveCombatDays: nextCombatDays,
       ...(weatherOverride ? { weather: weatherOverride } : {}),
     });
   }
@@ -1170,7 +1257,16 @@ export class TurnEngine {
   private endRun(outcome: GameState['outcome'], narrative: string): void {
     this.applyAllDeltas();
     this.addLog(narrative);
-    this.setState({ isComplete: true, outcome, currentTurn: null });
+    const metaProgress = outcome === 'victory'
+      ? this.state.metaProgress
+        ? {
+          ...this.state.metaProgress,
+          victoriesCount: this.state.metaProgress.victoriesCount + 1,
+        }
+        : { victoriesCount: 1, ngPlusLevel: 0, unlockedCompanionIds: [] }
+      : this.state.metaProgress;
+
+    this.setState({ isComplete: true, outcome, currentTurn: null, metaProgress });
     this.onStateChange(this.state);
     saveEngine.saveRun(this.state); // archive
   }
@@ -1273,7 +1369,14 @@ export class TurnEngine {
 
   private buildCombatResultNarrative(result: CombatResult): string {
     switch (result.outcome) {
-      case 'victory':    return `Victory! You gained ${result.xpGained} XP and ${result.goldGained} gold.`;
+      case 'victory': {
+        let text = `Victory! You gained ${result.xpGained} XP and ${result.goldGained} gold.`;
+        if (result.lootedItems && result.lootedItems.length > 0) {
+          const names = result.lootedItems.map(id => getItemDef(id)?.name || id).join(', ');
+          text += ` Found loot: ${names}.`;
+        }
+        return text;
+      }
       case 'defeat':     return 'You were defeated. The party regroups, battered.';
       case 'fled':       return 'You escaped. Morale takes a small hit from the retreat.';
       case 'negotiated': return 'A peaceful resolution. Your reputation grows.';

@@ -5,15 +5,17 @@
 export * from './types';
 export * from './GameState';
 export * from './EventSystem';
+export * from './GameBalance';
 export { TurnEngine }  from './TurnEngine';
 export type { ActionParams } from './TurnEngine';
 export { saveEngine }  from './SaveEngine';
-export { CombatEngine, ENEMY_DEFINITIONS, buildEnemiesForLocation, buildBossEnemy } from './CombatEngine';
+export { CombatEngine, buildEnemiesForLocation, buildBossEnemy } from './CombatEngine';
 export type {
   CombatState, CombatAction, CombatLogEntry,
   EnemyCombatant, CompanionCombatant, PlayerCombatant,
-  EnemyDefinition, CombatPhase,
+  CombatPhase,
 } from './CombatEngine';
+export { ENEMIES, getEnemyDefinition } from '../data/enemies';
 
 export {
   DialogueEngine,
@@ -38,6 +40,7 @@ export {
   buyItem,
   getShopInventory,
   computeEquippedBonuses,
+  sumEquippedModifiers,
   createEmptyInventory,
   inventoryFromResources,
   resourcesToInventory,

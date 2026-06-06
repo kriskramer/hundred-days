@@ -19,17 +19,28 @@ See docs/ARCHITECTURE.md for a comprehensive overview: game systems, turn lifecy
 diagram, state model, combat/dialogue/event/item system descriptions, and UI layout.
 
 ## Architecture — key files
-- src/engine/types.ts         — ALL shared types and enums (start here)
-- src/engine/TurnEngine.ts    — 10-phase turn lifecycle, orchestrates everything
-- src/engine/GameState.ts     — createNewGameState(), XP thresholds, pure helpers
-- src/engine/SaveEngine.ts    — auto-save, backup slot, schema migration (v2)
-- src/engine/EventSystem.ts   — random event pipeline, passive/interactive split
-- src/engine/CombatEngine.ts  — full combat resolution, 13 enemy types
-- src/engine/DialogueEngine.ts— branching dialogue trees, condition evaluation
-- src/engine/ItemSystem.ts    — 30+ item definitions, inventory CRUD, shop logic
-- src/data/locations.ts       — 125 location stubs (see NOTE below)
-- src/data/companions.ts      — all 11 companion definitions
-- src/store/gameStore.ts      — Zustand store + selector hooks
+- src/engine/types.ts           — ALL shared types and enums (start here)
+- src/engine/TurnEngine.ts      — 10-phase turn lifecycle, orchestrates everything
+- src/engine/GameState.ts       — createNewGameState(), XP thresholds, pure helpers
+- src/engine/SaveEngine.ts      — auto-save, backup slot, schema migration (v9)
+- src/engine/GameBalance.ts     — formula-coupled balance constants (as const)
+- src/engine/EventSystem.ts     — random event pipeline, passive/interactive split
+- src/engine/CombatEngine.ts    — full combat resolution, enemies from JSON
+- src/engine/DialogueEngine.ts  — branching dialogue evaluation (~200 lines; trees in JSON)
+- src/engine/ConditionEvaluator.ts — shared condition evaluation for events + dialogues
+- src/engine/ItemSystem.ts      — inventory CRUD, shop logic (items from JSON)
+- src/engine/bosses.ts          — BOSS_EVENT_MAP, BOSS_LOCATION_IDS, isBossLocation()
+- src/engine/RunLayout.ts       — per-run NPC/shortcut/elite layout generation
+- src/data/config.json          — XP thresholds, starting resources, level-up choices
+- src/data/items.json           — all item definitions (stealable, combatUsesPerBattle, etc.)
+- src/data/enemies.json         — all enemy + boss definitions with bossLoot
+- src/data/companions.json      — all 11 companion definitions
+- src/data/locations.json       — 125 locations with mob tables and boss flags
+- src/data/events.json          — all game event definitions
+- src/data/dialogues.json       — all dialogue trees (frozen IDs, see ID_POLICY.md)
+- src/data/shops.json           — per-location shop inventories (8 shops)
+- src/data/ID_POLICY.md         — ID naming conventions and Math.random audit
+- src/store/gameStore.ts        — Zustand store + selector hooks
 
 ## Screens (all complete)
 - app/index.tsx               — Title screen, run history, new game
@@ -51,22 +62,16 @@ Use resourcesToInventory(resources, inv) to write it back.
 The TurnEngine reads computeEquippedBonuses() every turn for passive effects.
 InventoryScreen writes directly to the Zustand store + triggers saveEngine.saveRun().
 
-## What is NOT done yet (priority order)
+## Data layer
+All game content is in JSON files under src/data/ with thin TypeScript loaders.
+No file outside a loader imports JSON directly. Each loader exports a typed array
+plus a getX(id) throw-guard accessor. ID policy and Math.random audit are in
+src/data/ID_POLICY.md.
 
-Functional gaps (game won't feel complete without these):
+## What is NOT done yet
 
-  1. Boss fight — TurnEngine.checkWinLoss has a // TODO: Trigger boss combat event comment. When the player reaches location 125, it currently just checks combat power and auto-resolves to victory/defeat. A real boss combat event needs to be       
-  triggered through the CombatEngine.
-  2. Companion reputation affinity — isReputationInCompanionRange() in TurnEngine always returns true. Companions each have preferred rep ranges that should affect loyalty gain/loss each turn.
-  3. Component import paths — game.tsx imports like import { StatusBar } from '@components/StatusBar' point to files that don't exist (everything is in src/components/index.ts). This will cause build failures. The imports need to be changed to from
-   '@components', or each component needs to be split into its own file.
-
-  Content / polish:
-
-  4. Sound assets — SoundEngine.ts is scaffolded but needs .mp3 files placed in src/assets/sfx/ and the asset map uncommented.
-  5. map_screen.html — there's a stray HTML file in src/screens/ that shouldn't be there.
-  6. CLAUDE.md is stale — the "What is NOT done yet" section still lists items 1–8 as todo. It should be updated to reflect current state.
-  7. Story flags — DialogueEngine uses a module-level Set for story flags (noted as a placeholder). These don't persist across app restarts since they're not saved to GameState.
+  1. Sound assets — SoundEngine.ts is scaffolded but needs .mp3 files placed in
+     src/assets/sfx/ and the asset map uncommented. All other systems are complete.
 
 ## Design system
 Fonts: Cinzel_400Regular, Cinzel_600SemiBold (display), CrimsonText_400Regular,
@@ -76,10 +81,10 @@ Screens use StyleSheet.create (not NativeWind classes) for precise layout.
 All text uses fontFamily from the above — never system fonts.
 
 ## Save system
-Schema version: 2
+Schema version: 9
 Auto-saves after every turn in TurnEngine.cleanup()
 Also saves after every inventory mutation in InventoryScreen
-Migration ladder handles v0, v1, v2 — add new migrations at bottom of
+Migration ladder handles v0–v9 — add new migrations at the bottom of
 SaveEngine.migrate() and bump SCHEMA_VERSION in GameState.ts
 
 ## Running locally

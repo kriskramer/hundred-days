@@ -1,5 +1,5 @@
 /* eslint-disable react-native/sort-styles */
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { GameState, ItemCategory } from '@engine/types';
+import { ItemCategory } from '@engine/types';
 import {
   getShopInventory,
   getItemDef,
@@ -22,6 +22,7 @@ import {
 } from '@engine/ItemSystem';
 import { getLocation }  from '@data/locations';
 import { useShopActions } from '@hooks/useShopActions';
+import { useLocation, useResources } from '@store/gameStore';
 
 // ─────────────────────────────────────────
 // Palette
@@ -44,8 +45,6 @@ const C = {
 // ─────────────────────────────────────────
 
 interface Props {
-  gameState:  GameState;
-  locationId: number;
   visible:    boolean;
   onClose:    () => void;
   onToast:    (msg: string) => void;
@@ -55,14 +54,19 @@ interface Props {
 // ShopScreen
 // ─────────────────────────────────────────
 
-export function ShopScreen({ gameState, locationId, visible, onClose, onToast }: Props) {
+export function ShopScreen({ visible, onClose, onToast }: Props) {
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
   const { buyItem, sellItem } = useShopActions();
 
+  const locationId = useLocation();
+  const resources = useResources();
+
+  if (!resources) return null;
+
   const location         = getLocation(locationId);
-  const hasMerchantsRing = isItemEquipped(gameState.resources, 'merchants_ring');
-  const inventory        = inventoryFromResources(gameState.resources);
-  const shopItems        = getShopInventory(locationId, gameState.resources.gold, hasMerchantsRing);
+  const hasMerchantsRing = isItemEquipped(resources, 'merchants_ring');
+  const inventory        = inventoryFromResources(resources);
+  const shopItems        = getShopInventory(locationId, resources.gold, hasMerchantsRing);
 
   // Only show items the player could sell (have a shop price, not quest items)
   const sellableItems = inventory.items
@@ -107,7 +111,7 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
           <View style={s.headerRight}>
             <View style={s.goldBox}>
               <Text style={s.goldLabel}>GOLD</Text>
-              <Text style={s.goldValue}>{Math.floor(gameState.resources.gold)}</Text>
+              <Text style={s.goldValue}>{Math.floor(resources.gold)}</Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
@@ -187,7 +191,7 @@ export function ShopScreen({ gameState, locationId, visible, onClose, onToast }:
 // BuyRow
 // ─────────────────────────────────────────
 
-function BuyRow({ item, onBuy }: { item: ShopItem; onBuy: () => void }) {
+const BuyRow = memo(function BuyRow({ item, onBuy }: { item: ShopItem; onBuy: () => void }) {
   const { def, finalPrice, canAfford } = item;
   const rarityColor = RARITY_COLOURS[def.rarity];
   const icon        = CATEGORY_ICONS[def.category];
@@ -221,13 +225,13 @@ function BuyRow({ item, onBuy }: { item: ShopItem; onBuy: () => void }) {
       </View>
     </View>
   );
-}
+});
 
 // ─────────────────────────────────────────
 // SellRow
 // ─────────────────────────────────────────
 
-function SellRow({
+const SellRow = memo(function SellRow({
   name, quantity, salePrice, rarity, onSell,
 }: {
   name:      string;
@@ -265,7 +269,7 @@ function SellRow({
       </View>
     </View>
   );
-}
+});
 
 // ─────────────────────────────────────────
 // Styles

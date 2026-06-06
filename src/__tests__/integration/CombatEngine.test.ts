@@ -5,7 +5,7 @@ import {
   buildEnemiesForLocation,
   buildBossEnemy,
 } from '@engine/CombatEngine';
-import { CompanionArchetype, EnemyBehavior, SpecialEffect } from '@engine/types';
+import { CompanionArchetype, EnemyBehavior, MoraleTier, SpecialEffect } from '@engine/types';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
 import { mockRandomValue } from '../utils/mockRandom';
 import { equipItem } from '@engine/ItemSystem';
@@ -27,7 +27,7 @@ function makeEngine(enemyOverrides: Partial<EnemyCombatant> = {}, stateOverrides
   const enemies = [{ ...makeRatsEnemy(), ...enemyOverrides }];
   const state = makeGameState(stateOverrides);
   const onStateChange = jest.fn();
-  const engine = new CombatEngine(enemies, state, onStateChange);
+  const engine = new CombatEngine(enemies, state, onStateChange, Math.random);
   return { engine, onStateChange };
 }
 
@@ -73,7 +73,7 @@ describe('CombatEngine construction', () => {
     });
     const enemies = [makeRatsEnemy()];
     const onStateChange = jest.fn();
-    const engine = new CombatEngine(enemies, state, onStateChange);
+    const engine = new CombatEngine(enemies, state, onStateChange, Math.random);
     // travelers_blade gives +4 attack
     expect(engine.getState().player.attack).toBe(12);
   });
@@ -163,8 +163,8 @@ describe('CombatEngine — attack', () => {
     const state = makeGameState();
     const onStateChange1 = jest.fn();
     const onStateChange2 = jest.fn();
-    const eng1 = new CombatEngine([withResistance], state, onStateChange1);
-    const eng2 = new CombatEngine([withoutResistance], state, onStateChange2);
+    const eng1 = new CombatEngine([withResistance], state, onStateChange1, Math.random);
+    const eng2 = new CombatEngine([withoutResistance], state, onStateChange2, Math.random);
 
     eng1.submitAction({ type: 'attack', targetEnemyIndex: 0 });
     eng2.submitAction({ type: 'attack', targetEnemyIndex: 0 });
@@ -243,7 +243,11 @@ describe('CombatEngine — flee', () => {
     randomSpy.mockRestore();
     randomSpy = mockRandomValue(0.99);
 
-    const companion = makeCompanion({ id: 'mira_thorn', level: { current: 5, xp: 0, xpToNext: 20 } });
+    const companion = makeCompanion({
+      id: 'mira_thorn',
+      level: { current: 5, xp: 0, xpToNext: 20 },
+      guaranteedFleeAtLevel: 5,
+    });
     const { engine } = makeEngine({}, { companions: [companion] });
 
     // Enable Mira specialAbilityReady
@@ -253,6 +257,27 @@ describe('CombatEngine — flee', () => {
 
     expect(engine.getState().result?.outcome).toBe('fled');
     expect(engine.getState().companions[0].specialAbilityReady).toBe(false);
+  });
+
+  it.each([
+    ['weary', MoraleTier.Weary, 0.30],
+    ['desperate', MoraleTier.Desperate, 0.20],
+    ['broken', MoraleTier.Broken, 0.11],
+  ] as const)('applies the %s morale flee penalty', (_label, tier, fleeRoll) => {
+    randomSpy.mockRestore();
+    randomSpy = jest.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(fleeRoll)
+      .mockReturnValue(0.99);
+
+    const { engine } = makeEngine({}, {
+      morale: { value: 0, tier, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    engine.submitAction({ type: 'flee' });
+
+    expect(engine.getState().result?.outcome).not.toBe('fled');
+    expect(engine.getState().phase).toBe('awaiting_input');
   });
 
   it('flee chance filters out dead or fleeing enemies from speed calculation', () => {
@@ -267,7 +292,7 @@ describe('CombatEngine — flee', () => {
     const rat1 = { ...makeRatsEnemy(), speed: 10, isFleeing: true };
     const rat2 = { ...makeRatsEnemy(), speed: 2, currentHP: 10 };
     const state = makeGameState();
-    const engine = new CombatEngine([rat1, rat2], state, jest.fn());
+    const engine = new CombatEngine([rat1, rat2], state, jest.fn(), Math.random);
 
     engine.submitAction({ type: 'flee' });
 
@@ -314,7 +339,7 @@ describe('CombatEngine — negotiate', () => {
       isFleeing: false, physicalResistance: 0, statusEffects: [],
     };
     const state = makeGameState();
-    const eng = new CombatEngine([bandit], state, jest.fn());
+    const eng = new CombatEngine([bandit], state, jest.fn(), Math.random);
     eng.submitAction({ type: 'negotiate' });
 
     expect(eng.getState().result?.outcome).toBe('negotiated');
@@ -398,7 +423,7 @@ describe('buildBossEnemy', () => {
     expect(boss[0].enemyId).toBe('orc_warchief');
   });
 
-  it('keeps Orc Warchief HP at exactly 100 regardless of player level', () => {
+  it('scales Orc Warchief HP with player level', () => {
     const level1 = makeGameState({
       currentLocationId: 32,
       player: { name: 'T', level: 1, xp: 0, health: 100, stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 }, statusEffects: [] },
@@ -409,8 +434,8 @@ describe('buildBossEnemy', () => {
     });
     const boss1 = buildBossEnemy(level1);
     const boss5 = buildBossEnemy(level5);
-    expect(boss1[0].maxHP).toBe(100);
-    expect(boss5[0].maxHP).toBe(100);
+    expect(boss1[0].maxHP).toBe(85);
+    expect(boss5[0].maxHP).toBe(145);
   });
 
   it('scales boss HP with player level', () => {
@@ -438,7 +463,7 @@ describe('CombatEngine — companion AI', () => {
     const warrior = makeCompanion({ archetype: CompanionArchetype.Warrior });
     const state = makeGameState({ companions: [warrior] });
     const enemies = [makeRatsEnemy()];
-    const eng = new CombatEngine(enemies, state, jest.fn());
+    const eng = new CombatEngine(enemies, state, jest.fn(), Math.random);
 
     const hpBefore = eng.getState().enemies[0].currentHP;
     eng.submitAction({ type: 'attack', targetEnemyIndex: 0 });
@@ -450,6 +475,44 @@ describe('CombatEngine — companion AI', () => {
     const log = eng.getState().log;
     const compLog = log.find(l => l.actor === warrior.name);
     expect(compLog).toBeDefined();
+  });
+
+  it('desperate morale can make a companion hesitate', () => {
+    randomSpy.mockRestore();
+    randomSpy = jest.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.10)
+      .mockReturnValue(0.99);
+
+    const warrior = makeCompanion({ archetype: CompanionArchetype.Warrior, name: 'Rhea' });
+    const { engine } = makeEngine({}, {
+      companions: [warrior],
+      morale: { value: 30, tier: MoraleTier.Desperate, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    engine.submitAction({ type: 'defend' });
+
+    const hesitationLog = engine.getState().log.find(entry => entry.actor === 'Rhea' && entry.action.includes('hesitating'));
+    expect(hesitationLog).toBeDefined();
+  });
+
+  it('broken morale uses the higher companion panic chance', () => {
+    randomSpy.mockRestore();
+    randomSpy = jest.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.30)
+      .mockReturnValue(0.99);
+
+    const warrior = makeCompanion({ archetype: CompanionArchetype.Warrior, name: 'Bran' });
+    const { engine } = makeEngine({}, {
+      companions: [warrior],
+      morale: { value: 10, tier: MoraleTier.Broken, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    engine.submitAction({ type: 'defend' });
+
+    const hesitationLog = engine.getState().log.find(entry => entry.actor === 'Bran' && entry.action.includes('hesitating'));
+    expect(hesitationLog).toBeDefined();
   });
 });
 

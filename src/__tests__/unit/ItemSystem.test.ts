@@ -291,29 +291,28 @@ describe('computeEquippedBonuses', () => {
 // ─────────────────────────────────────────
 
 describe('getShopInventory', () => {
-  it('excludes rare items in early shops (location ≤ 10)', () => {
-    const items = getShopInventory(5, 100, false);
-    const rarities = items.map(i => i.def.rarity);
-    expect(rarities).not.toContain('rare');
+  it('returns empty array for a location with no shop', () => {
+    const items = getShopInventory(50, 100, false);
+    expect(items).toHaveLength(0);
   });
 
-  it('excludes non-consumable common items in late shops (location ≥ 90)', () => {
-    const items = getShopInventory(95, 100, false);
-    const badItems = items.filter(
-      i => i.def.rarity === 'common' && i.def.category !== ItemCategory.Consumable,
-    );
-    expect(badItems).toHaveLength(0);
+  it('returns stock defined in shops.json for a valid shop location', () => {
+    const items = getShopInventory(1, 100, false);
+    expect(items.length).toBeGreaterThan(0);
+    const ids = items.map(i => i.def.id);
+    expect(ids).toContain('dried_rations');
+    expect(ids).toContain('healing_potion');
   });
 
   it('never includes quest items', () => {
-    const items = getShopInventory(50, 100, false);
+    const items = getShopInventory(1, 100, false);
     const questItems = items.filter(i => i.def.category === ItemCategory.QuestItem);
     expect(questItems).toHaveLength(0);
   });
 
   it('applies 20% discount with Merchant\'s Ring', () => {
-    const withRing    = getShopInventory(5, 100, true);
-    const withoutRing = getShopInventory(5, 100, false);
+    const withRing    = getShopInventory(1, 100, true);
+    const withoutRing = getShopInventory(1, 100, false);
 
     const withItem    = withRing.find(i => i.def.id === 'dried_rations');
     const withoutItem = withoutRing.find(i => i.def.id === 'dried_rations');
@@ -324,7 +323,7 @@ describe('getShopInventory', () => {
   });
 
   it('marks item as unaffordable when player gold is insufficient', () => {
-    const items = getShopInventory(5, 0, false);
+    const items = getShopInventory(1, 0, false);
     const affordable = items.filter(i => i.canAfford);
     expect(affordable).toHaveLength(0);
   });

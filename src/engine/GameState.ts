@@ -7,92 +7,80 @@ import {
   MoraleState,
   ReputationState,
   LevelUpChoice,
+  MetaProgress,
+  Companion,
 } from './types';
 import { normalizeRngState, nextMulberry32 } from './Random';
 import { Location } from '../data/locations';
 import { generateRunLayout } from './RunLayout';
+import {
+  BOSS_POWER_IDEAL_CONFIG,
+  BOSS_POWER_THRESHOLD_CONFIG,
+  CONFIG_LEVEL_UP_CHOICES,
+  ConfigLevelUpChoice,
+  STARTING_RESOURCES,
+  XP_THRESHOLDS_CONFIG,
+} from '@data/config';
+import { GameBalance } from './GameBalance';
 
 // ─────────────────────────────────────────
 // Schema version — increment when GameState
 // structure changes to trigger migration
 // ─────────────────────────────────────────
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 10;
 
-// ─────────────────────────────────────────
-// XP thresholds per level (index = level)
-// ─────────────────────────────────────────
-export const XP_THRESHOLDS = [
-  0,    // Level 1  (starting)
-  30,   // Level 2
-  75,   // Level 3
-  140,  // Level 4
-  230,  // Level 5
-  350,  // Level 6
-  500,  // Level 7
-  680,  // Level 8
-  900,  // Level 9
-  1200, // Level 10
-];
+function describeLevelUpChoice(choice: ConfigLevelUpChoice): string {
+  const statLabels: Record<ConfigLevelUpChoice['stat'], string> = {
+    attack: 'attack',
+    defense: 'defense',
+    speed: 'speed',
+    leadership: 'leadership',
+    maxHealth: 'max HP',
+    luck: 'luck',
+  };
 
-// ─────────────────────────────────────────
-// All possible level-up stat choices
-// ─────────────────────────────────────────
-export const LEVEL_UP_CHOICES: LevelUpChoice[] = [
-  {
-    id:          'tough',
-    label:       'Toughened',
-    description: '+5 max HP, +2 defense. The road makes you harder.',
-    effect:      { maxHealth: 5, defense: 2 },
-  },
-  {
-    id:          'sharp',
-    label:       'Sharp Eye',
-    description: '+2 perception, +3% luck. You notice what others miss.',
-    effect:      { perception: 2, luckModifier: 0.03 },
-  },
-  {
-    id:          'swift',
-    label:       'Swift Footed',
-    description: '+2 speed, -5% forced march food cost.',
-    effect:      { speed: 2, foodCostModifier: -0.05 },
-  },
-  {
-    id:          'leader',
-    label:       'Inspiring',
-    description: '+2 leadership, +1 morale per turn.',
-    effect:      { leadership: 2, moralePerTurn: 1 },
-  },
-  {
-    id:          'survivor',
-    label:       'Survivor',
-    description: '+2 endurance, +1 food from foraging.',
-    effect:      { endurance: 2, foragingBonus: 1 },
-  },
-  {
-    id:          'fierce',
-    label:       'Fierce',
-    description: '+3 attack. You hit harder than before.',
-    effect:      { attack: 3 },
-  },
-  {
-    id:          'thief',
-    label:       'Thievery',
-    description: '+3 Stealing skill. You are fleet of finger.',
-    effect:      { stealing: 3 },
-  },
-];
+  return `+${choice.bonus} ${statLabels[choice.stat]}.`;
+}
+
+function toLevelUpChoice(choice: ConfigLevelUpChoice): LevelUpChoice {
+  const effect: LevelUpChoice['effect'] = choice.stat === 'luck'
+    ? { luck: choice.bonus }
+    : { [choice.stat]: choice.bonus };
+
+  return {
+    id: choice.id,
+    label: choice.label,
+    description: describeLevelUpChoice(choice),
+    effect,
+  };
+}
+
+function cloneMetaProgress(metaProgress: MetaProgress | null): MetaProgress | null {
+  if (!metaProgress) return null;
+
+  return {
+    ...metaProgress,
+    unlockedCompanionIds: [...metaProgress.unlockedCompanionIds],
+  };
+}
+
+export const XP_THRESHOLDS = XP_THRESHOLDS_CONFIG;
+export const LEVEL_UP_CHOICES: LevelUpChoice[] = CONFIG_LEVEL_UP_CHOICES.map(toLevelUpChoice);
 
 // ─────────────────────────────────────────
 // Boss power constants
 // ─────────────────────────────────────────
-export const BOSS_POWER_THRESHOLD = 180;
-export const BOSS_POWER_IDEAL     = 240;
+export const BOSS_POWER_THRESHOLD = BOSS_POWER_THRESHOLD_CONFIG;
+export const BOSS_POWER_IDEAL     = BOSS_POWER_IDEAL_CONFIG;
 
 // ─────────────────────────────────────────
 // createNewGameState
 // ─────────────────────────────────────────
-export function createNewGameState(playerName = 'The Traveler'): GameState {
-  const seed = Math.floor(Math.random() * 999_999);
+export function createNewGameState(
+  playerName = 'The Traveler',
+  metaProgress: MetaProgress | null = null,
+): GameState {
+  const seed = Date.now() % 999_999;
   const runLayout = generateRunLayout(seed);
   return {
     runId:             generateRunId(),
@@ -108,25 +96,26 @@ export function createNewGameState(playerName = 'The Traveler'): GameState {
       name:   playerName,
       level:  1,
       xp:     0,
-      health: 100,
+      health: STARTING_RESOURCES.health,
       stats: {
-        maxHealth:  100,
+        maxHealth:  STARTING_RESOURCES.health,
         attack:     8,
         defense:    4,
         speed:      5,
         endurance:  3,
         perception: 3,
         leadership: 2,
+        luck:       0,
         stealing:   5,
       },
       statusEffects: [],
     },
 
     resources: {
-      food:          8,
-      gold:          25,
+      food:          STARTING_RESOURCES.food,
+      gold:          STARTING_RESOURCES.gold,
       items:         [],
-      maxSlots:      8,
+      maxSlots:      STARTING_RESOURCES.maxInventorySlots,
       equippedItems: {},
     },
 
@@ -154,6 +143,10 @@ export function createNewGameState(playerName = 'The Traveler'): GameState {
     clearedCombatLocations: new Set<number>(),
     currentTurn:            null,
     turnHistory:        [],
+    metaProgress:       cloneMetaProgress(metaProgress),
+    consecutiveForcedMarches: 0,
+    consecutiveStormDays:     0,
+    consecutiveCombatDays:    0,
   };
 }
 
@@ -247,12 +240,9 @@ export function applyLevelUpChoice(
     endurance:  stats.endurance  + (e.endurance  ?? 0),
     perception: stats.perception + (e.perception ?? 0),
     leadership: stats.leadership + (e.leadership ?? 0),
+    luck:       (stats.luck      ?? 0) + (e.luck      ?? 0),
     stealing:   (stats.stealing ?? 0) + (e.stealing ?? 0),
   };
-}
-
-export function getRandomLevelUpChoices(count: number): LevelUpChoice[] {
-  return getRandomLevelUpChoicesWithRng(count, Math.random);
 }
 
 export function getRandomLevelUpChoicesWithRng(
@@ -270,10 +260,10 @@ export function getRandomLevelUpChoicesWithRng(
 }
 
 export function isDreadActive(dayNumber: number, locationId: number): boolean {
-  if (dayNumber < 70) return false;
+  if (dayNumber < GameBalance.DREAD_TRIGGER_DAY) return false;
   const daysLeft      = 100 - dayNumber;
   const locationsLeft = 125 - locationId;
-  return daysLeft > 0 && locationsLeft / daysLeft > 1.5;
+  return daysLeft > 0 && locationsLeft / daysLeft > GameBalance.DREAD_PACE_RATIO;
 }
 
 export function calculateCombatPower(state: GameState): number {
@@ -309,7 +299,7 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 function generateRunId(): string {
-  return `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  return `run_${Date.now().toString(36)}`;
 }
 
 export function pickLocationText(
@@ -338,4 +328,56 @@ export function pickLocationRandomText(
   const { value } = nextMulberry32(xorState);
   const index = Math.floor(value * location.randomTexts.length);
   return location.randomTexts[index] || null;
+}
+
+export function tickCompanionXP(companions: Companion[], amount: number): Companion[] {
+  const XP_TO_NEXT = [0, 20, 50, 95, 160];
+  return companions.map(c => {
+    const newXP      = c.level.xp + amount;
+    const nextLevel  = c.level.current < 5 ? XP_TO_NEXT[c.level.current] : Infinity;
+    const levelsUp   = newXP >= nextLevel && c.level.current < 5;
+    return {
+      ...c,
+      level: {
+        current:  levelsUp ? c.level.current + 1 : c.level.current,
+        xp:       newXP,
+        xpToNext: levelsUp
+          ? XP_TO_NEXT[Math.min(c.level.current + 1, 4)]
+          : c.level.xpToNext,
+      },
+    };
+  });
+}
+
+export function buildLevelUpChoicePreviews(choices: LevelUpChoice[], stats: PlayerStats): LevelUpChoice[] {
+  const statLabels: Record<keyof PlayerStats, string> = {
+    maxHealth: 'Max HP',
+    attack:    'Attack',
+    defense:   'Defense',
+    speed:     'Speed',
+    endurance: 'Endurance',
+    perception:'Perception',
+    leadership:'Leadership',
+    luck:      'Luck',
+    stealing:  'Stealing',
+  };
+
+  return choices.map(choice => {
+    const cloned = { ...choice };
+    const previews: string[] = [];
+
+    (Object.keys(statLabels) as Array<keyof PlayerStats>).forEach(key => {
+      const delta = choice.effect[key];
+      if (delta !== undefined && delta !== 0) {
+        const before = stats[key] ?? 0;
+        const after = before + delta;
+        previews.push(`${statLabels[key]}  ${before} → ${after}`);
+      }
+    });
+
+    if (previews.length > 0) {
+      cloned.statPreview = previews.join(', ');
+    }
+    return cloned;
+  });
 }

@@ -7,6 +7,7 @@ import {
   unequipItem as unequipInventoryItem,
   useItem as consumeInventoryItem,
   sellItem as sellInventoryItem,
+  removeItem,
   getItemDef,
   inventoryFromResources,
   resourcesToInventory,
@@ -206,9 +207,9 @@ export function useInventoryActions() {
     if (!gameState) return { success: false, reason: 'No active game.' } satisfies ActionFailure;
 
     const inventory = inventoryFromResources(gameState.resources);
-    const result = sellInventoryItem(inventory, itemId);
-    if (!result.success || !result.inventory) {
-      return { success: false, reason: result.reason ?? 'Cannot drop item.' } satisfies ActionFailure;
+    const result = removeItem(inventory, itemId, 1);
+    if (!result.success) {
+      return { success: false, reason: result.reason } satisfies ActionFailure;
     }
 
     const nextState = {

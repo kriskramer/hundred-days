@@ -9,7 +9,8 @@ import { hasEligibleDialogue } from '@engine/EventSystem';
 import { canStealFromDialogue, findDialogueForLocation, getDialogueDisplayName, isNpcDialogue } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
-import { TypewriterText } from '@components';
+import { TypewriterText, CompanionDetailModal } from '@components';
+import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
@@ -60,124 +61,6 @@ function getForageTextColor(huntYield: number | null): string {
   return '#1B5232';
 }
 
-function getPassiveBonusDescription(bonus: CompanionPassiveBonus): string {
-  const parts: string[] = [];
-  if (bonus.luckModifier) {
-    parts.push(`Luck Modifier: +${Math.round(bonus.luckModifier * 100)}%`);
-  }
-  if (bonus.foodCostModifier) {
-    parts.push(`Food Cost Modifier: -${Math.round((1 - bonus.foodCostModifier) * 100)}%`);
-  }
-  if (bonus.foragingBonus) {
-    parts.push(`Foraging: +${bonus.foragingBonus}`);
-  }
-  if (bonus.goldFindBonus) {
-    parts.push(`Gold Find: +${Math.round(bonus.goldFindBonus * 100)}%`);
-  }
-  if (bonus.moralePerTurn) {
-    parts.push(`Morale: +${bonus.moralePerTurn}/turn`);
-  }
-  if (bonus.healthRegenPerTurn) {
-    parts.push(`Health Regen: +${bonus.healthRegenPerTurn} HP/turn`);
-  }
-  if (bonus.movementBonus) {
-    parts.push(`Movement Speed: +${Math.round(bonus.movementBonus * 100)}%`);
-  }
-  if (bonus.eventMitigation && bonus.eventMitigation.length > 0) {
-    parts.push(`Mitigates: ${bonus.eventMitigation.join(', ')}`);
-  }
-  if (bonus.revealHiddenLocations) {
-    parts.push(`Reveals hidden locations`);
-  }
-  return parts.length > 0 ? parts.join(', ') : 'None';
-}
-
-function CompanionDetailCard({ companion, onClose }: { companion: Companion; onClose: () => void }) {
-  const loyalty = companion.loyalty.value;
-  const tier = loyalty >= 60 ? 'Loyal' : loyalty >= 30 ? 'Wavering' : 'Restless';
-  const loyaltyColor = loyalty >= 60 ? Colors.green : loyalty >= 30 ? '#C8A020' : Colors.blood;
-  const bonusDesc = getPassiveBonusDescription(companion.passiveBonus);
-
-  return (
-    <View style={{
-      borderWidth: 1.5,
-      borderColor: Colors.gold,
-      borderRadius: 4,
-      padding: 14,
-      marginBottom: 16,
-      backgroundColor: '#EDE4CF',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.15,
-      shadowRadius: 4,
-      elevation: 2,
-      position: 'relative',
-      width: '100%',
-    }}>
-      {/* Close button */}
-      <TouchableOpacity 
-        onPress={onClose} 
-        style={{ 
-          position: 'absolute', 
-          right: 12, 
-          top: 10, 
-          padding: 4 
-        }}
-      >
-        <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 13, color: Colors.inkLight }}>✕</Text>
-      </TouchableOpacity>
-
-      <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 16, color: Colors.ink, marginBottom: 2 }}>
-        {companion.name}
-      </Text>
-      <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: Colors.mist, letterSpacing: 0.8, marginBottom: 8, textTransform: 'uppercase' }}>
-        Level {companion.level.current} • {companion.archetype}
-      </Text>
-
-      <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 14, color: Colors.inkLight, marginBottom: 12, lineHeight: 18 }}>
-        {companion.description}
-      </Text>
-
-      {/* Stats and details */}
-      <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 10 }}>
-        {/* Loyalty */}
-        <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: Colors.inkLight, letterSpacing: 0.5 }}>
-          Loyalty: {loyalty}/100 ({tier})
-        </Text>
-        <View style={{ height: 6, backgroundColor: '#C8B89A', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
-          <View style={{ width: `${loyalty}%`, height: '100%', backgroundColor: loyaltyColor, borderRadius: 3 }} />
-        </View>
-
-        {/* Combat Power & Food Cost */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 11, color: Colors.inkLight }}>
-            ⚔ Combat Power: <Text style={{ fontFamily: 'Cinzel_600SemiBold' }}>+{companion.combatPower}</Text>
-          </Text>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 11, color: Colors.inkLight }}>
-            🍎 Food Cost: <Text style={{ fontFamily: 'Cinzel_600SemiBold' }}>{companion.foodCostPerTurn}/turn</Text>
-          </Text>
-        </View>
-
-        {/* Passive Bonus */}
-        <View style={{ marginTop: 6 }}>
-          <Text style={{ fontFamily: 'Cinzel_400Regular', fontSize: 10, color: Colors.mist, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2 }}>
-            Passive Bonus
-          </Text>
-          <Text style={{ fontFamily: 'CrimsonText_400Regular', fontSize: 13, color: Colors.ink }}>
-            {bonusDesc}
-          </Text>
-        </View>
-
-        {/* Muted warning line when loyalty < 30 */}
-        {loyalty < 30 && (
-          <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 12, color: Colors.blood, marginTop: 6, alignSelf: 'center' }}>
-            ⚠ Growing restless... Keep morale high or perform rallies.
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-}
 
 interface ShakingBadgeProps {
   children: React.ReactNode;
@@ -342,6 +225,12 @@ export function RoadScreen({
     s => s.from === gameState.currentLocationId && (gameState.player.stats.perception ?? 0) >= s.perceptionThreshold
   ) ?? [];
 
+  const itemBonuses = computeEquippedBonuses(inventoryFromResources(gameState.resources));
+  const luckThreshold = getLuckThreshold(gameState.morale)
+    + ((gameState.player.stats.luck ?? 0) / 100)
+    + (itemBonuses.luckModifier ?? 0);
+  const isLucky = luckThreshold > 0.25;
+
   const actionButtons = (bossNearby
     ? [
         {
@@ -355,7 +244,7 @@ export function RoadScreen({
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
         ...((dialogueNearby && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
-        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }), isLucky },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...activeShortcuts.map(s => ({
           label: s.label,
@@ -653,7 +542,7 @@ export function RoadScreen({
             {gameState.companions.length > 0 && (
               <View style={{ marginBottom: 16 }}>
                 <SectionHeader label="Companions" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2, marginBottom: selectedCompanionId ? 12 : 0 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 2 }}>
                   {gameState.companions.map(c => (
                     <CompanionIcon 
                       key={c.id} 
@@ -666,11 +555,6 @@ export function RoadScreen({
                     />
                   ))}
                 </ScrollView>
-                {selectedCompanionId && (() => {
-                  const c = gameState.companions.find(comp => comp.id === selectedCompanionId);
-                  if (!c) return null;
-                  return <CompanionDetailCard companion={c} onClose={() => setSelectedCompanionId(null)} />;
-                })()}
               </View>
             )}
 
@@ -684,6 +568,11 @@ export function RoadScreen({
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
         />
       )}
+      <CompanionDetailModal
+        visible={selectedCompanionId !== null}
+        companionId={selectedCompanionId}
+        onClose={() => setSelectedCompanionId(null)}
+      />
     </View>
   );
 }
@@ -806,6 +695,7 @@ type ActionDef = {
   variant: 'primary' | 'secondary' | 'default' | 'npc' | 'move' | 'forceMarch';
   onPress: () => void;
   disabled?: boolean;
+  isLucky?: boolean;
 };
 
 function ActionGrid({ actions }: { actions: ActionDef[] }) {
@@ -825,20 +715,24 @@ function ActionGrid({ actions }: { actions: ActionDef[] }) {
   );
 }
 
-function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
+function ActionButton({ label, sub, variant, onPress, disabled, isLucky }: ActionDef) {
   const bg          = variant === 'primary'    ? Colors.blood
                     : variant === 'secondary'  ? Colors.gold
                     : variant === 'npc'        ? '#D8EEF9'
                     : variant === 'move'       ? '#3D6B4A'
                     : variant === 'forceMarch' ? '#1E4E2C'
                     : Colors.ink;
-  const borderColor = variant === 'primary'    ? '#C94040'
+  let borderColor = variant === 'primary'    ? '#C94040'
                     : variant === 'secondary'  ? '#D4A017'
                     : variant === 'npc'        ? '#7BAFCC'
                     : variant === 'move'       ? '#5E8A69'
                     : variant === 'forceMarch' ? '#2F6A41'
                     : '#3A2E1C';
   const textColor   = variant === 'secondary' || variant === 'npc' ? Colors.ink : Colors.parchment;
+
+  if (isLucky && variant === 'move') {
+    borderColor = '#B8860B'; // Gold border highlight
+  }
 
   return (
     <TouchableOpacity
@@ -852,13 +746,13 @@ function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
       style={{
         flex: 1,
         backgroundColor: bg,
-        borderWidth: 1.5,
+        borderWidth: isLucky && variant === 'move' ? 2.2 : 1.5,
         borderColor,
         borderRadius: 3,
         alignItems: 'center',
         paddingVertical: 10,
         paddingHorizontal: 6,
-        shadowColor: '#000',
+        shadowColor: isLucky && variant === 'move' ? '#B8860B' : '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: disabled ? 0 : 0.35,
         shadowRadius: 3,
@@ -867,7 +761,7 @@ function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
       }}
     >
       <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: textColor, fontSize: 12, letterSpacing: 1 }}>
-        {label}
+        {isLucky && variant === 'move' ? '✨ ' : ''}{label}
       </Text>
       <Text style={{ fontFamily: 'CrimsonText_400Regular_Italic', color: textColor, fontSize: 11, marginTop: 2, opacity: 0.75, textAlign: 'center' }}>
         {sub}

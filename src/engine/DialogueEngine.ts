@@ -1,234 +1,125 @@
-import {
-  GameState,
+import { DIALOGUES, getDialogue } from '@data/dialogues';
+import { evalConditions } from './ConditionEvaluator';
+import type {
+  ChoiceOutcome,
   Companion,
-  MoraleTier,
-  ReputationTier,
-  CombatResult,
+  Dialogue,
+  DialogueChoice,
+  DialogueNode,
+  DialogueSession,
+  DialogueSessionOutcome,
+  GameState,
 } from './types';
 
-// ─────────────────────────────────────────
-// Dialogue types
-// ─────────────────────────────────────────
-
-export type ChoiceTone =
-  | 'heroic'
-  | 'pragmatic'
-  | 'cunning'
-  | 'intimidating'
-  | 'villainous'
-  | 'curious'
-  | 'humorous';
-
-export type DialogueTrigger =
-  | 'location_enter'
-  | 'event_fired'
-  | 'player_initiated'
-  | 'companion_trigger'
-  | 'combat_precursor';
-
-export interface DialogueCondition {
-  minReputation?:          number;
-  maxReputation?:          number;
-  minMorale?:              number;
-  maxMorale?:              number;
-  minPlayerLevel?:         number;
-  requiredCompanionId?:    string;
-  forbiddenCompanionId?:   string;
-  minGold?:                number;
-  minFood?:                number;
-  locationId?:             number;
-  locationIds?:            number[];     // fires at any of these locations
-  minLocationId?:          number;
-  maxLocationId?:          number;
-  dayRange?:               [number, number];
-  notAlreadyMet?:          boolean;      // fires at most once per location per run
-  requiredFlag?:           string;       // global story flag must be set
-  forbiddenFlag?:          string;       // global story flag must NOT be set
-}
-
-export interface ChoiceOutcome {
-  nextNodeId:        string | null;  // null = end conversation
-
-  resourceDelta?: {
-    food?:   number;
-    gold?:   number;
-    health?: number;
-  };
-
-  reputationDelta?:  number;
-  moraleDelta?:      number;
-  xpGained?:         number;
-
-  companionEffect?: {
-    type:          'recruit' | 'loyalty_boost' | 'loyalty_loss' | 'dismiss';
-    companionId:   string;
-    magnitude?:    number;
-  };
-
-  eventTrigger?: {
-    type:    'combat' | 'item_gain' | 'status_effect' | 'unlock_location';
-    payload: string;
-  };
-
-  flagsSet?:       string[];
-  outcomeText?:    string;   // brief text shown between nodes
-}
-
-export interface DialogueChoice {
-  id:          string;
-  text:        string;
-  tone:        ChoiceTone;
-  conditions?: DialogueCondition;
-  outcome:     ChoiceOutcome;
-  isHidden?:   boolean;   // computed at runtime
-}
-
-export interface DialogueNode {
-  id:               string;
-  speakerName:      string;
-  speakerPortraitId?:string;
-  text:             string;
-  choices:          DialogueChoice[];
-  conditions?:      DialogueCondition;
-  autoAdvance?:     boolean;
-  autoAdvanceToId?: string | null;
-  autoAdvanceDelayMs?: number;  // defaults to 1800
-}
-
-export interface Dialogue {
-  id:               string;
-  title:            string;
-  triggerType:      DialogueTrigger;
-  triggerConditions:DialogueCondition;
-  rootNodeId:       string;
-  nodes:            Record<string, DialogueNode>;
-  repeatable:       boolean;
-  tags:             string[];
-}
-
-// ─────────────────────────────────────────
-// Session outcome — accumulated across the tree
-// ─────────────────────────────────────────
-
-export interface DialogueSessionOutcome {
-  dialogueId:        string;
-  reputationDelta:   number;
-  moraleDelta:       number;
-  xpGained:          number;
-  resourceDeltas: {
-    food:   number;
-    gold:   number;
-    health: number;
-  };
-  companionEffects:  ChoiceOutcome['companionEffect'][];
-  eventTriggers:     ChoiceOutcome['eventTrigger'][];
-  flagsSet:          string[];
-}
-
-export interface DialogueSession {
-  dialogueId:    string;
-  currentNodeId: string;
-  choiceHistory: string[];
-  isComplete:    boolean;
-  outcome:       DialogueSessionOutcome;
-}
-
-
-// ─────────────────────────────────────────
-// DialogueEngine
-// ─────────────────────────────────────────
+export { DIALOGUES, getDialogue };
+export type {
+  ChoiceTone,
+  DialogueTrigger,
+  DialogueCondition,
+  ChoiceOutcome,
+  DialogueChoice,
+  DialogueNode,
+  Dialogue,
+  DialogueSessionOutcome,
+  DialogueSession,
+} from './types';
 
 export class DialogueEngine {
-  private session:        DialogueSession;
-  private dialogue:       Dialogue;
-  private onNodeChange:   (node: DialogueNode, choices: DialogueChoice[]) => void;
-  private onComplete:     (outcome: DialogueSessionOutcome) => void;
+  private session: DialogueSession;
+  private dialogue: Dialogue;
+  private onNodeChange: (node: DialogueNode, choices: DialogueChoice[]) => void;
+  private onComplete: (outcome: DialogueSessionOutcome) => void;
   private autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
-    dialogue:     Dialogue,
-    _gameState:    GameState,         // future: used for seeded randoms
+    dialogue: Dialogue,
+    _gameState: GameState,
     onNodeChange: (node: DialogueNode, choices: DialogueChoice[]) => void,
-    onComplete:   (outcome: DialogueSessionOutcome) => void,
+    onComplete: (outcome: DialogueSessionOutcome) => void,
   ) {
-    this.dialogue     = dialogue;
+    this.dialogue = dialogue;
     this.onNodeChange = onNodeChange;
-    this.onComplete   = onComplete;
+    this.onComplete = onComplete;
     this.session = {
-      dialogueId:    dialogue.id,
+      dialogueId: dialogue.id,
       currentNodeId: dialogue.rootNodeId,
       choiceHistory: [],
-      isComplete:    false,
-      outcome:       emptyOutcome(dialogue.id),
+      isComplete: false,
+      outcome: emptyOutcome(dialogue.id),
     };
   }
 
-  /** Start the conversation — call once after construction. */
   start(gameState: GameState, companions: Companion[]): void {
     this.advanceTo(this.dialogue.rootNodeId, gameState, companions);
   }
 
-  /** Submit the player's chosen choice. */
   choose(choiceId: string, gameState: GameState, companions: Companion[]): void {
     if (this.session.isComplete) return;
-    const node   = this.dialogue.nodes[this.session.currentNodeId];
-    if (!node)   return;
-    const choice = node.choices.find(c => c.id === choiceId);
+
+    const node = this.dialogue.nodes[this.session.currentNodeId];
+    if (!node) return;
+
+    const choice = node.choices.find(entry => entry.id === choiceId);
     if (!choice) return;
 
     this.session.choiceHistory.push(choiceId);
     this.accumulateOutcome(choice.outcome);
 
     if (choice.outcome.flagsSet) {
-      choice.outcome.flagsSet.forEach(f => gameState.storyFlags.add(f));
+      choice.outcome.flagsSet.forEach(flag => gameState.storyFlags.add(flag));
     }
 
     if (choice.outcome.nextNodeId) {
       this.advanceTo(choice.outcome.nextNodeId, gameState, companions);
-    } else {
-      this.end();
+      return;
     }
+
+    this.end();
   }
 
-  /** Advance an auto-advance node. */
   advance(gameState: GameState, companions: Companion[]): void {
     const node = this.dialogue.nodes[this.session.currentNodeId];
     if (!node?.autoAdvance) return;
+
     if (node.autoAdvanceToId) {
       this.advanceTo(node.autoAdvanceToId, gameState, companions);
-    } else {
-      this.end();
+      return;
+    }
+
+    this.end();
+  }
+
+  destroy(): void {
+    if (this.autoAdvanceTimer) {
+      clearTimeout(this.autoAdvanceTimer);
     }
   }
 
-  /** Cancel any pending auto-advance (call on unmount). */
-  destroy(): void {
-    if (this.autoAdvanceTimer) clearTimeout(this.autoAdvanceTimer);
+  getSession(): DialogueSession {
+    return this.session;
   }
-
-  getSession(): DialogueSession { return this.session; }
-
-  // ── Private ───────────────────────────────────────────────
 
   private advanceTo(nodeId: string, gameState: GameState, companions: Companion[]): void {
     const node = this.dialogue.nodes[nodeId];
-    if (!node) { this.end(); return; }
+    if (!node) {
+      this.end();
+      return;
+    }
 
     this.session.currentNodeId = nodeId;
 
-    const visibleChoices = node.choices.filter(
-      c => !c.conditions || this.evalConditions(c.conditions, gameState, companions),
+    const visibleChoices = node.choices.filter(choice =>
+      !choice.conditions || evalConditions(choice.conditions, { ...gameState, companions }, { dialogueId: this.dialogue.id }),
     );
 
     this.onNodeChange(node, visibleChoices);
 
-    if (node.autoAdvance) {
-      const delay = node.autoAdvanceDelayMs ?? 1800;
-      this.autoAdvanceTimer = setTimeout(
-        () => this.advance(gameState, companions),
-        delay,
-      );
+    if (!node.autoAdvance) {
+      return;
     }
+
+    const delay = node.autoAdvanceDelayMs ?? 1800;
+    this.autoAdvanceTimer = setTimeout(() => this.advance(gameState, companions), delay);
   }
 
   private end(): void {
@@ -236,48 +127,18 @@ export class DialogueEngine {
     this.onComplete(this.session.outcome);
   }
 
-  private evalConditions(
-    c:          DialogueCondition,
-    game:       GameState,
-    companions: Companion[],
-  ): boolean {
-    const rep    = game.reputation.value;
-    const morale = game.morale.value;
+  private accumulateOutcome(outcome: ChoiceOutcome): void {
+    const sessionOutcome = this.session.outcome;
 
-    if (c.minReputation !== undefined && rep    < c.minReputation) return false;
-    if (c.maxReputation !== undefined && rep    > c.maxReputation) return false;
-    if (c.minMorale     !== undefined && morale < c.minMorale)     return false;
-    if (c.maxMorale     !== undefined && morale > c.maxMorale)     return false;
-    if (c.minPlayerLevel!== undefined && game.player.level < c.minPlayerLevel) return false;
-    if (c.minGold       !== undefined && game.resources.gold  < c.minGold)  return false;
-    if (c.minFood       !== undefined && game.resources.food  < c.minFood)  return false;
-
-    if (c.requiredCompanionId) {
-      if (!companions.some(co => co.id === c.requiredCompanionId)) return false;
-    }
-    if (c.forbiddenCompanionId) {
-      if (companions.some(co => co.id === c.forbiddenCompanionId)) return false;
-    }
-
-    if (c.requiredFlag && !game.storyFlags.has(c.requiredFlag)) return false;
-    if (c.forbiddenFlag && game.storyFlags.has(c.forbiddenFlag)) return false;
-
-    if (c.notAlreadyMet && game.firedEventIds.has(`${this.dialogue.id}_loc${game.currentLocationId}`)) return false;
-
-    return true;
-  }
-
-  private accumulateOutcome(o: ChoiceOutcome): void {
-    const out = this.session.outcome;
-    if (o.reputationDelta)      out.reputationDelta  += o.reputationDelta;
-    if (o.moraleDelta)          out.moraleDelta       += o.moraleDelta;
-    if (o.xpGained)             out.xpGained          += o.xpGained;
-    if (o.resourceDelta?.food)  out.resourceDeltas.food  += o.resourceDelta.food;
-    if (o.resourceDelta?.gold)  out.resourceDeltas.gold  += o.resourceDelta.gold;
-    if (o.resourceDelta?.health)out.resourceDeltas.health+= o.resourceDelta.health;
-    if (o.companionEffect)      out.companionEffects.push(o.companionEffect);
-    if (o.eventTrigger)         out.eventTriggers.push(o.eventTrigger);
-    if (o.flagsSet)             out.flagsSet.push(...o.flagsSet);
+    if (outcome.reputationDelta) sessionOutcome.reputationDelta += outcome.reputationDelta;
+    if (outcome.moraleDelta) sessionOutcome.moraleDelta += outcome.moraleDelta;
+    if (outcome.xpGained) sessionOutcome.xpGained += outcome.xpGained;
+    if (outcome.resourceDelta?.food) sessionOutcome.resourceDeltas.food += outcome.resourceDelta.food;
+    if (outcome.resourceDelta?.gold) sessionOutcome.resourceDeltas.gold += outcome.resourceDelta.gold;
+    if (outcome.resourceDelta?.health) sessionOutcome.resourceDeltas.health += outcome.resourceDelta.health;
+    if (outcome.companionEffect) sessionOutcome.companionEffects.push(outcome.companionEffect);
+    if (outcome.eventTrigger) sessionOutcome.eventTriggers.push(outcome.eventTrigger);
+    if (outcome.flagsSet) sessionOutcome.flagsSet.push(...outcome.flagsSet);
   }
 }
 
@@ -285,879 +146,34 @@ function emptyOutcome(dialogueId = ''): DialogueSessionOutcome {
   return {
     dialogueId,
     reputationDelta: 0,
-    moraleDelta:     0,
-    xpGained:        0,
-    resourceDeltas:  { food: 0, gold: 0, health: 0 },
-    companionEffects:[],
-    eventTriggers:   [],
-    flagsSet:        [],
+    moraleDelta: 0,
+    xpGained: 0,
+    resourceDeltas: { food: 0, gold: 0, health: 0 },
+    companionEffects: [],
+    eventTriggers: [],
+    flagsSet: [],
   };
 }
 
-// ─────────────────────────────────────────
-// Dialogue registry
-// ─────────────────────────────────────────
-
-export const DIALOGUES: Dialogue[] = [
-
-  // ── Rex the Dog ────────────────────────────────────────────
-  {
-    id:          'rex_the_dog',
-    title:       'Rex Wants to Come',
-    triggerType: 'location_enter',
-    triggerConditions: { locationIds: [2, 3, 4], notAlreadyMet: true, forbiddenCompanionId: 'rex_the_dog' },
-    rootNodeId:  'rex_01',
-    repeatable:  false,
-    tags:        ['companion', 'early_game', 'animal'],
-    nodes: {
-      rex_01: {
-        id:          'rex_01',
-        speakerName: 'Narrator',
-        text:        'A scruffy brown dog has been following you since Okuna. As you leave the outskirts he sits in the road ahead of you, tail wagging, blocking your path with cheerful obstinacy.',
-        choices: [
-          {
-            id:   'rex_take',
-            text: '"Alright. Come on then."',
-            tone: 'heroic',
-            outcome: {
-              nextNodeId:      'rex_joins',
-              moraleDelta:     5,
-              companionEffect: { type: 'recruit', companionId: 'rex_the_dog' },
-              flagsSet:        ['rex_recruited'],
-            },
-          },
-          {
-            id:   'rex_food',
-            text: 'Give him some food and send him home.',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId:      'rex_stays',
-              resourceDelta:   { food: -1 },
-              flagsSet:        ['rex_fed_stayed'],
-            },
-          },
-          {
-            id:   'rex_shoo',
-            text: 'Shoo him away. No place for a dog.',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId: 'rex_dismissed',
-              flagsSet:   ['rex_dismissed_early'],
-            },
-          },
-          {
-            id:   'rex_kick',
-            text: 'Kick the fleabag until it leaves you alone.',
-            tone: 'villainous',
-            outcome: {
-              nextNodeId:      'rex_abused',
-              reputationDelta: -8,
-              flagsSet:        ['rex_abused_early'],
-            },
-          },
-        ],
-      },
-      rex_joins: {
-        id:          'rex_joins',
-        speakerName: 'Narrator',
-        text:        'Rex leaps forward and falls into step beside you, tail still going. He immediately finds something dead to sniff.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      rex_stays: {
-        id:          'rex_stays',
-        speakerName: 'Narrator',
-        text:        'Rex eats the food enthusiastically, watches you go, and sits down in the road. He will find his own way.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      rex_dismissed: {
-        id:          'rex_dismissed',
-        speakerName: 'Narrator',
-        text:        'Rex watches you walk away with a look of profound, tail-drooping disappointment. You feel it between your shoulder blades for the next mile.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      rex_abused: {
-        id:          'rex_abused',
-        speakerName: 'Narrator',
-        text:        'Rex yelps and scrambles away from you, all trust shattered in an instant. The sound lingers in the air long after he is gone.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Wounded Stranger ───────────────────────────────────────
-  {
-    id:          'wounded_stranger',
-    title:       'Someone Needs Help',
-    triggerType: 'event_fired',
-    triggerConditions: { minLocationId: 5, maxLocationId: 30 },
-    rootNodeId:  'stranger_01',
-    repeatable:  false,
-    tags:        ['moral_choice', 'reputation', 'early_mid_game'],
-    nodes: {
-      stranger_01: {
-        id:          'stranger_01',
-        speakerName: 'Narrator',
-        text:        'A figure is slumped against a milestone at the side of the road. Alive — barely. A travelling merchant by the look of them, pack still on their back. They look up at you with exhausted eyes.',
-        choices: [
-          {
-            id:   'stranger_help',
-            text: 'Help them. Share food and water.',
-            tone: 'heroic',
-            outcome: {
-              nextNodeId:       'stranger_helped',
-              resourceDelta:    { food: -2 },
-              reputationDelta:  8,
-              moraleDelta:      5,
-              xpGained:         8,
-            },
-          },
-          {
-            id:   'stranger_ask',
-            text: '"What happened to you?"',
-            tone: 'curious',
-            outcome: { nextNodeId: 'stranger_explains' },
-          },
-          {
-            id:   'stranger_take',
-            text: 'Search their pack while they\'re too weak to stop you.',
-            tone: 'villainous',
-            outcome: {
-              nextNodeId:      'stranger_robbed',
-              resourceDelta:   { food: 3, gold: 12 },
-              reputationDelta: -10,
-              moraleDelta:     -8,
-            },
-          },
-          {
-            id:   'stranger_pass',
-            text: 'Keep walking. You cannot save everyone.',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId:      null,
-              reputationDelta: -3,
-            },
-          },
-        ],
-      },
-      stranger_explains: {
-        id:          'stranger_explains',
-        speakerName: 'Merchant',
-        speakerPortraitId: 'portrait_merchant_wounded',
-        text:        '"Bandits. Three of them, back on the Archer\'s Bend road. Took most of my coin. Left me the pack — said the goods weren\'t worth carrying." He coughs. "I\'d give anything for water."',
-        choices: [
-          {
-            id:   'stranger_help_after',
-            text: 'Give them water and food.',
-            tone: 'heroic',
-            outcome: {
-              nextNodeId:      'stranger_helped',
-              resourceDelta:   { food: -2 },
-              reputationDelta: 8,
-              moraleDelta:     5,
-              xpGained:        8,
-            },
-          },
-          {
-            id:   'stranger_info_only',
-            text: '"I\'ll watch out for those bandits. Good luck."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId: null,
-              flagsSet:   ['knows_archers_bend_bandits'],
-            },
-          },
-        ],
-      },
-      stranger_helped: {
-        id:          'stranger_helped',
-        speakerName: 'Merchant',
-        text:        '"Bless you." He sits up straighter, colour returning. "I\'ve nothing to give but this — there\'s a cave near Sapphire Lake, south side. Travelers have hidden supplies there. Most don\'t know about it."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      stranger_robbed: {
-        id:          'stranger_robbed',
-        speakerName: 'Narrator',
-        text:        'The merchant is too weak to resist. He watches you go through his pack with dull, defeated eyes. "I thought—" he starts, then doesn\'t finish.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Bandit Shakedown ───────────────────────────────────────
-  {
-    id:          'bandit_shakedown',
-    title:       'Bandits on the Road',
-    triggerType: 'combat_precursor',
-    triggerConditions: { minLocationId: 6, maxLocationId: 80 },
-    rootNodeId:  'bandit_01',
-    repeatable:  true,
-    tags:        ['combat_precursor', 'bandit', 'reputation'],
-    nodes: {
-      bandit_01: {
-        id:          'bandit_01',
-        speakerName: 'Bandit Leader',
-        speakerPortraitId: 'portrait_bandit',
-        text:        '"End of the road, friend. Gold and food — leave it on the ground and walk away. We\'re not looking for trouble."',
-        choices: [
-          {
-            id:   'bandit_pay',
-            text: 'Pay them off.',
-            tone: 'pragmatic',
-            conditions: { minGold: 10 },
-            outcome: {
-              nextNodeId:      'bandit_paid',
-              resourceDelta:   { gold: -10 },
-              reputationDelta: -3,
-              moraleDelta:     -5,
-            },
-          },
-          {
-            id:   'bandit_intimidate',
-            text: '"You clearly don\'t know who I am."',
-            tone: 'intimidating',
-            conditions: { minReputation: 70 },
-            outcome: { nextNodeId: 'bandit_intimidated' },
-          },
-          {
-            id:   'bandit_villain_rep',
-            text: 'Let your reputation speak for itself.',
-            tone: 'villainous',
-            conditions: { maxReputation: 25 },
-            outcome: { nextNodeId: 'bandit_backs_down' },
-          },
-          {
-            id:   'bandit_negotiate_food',
-            text: 'Offer food instead of gold.',
-            tone: 'cunning',
-            conditions: { minFood: 4 },
-            outcome: {
-              nextNodeId:    'bandit_deal_food',
-              resourceDelta: { food: -3 },
-              xpGained:      5,
-            },
-          },
-          {
-            id:   'bandit_fight',
-            text: 'Draw your weapon.',
-            tone: 'heroic',
-            outcome: {
-              nextNodeId:    null,
-              eventTrigger:  { type: 'combat', payload: 'bandits' },
-              xpGained:      0,
-            },
-          },
-        ],
-      },
-      bandit_paid: {
-        id:          'bandit_paid',
-        speakerName: 'Bandit Leader',
-        text:        'He counts the gold, nods, and steps aside. "Pleasure doing business." The others laugh. You keep walking.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      bandit_intimidated: {
-        id:          'bandit_intimidated',
-        speakerName: 'Bandit Leader',
-        text:        'He squints at you. Something clicks. His eyes widen slightly. "Let them through. Let them through." They step aside. Fast.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      bandit_backs_down: {
-        id:          'bandit_backs_down',
-        speakerName: 'Bandit Leader',
-        text:        'The blood drains from his face. He\'s heard the name. He\'s heard the stories. "We don\'t want trouble," he says quietly. They melt back into the trees.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      bandit_deal_food: {
-        id:          'bandit_deal_food',
-        speakerName: 'Bandit Leader',
-        text:        'He looks at the food, looks at you, and makes the practical decision. "Move on." A couple of the others look almost grateful.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Dain recruitment ───────────────────────────────────────
-  {
-    id:          'dain_recruitment',
-    title:       'The Qanisi Warrior',
-    triggerType: 'location_enter',
-    triggerConditions: { locationId: 19, notAlreadyMet: true, minReputation: 0 },
-    rootNodeId:  'dain_01',
-    repeatable:  false,
-    tags:        ['companion', 'good_alignment', 'mid_game'],
-    nodes: {
-      dain_01: {
-        id:          'dain_01',
-        speakerName: 'Dain',
-        speakerPortraitId: 'portrait_dain',
-        text:        '"You move like someone who knows where they\'re going but not what\'s ahead of them. I\'ve walked the eastern road further than most. Where it gets... difficult." He pauses. "I could walk it again. With the right purpose."',
-        choices: [
-          {
-            id:   'dain_recruit',
-            text: '"Then walk with me."',
-            tone: 'heroic',
-            outcome: {
-              nextNodeId:      'dain_joins',
-              moraleDelta:     8,
-              xpGained:        10,
-              companionEffect: { type: 'recruit', companionId: 'dain' },
-            },
-          },
-          {
-            id:   'dain_ask_price',
-            text: '"What would you want in return?"',
-            tone: 'cunning',
-            outcome: { nextNodeId: 'dain_pitch' },
-          },
-          {
-            id:   'dain_ask_info',
-            text: '"Tell me about the road ahead first."',
-            tone: 'curious',
-            outcome: { nextNodeId: 'dain_info' },
-          },
-          {
-            id:   'dain_decline',
-            text: 'Decline politely and move on.',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: 'dain_refused' },
-          },
-        ],
-      },
-      dain_pitch: {
-        id:          'dain_pitch',
-        speakerName: 'Dain',
-        text:        '"Nothing beyond fair passage and honest purpose," he says. "I travel east in any case. Call it aligned interests."',
-        choices: [
-          {
-            id:   'dain_accept_after_pitch',
-            text: '"Alright. Keep up."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId:      'dain_joins',
-              moraleDelta:     5,
-              xpGained:        10,
-              companionEffect: { type: 'recruit', companionId: 'dain' },
-            },
-          },
-          {
-            id:   'dain_still_decline',
-            text: '"Still no."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: 'dain_refused' },
-          },
-        ],
-      },
-      dain_info: {
-        id:          'dain_info',
-        speakerName: 'Dain',
-        text:        '"The Badlands ahead are worse than the maps say. Two bridges are out. And something moves in the Brownback Wilds that is not bandits." He pauses. "That is free. My company costs more."',
-        choices: [
-          {
-            id:   'dain_accept_after_info',
-            text: '"Fair enough. Come along."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId:      'dain_joins',
-              moraleDelta:     5,
-              xpGained:        12,
-              companionEffect: { type: 'recruit', companionId: 'dain' },
-              flagsSet:        ['knows_badlands_bridges_out'],
-            },
-          },
-          {
-            id:   'dain_info_decline',
-            text: '"Good to know. I\'ll go alone."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId: 'dain_refused',
-              flagsSet:   ['knows_badlands_bridges_out'],
-            },
-          },
-        ],
-      },
-      dain_joins: {
-        id:          'dain_joins',
-        speakerName: 'Dain',
-        text:        '"Then I walk with you." He falls into step, movements practiced and quiet. The party feels steadier already.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      dain_refused: {
-        id:          'dain_refused',
-        speakerName: 'Dain',
-        text:        '"The road is yours to walk as you choose." He returns to his post without looking back.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Lefty the Crook ────────────────────────────────────────
-  {
-    id:          'lefty_recruitment',
-    title:       'Lefty Has a Proposition',
-    triggerType: 'location_enter',
-    triggerConditions: { locationId: 64, maxReputation: 45, notAlreadyMet: true },
-    rootNodeId:  'lefty_01',
-    repeatable:  false,
-    tags:        ['companion', 'evil_alignment', 'mid_game'],
-    nodes: {
-      lefty_01: {
-        id:          'lefty_01',
-        speakerName: 'Lefty',
-        speakerPortraitId: 'portrait_lefty',
-        text:        'A lean man with quick eyes and a missing finger leans against a wall. "Heard about you. Word travels. You\'ve made some interesting choices on the road." He finally looks at you. "Could use someone like you. Or you could use someone like me. Same thing, really."',
-        choices: [
-          {
-            id:   'lefty_interested',
-            text: '"What are you offering?"',
-            tone: 'cunning',
-            outcome: { nextNodeId: 'lefty_pitch' },
-          },
-          {
-            id:   'lefty_suspicious',
-            text: '"I don\'t trust anyone who opens with flattery."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: 'lefty_pushback' },
-          },
-          {
-            id:   'lefty_walk',
-            text: 'Keep walking without acknowledging him.',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      lefty_pitch: {
-        id:          'lefty_pitch',
-        speakerName: 'Lefty',
-        text:        '"I know which merchants short-weigh, which innkeepers water the ale, and which guards can be... reasoned with. I\'m good at finding things that aren\'t mine, and better at not getting caught." He smiles with half his mouth. "You\'re going somewhere dangerous. I\'ve been there."',
-        choices: [
-          {
-            id:   'lefty_recruit',
-            text: '"You\'re in. Try not to steal from me."',
-            tone: 'cunning',
-            outcome: {
-              nextNodeId:      'lefty_joins',
-              moraleDelta:     -3,
-              xpGained:        8,
-              companionEffect: { type: 'recruit', companionId: 'lefty_the_crook' },
-            },
-          },
-          {
-            id:   'lefty_no_thanks',
-            text: '"I work alone."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      lefty_pushback: {
-        id:          'lefty_pushback',
-        speakerName: 'Lefty',
-        text:        'He raises his hands. "Fair. No flattery then. You need someone who knows how to survive in places that want you dead. That\'s me. No pretty words about it."',
-        choices: [
-          {
-            id:   'lefty_convinced',
-            text: '"Alright. Keep up."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId:      'lefty_joins',
-              xpGained:        8,
-              companionEffect: { type: 'recruit', companionId: 'lefty_the_crook' },
-            },
-          },
-          {
-            id:   'lefty_still_no',
-            text: '"Still no."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      lefty_joins: {
-        id:          'lefty_joins',
-        speakerName: 'Lefty',
-        text:        '"Good call." He peels off the wall, pockets something you didn\'t see him pick up, and falls into step. "By the way — that innkeeper back there owes me three gold. We might want to leave quickly."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Brannik's Tent ─────────────────────────────────────────
-  {
-    id:          'branniks_tent',
-    title:       'Brannik Speaks',
-    triggerType: 'location_enter',
-    triggerConditions: { locationId: 118, notAlreadyMet: true },
-    rootNodeId:  'brannik_01',
-    repeatable:  false,
-    tags:        ['story', 'endgame', 'no_choices'],
-    nodes: {
-      brannik_01: {
-        id:          'brannik_01',
-        speakerName: 'Brannik',
-        speakerPortraitId: 'portrait_brannik',
-        text:        'The old man doesn\'t look up from his fire. "Sit for a moment." It isn\'t a question. You sit.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: 'brannik_02',
-        autoAdvanceDelayMs: 2200,
-      },
-      brannik_02: {
-        id:          'brannik_02',
-        speakerName: 'Brannik',
-        text:        '"I\'ve watched a hundred people walk this road. Some came back. Most didn\'t. You want to know the difference?" He pokes the fire. "The ones who came back weren\'t stronger. They weren\'t faster. They just didn\'t stop believing the road was going somewhere."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: 'brannik_03',
-        autoAdvanceDelayMs: 3000,
-      },
-      brannik_03: {
-        id:            'brannik_03',
-        speakerName:   'Brannik',
-        text:          '"Roachak knows you\'re coming. Has for a while. He\'s not afraid. That\'s his mistake." He goes back to his fire. "You should go. You\'ve got what you came for."',
-        choices:       [],
-        autoAdvance:   true,
-        autoAdvanceToId: null,
-        autoAdvanceDelayMs: 2800,
-      },
-    },
-  },
-
-  // ── Coron the Priest ───────────────────────────────────────
-  {
-    id:          'coron_priest',
-    title:       'Coron, the Wandering Priest',
-    triggerType: 'event_fired',
-    triggerConditions: { notAlreadyMet: true },
-    rootNodeId:  'coron_01',
-    repeatable:  false,
-    tags:        ['story', 'priest'],
-    nodes: {
-      coron_01: {
-        id:          'coron_01',
-        speakerName: 'Coron',
-        speakerPortraitId: 'portrait_coron',
-        text:        'A gentle-faced priest in travel-worn robes stands at the wayside. "Peace be with you, traveler. The road is dark and filled with peril. May I offer you a blessing or heal your wounds?"',
-        choices: [
-          {
-            id:   'coron_heal',
-            text: '"I require healing." (Costs 10 Gold)',
-            tone: 'curious',
-            conditions: { minGold: 10 },
-            outcome: {
-              nextNodeId: 'coron_healed',
-              resourceDelta: { gold: -10, health: 30 },
-              moraleDelta: 5,
-            },
-          },
-          {
-            id:   'coron_bless',
-            text: '"I seek your blessing."',
-            tone: 'heroic',
-            conditions: { minReputation: 60 },
-            outcome: {
-              nextNodeId: 'coron_blessed',
-              moraleDelta: 15,
-            },
-          },
-          {
-            id:   'coron_no_rep',
-            text: '"I seek your blessing."',
-            tone: 'pragmatic',
-            conditions: { maxReputation: 59 },
-            outcome: {
-              nextNodeId: 'coron_refuse_blessing',
-            },
-          },
-          {
-            id:   'coron_leave',
-            text: '"I need nothing. Farewell."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      coron_healed: {
-        id:          'coron_healed',
-        speakerName: 'Coron',
-        text:        '"May your body be restored for the journey ahead," he prays, placing his warm hands upon your brow. You feel a soothing light wash over you.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      coron_blessed: {
-        id:          'coron_blessed',
-        speakerName: 'Coron',
-        text:        '"Your noble deeds on this road precede you," he smiles, tracing a sign of protection in the air. "Go with the light, traveler. You are blessed."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      coron_refuse_blessing: {
-        id:          'coron_refuse_blessing',
-        speakerName: 'Coron',
-        text:        'He looks at you with sad eyes. "I sense conflict and dark rumors in your wake, traveler. I pray that you find your way back to the path of light, but I cannot offer a blessing today."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Sylas the Collector ────────────────────────────────────
-  {
-    id:          'sylas_collector',
-    title:       'Sylas, the Shady Collector',
-    triggerType: 'event_fired',
-    triggerConditions: { notAlreadyMet: true },
-    rootNodeId:  'sylas_01',
-    repeatable:  false,
-    tags:        ['story', 'collector'],
-    nodes: {
-      sylas_01: {
-        id:          'sylas_01',
-        speakerName: 'Sylas',
-        speakerPortraitId: 'portrait_sylas',
-        text:        'A sharp-looking man in fine silk coat stands beside a covered cart. "Ah, a fellow wanderer! I collect... rare curios. If you happen to have gold, I can sell you some maps, or I could buy any junk you found."',
-        choices: [
-          {
-            id:   'sylas_buy_map',
-            text: '"Sell me a treasure map." (Costs 15 Gold)',
-            tone: 'cunning',
-            conditions: { minGold: 15 },
-            outcome: {
-              nextNodeId: 'sylas_bought',
-              resourceDelta: { gold: -15 },
-              moraleDelta: 5,
-              reputationDelta: -2,
-            },
-          },
-          {
-            id:   'sylas_sell_scraps',
-            text: '"I have some trinkets to sell."',
-            tone: 'pragmatic',
-            outcome: {
-              nextNodeId: 'sylas_sold',
-              resourceDelta: { gold: 12 },
-            },
-          },
-          {
-            id:   'sylas_leave',
-            text: '"I must keep moving."',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      sylas_bought: {
-        id:          'sylas_bought',
-        speakerName: 'Sylas',
-        text:        'He winks and hands you a dusty parchment map. "A fine choice! Let\'s hope it leads you to fortune, and not to your doom."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      sylas_sold: {
-        id:          'sylas_sold',
-        speakerName: 'Sylas',
-        text:        'He looks over your gear, nodding greedily, and hands you some gold coins. "A pleasure doing business with you, traveler. Let me know if you find more."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Griselda the Herbalist ─────────────────────────────────
-  {
-    id:          'griselda_herbalist',
-    title:       'Griselda, the Herbalist',
-    triggerType: 'event_fired',
-    triggerConditions: { notAlreadyMet: true },
-    rootNodeId:  'griselda_01',
-    repeatable:  false,
-    tags:        ['story', 'herbalist'],
-    nodes: {
-      griselda_01: {
-        id:          'griselda_01',
-        speakerName: 'Griselda',
-        speakerPortraitId: 'portrait_griselda',
-        text:        'An old woman is crouching by a patch of wildflowers, humming quietly. She looks up with a pleasant smile. "Hello, traveler. Are you hungry, or do you have food to share with an old lady?"',
-        choices: [
-          {
-            id:   'griselda_share',
-            text: '"Here is some of my food." (Lose 1 Food)',
-            tone: 'heroic',
-            conditions: { minFood: 1 },
-            outcome: {
-              nextNodeId: 'griselda_thankful',
-              resourceDelta: { food: -1 },
-              reputationDelta: 8,
-              moraleDelta: 10,
-            },
-          },
-          {
-            id:   'griselda_ask',
-            text: '"Do you have any potions to sell?"',
-            tone: 'pragmatic',
-            conditions: { minGold: 10 },
-            outcome: {
-              nextNodeId: 'griselda_sold',
-              resourceDelta: { gold: -10 },
-            },
-          },
-          {
-            id:   'griselda_leave',
-            text: 'Nod politely and continue walking.',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      griselda_thankful: {
-        id:          'griselda_thankful',
-        speakerName: 'Griselda',
-        text:        '"Bless your kind soul!" she beams, taking the food. "Here, take this herbal poultice. It will soothe your burns and heal your spirits on the road."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      griselda_sold: {
-        id:          'griselda_sold',
-        speakerName: 'Griselda',
-        text:        'She reaches into her pocket and pulls out a small green bottle of herbal tincture. "Drink this when you are weary, it will restore your vigor."',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-
-  // ── Finn the Pickpocket ────────────────────────────────────
-  {
-    id:          'finn_pickpocket',
-    title:       'Finn, the Quick-Fingered Kid',
-    triggerType: 'event_fired',
-    triggerConditions: { notAlreadyMet: true },
-    rootNodeId:  'finn_01',
-    repeatable:  false,
-    tags:        ['story', 'pickpocket'],
-    nodes: {
-      finn_01: {
-        id:          'finn_01',
-        speakerName: 'Narrator',
-        text:        'A young boy in dirty rags bumps hard into you as he runs past, muttering a quick apology before ducking into an alleyway.',
-        choices: [
-          {
-            id:   'finn_confront',
-            text: 'Confront him about your coin purse.',
-            tone: 'intimidating',
-            outcome: {
-              nextNodeId: 'finn_caught',
-            },
-          },
-          {
-            id:   'finn_steal_back',
-            text: 'Pickpocket him back as he passes.',
-            tone: 'cunning',
-            outcome: {
-              nextNodeId: 'finn_stole_back',
-              resourceDelta: { gold: 10 },
-              reputationDelta: -2,
-            },
-          },
-          {
-            id:   'finn_ignore',
-            text: 'Ignore it and keep moving.',
-            tone: 'pragmatic',
-            outcome: { nextNodeId: null },
-          },
-        ],
-      },
-      finn_caught: {
-        id:          'finn_caught',
-        speakerName: 'Finn',
-        speakerPortraitId: 'portrait_finn',
-        text:        'You grab his shoulder. He looks up in panic, showing a missing coin purse. "Alright, alright! Take it back! Don\'t call the guards!" He hands it over and scurries off.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-      finn_stole_back: {
-        id:          'finn_stole_back',
-        speakerName: 'Narrator',
-        text:        'With supreme stealth, you snatch his own pouch as he brushes past. Inside you find 10 gold. You feel a small thrill of thievish pride.',
-        choices:     [],
-        autoAdvance: true,
-        autoAdvanceToId: null,
-      },
-    },
-  },
-];
-
-// ─────────────────────────────────────────
-// Registry helpers
-// ─────────────────────────────────────────
-
-export function getDialogue(id: string): Dialogue | undefined {
-  return DIALOGUES.find(d => d.id === id);
-}
-
-const NPC_DIALOGUE_META: Record<string, { displayName: string; canSteal: boolean }> = {
-  coron_priest:       { displayName: 'Coron',            canSteal: true },
-  dain_recruitment:   { displayName: 'Dain',             canSteal: true },
-  finn_pickpocket:    { displayName: 'Finn',             canSteal: true },
-  griselda_herbalist: { displayName: 'Griselda',         canSteal: true },
-  lefty_recruitment:  { displayName: 'Lefty',            canSteal: true },
-  branniks_tent:      { displayName: 'Brannik',          canSteal: true },
-  rex_the_dog:        { displayName: 'Rex',              canSteal: false },
-  sylas_collector:    { displayName: 'Sylas',            canSteal: true },
-  wounded_stranger:   { displayName: 'Wounded Stranger', canSteal: true },
-};
-
 export function isNpcDialogue(id: string): boolean {
-  return id in NPC_DIALOGUE_META;
+  return getDialogue(id)?.displayName !== undefined;
 }
 
 export function canStealFromDialogue(id: string): boolean {
-  return NPC_DIALOGUE_META[id]?.canSteal ?? true;
+  return getDialogue(id)?.canSteal ?? true;
 }
 
 export function getDialogueDisplayName(id: string): string {
-  const explicitName = NPC_DIALOGUE_META[id]?.displayName;
-  if (explicitName) return explicitName;
-
   const dialogue = getDialogue(id);
   if (!dialogue) {
     return id
       .split('_')
       .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  if (dialogue.displayName) {
+    return dialogue.displayName;
   }
 
   const rootNode = dialogue.nodes[dialogue.rootNodeId];
@@ -1181,25 +197,16 @@ function recruitsExistingCompanion(dialogue: Dialogue, gameState: GameState): bo
   );
 }
 
-export function findDialogueForLocation(
-  locationId: number,
-  gameState:  GameState,
-): Dialogue | null {
-  for (const d of DIALOGUES) {
-    if (d.triggerType !== 'location_enter') continue;
-    const c = d.triggerConditions;
-    if (c.locationId  !== undefined && c.locationId  !== locationId)       continue;
-    if (c.locationIds !== undefined && !c.locationIds.includes(locationId)) continue;
-    if (c.minLocationId !== undefined && locationId < c.minLocationId) continue;
-    if (c.maxLocationId !== undefined && locationId > c.maxLocationId) continue;
-    // notAlreadyMet uses a per-location key so a multi-location companion can
-    // reappear at each stop until recruited or the window passes.
-    if (c.notAlreadyMet && gameState.firedEventIds.has(`${d.id}_loc${locationId}`)) continue;
-    if (c.minReputation !== undefined && gameState.reputation.value < c.minReputation) continue;
-    if (c.maxReputation !== undefined && gameState.reputation.value > c.maxReputation) continue;
-    if (c.forbiddenCompanionId && gameState.companions.some(co => co.id === c.forbiddenCompanionId)) continue;
-    if (recruitsExistingCompanion(d, gameState)) continue;
-    return d;
+export function findDialogueForLocation(locationId: number, gameState: GameState): Dialogue | null {
+  for (const dialogue of DIALOGUES) {
+    if (dialogue.triggerType !== 'location_enter') continue;
+
+    const checkState = { ...gameState, currentLocationId: locationId };
+    if (!evalConditions(dialogue.triggerConditions, checkState, { dialogueId: dialogue.id })) continue;
+    if (recruitsExistingCompanion(dialogue, gameState)) continue;
+
+    return dialogue;
   }
+
   return null;
 }

@@ -2,10 +2,18 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import { JourneyBar } from '@components/JourneyBar';
 import { Colors } from '@theme';
+import { useGameStore } from '@store/gameStore';
+import { makeGameState } from '../__fixtures__/gameState';
 
 describe('JourneyBar', () => {
+  beforeEach(() => {
+    useGameStore.getState().clearGame();
+  });
+
   it('renders a View with width 0% at location 0', () => {
-    const { UNSAFE_getAllByType } = render(<JourneyBar locationId={0} />);
+    const state = makeGameState({ currentLocationId: 0 });
+    useGameStore.getState().initGame(state);
+    const { UNSAFE_getAllByType } = render(<JourneyBar />);
     const views = UNSAFE_getAllByType(require('react-native').View);
     // The inner progress bar view has the percentage width
     const innerBar = views.find(v =>
@@ -16,7 +24,9 @@ describe('JourneyBar', () => {
   });
 
   it('renders width 100% at location 125', () => {
-    const { UNSAFE_getAllByType } = render(<JourneyBar locationId={125} />);
+    const state = makeGameState({ currentLocationId: 125 });
+    useGameStore.getState().initGame(state);
+    const { UNSAFE_getAllByType } = render(<JourneyBar />);
     const views = UNSAFE_getAllByType(require('react-native').View);
     const innerBar = views.find(v =>
       v.props.style && JSON.stringify(v.props.style).includes('%')
@@ -25,7 +35,9 @@ describe('JourneyBar', () => {
   });
 
   it('renders approximately 49.6% width at location 62', () => {
-    const { UNSAFE_getAllByType } = render(<JourneyBar locationId={62} />);
+    const state = makeGameState({ currentLocationId: 62 });
+    useGameStore.getState().initGame(state);
+    const { UNSAFE_getAllByType } = render(<JourneyBar />);
     const views = UNSAFE_getAllByType(require('react-native').View);
     const innerBar = views.find(v =>
       v.props.style && JSON.stringify(v.props.style).includes('%') && v.props.style.width !== '100%'
@@ -35,7 +47,10 @@ describe('JourneyBar', () => {
   });
 
   it('uses gold color when dreadActive is false', () => {
-    const { UNSAFE_getAllByType } = render(<JourneyBar locationId={50} dreadActive={false} />);
+    const state = makeGameState({ currentLocationId: 50 });
+    state.morale.dreadActive = false;
+    useGameStore.getState().initGame(state);
+    const { UNSAFE_getAllByType } = render(<JourneyBar />);
     const views = UNSAFE_getAllByType(require('react-native').View);
     const barWithColor = views.find(v =>
       v.props.style?.backgroundColor === Colors.gold ||
@@ -45,7 +60,10 @@ describe('JourneyBar', () => {
   });
 
   it('uses blood red color when dreadActive is true', () => {
-    const { UNSAFE_getAllByType } = render(<JourneyBar locationId={50} dreadActive={true} />);
+    const state = makeGameState({ currentLocationId: 50 });
+    state.morale.dreadActive = true;
+    useGameStore.getState().initGame(state);
+    const { UNSAFE_getAllByType } = render(<JourneyBar />);
     const views = UNSAFE_getAllByType(require('react-native').View);
     const barWithColor = views.find(v =>
       v.props.style?.backgroundColor === Colors.gold ||

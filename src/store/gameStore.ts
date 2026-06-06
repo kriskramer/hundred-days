@@ -34,3 +34,4 @@ export const useReputation = () => useGameStore(s => s.gameState?.reputation);
 export const usePlayer     = () => useGameStore(s => s.gameState?.player);
 export const useCompanions = () => useGameStore(s => s.gameState?.companions ?? []);
 export const useWeather    = () => useGameStore(s => s.gameState?.weather);
+export const useTurnHistory = () => useGameStore(s => s.gameState?.turnHistory ?? []);

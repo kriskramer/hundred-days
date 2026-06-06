@@ -7,3 +7,4 @@ export { JournalModal }    from './JournalModal';
 export { SettingsModal }   from './SettingsModal';
 export { CombatAlertModal } from './CombatAlertModal';
 export { TypewriterText }  from './TypewriterText';
+export { CompanionDetailModal } from './CompanionDetailModal';

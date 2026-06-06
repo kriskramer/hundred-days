@@ -31,8 +31,9 @@ export default function TitleScreen() {
   }, []);
 
   async function handleNewGame() {
+    const carriedMetaProgress = activeSave?.gameState.metaProgress ?? history[0]?.metaProgress ?? null;
     await saveEngine.clearActiveRun();
-    const state = createNewGameState();
+    const state = createNewGameState('The Traveler', carriedMetaProgress);
     initGame(state);
     router.replace('/game');
   }

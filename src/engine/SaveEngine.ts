@@ -5,6 +5,7 @@ import {
   SerializedGameState,
   RunHistoryEntry,
   AppSettings,
+  MetaProgress,
 } from './types';
 import { SCHEMA_VERSION } from './GameState';
 import { generateRunLayout } from './RunLayout';
@@ -164,6 +165,7 @@ class SaveEngine {
   private serialize(state: GameState): SerializedGameState {
     return {
       ...state,
+      metaProgress:           this.cloneMetaProgress(state.metaProgress),
       firedEventIds:          Array.from(state.firedEventIds),
       visitedLocationIds:     Array.from(state.visitedLocationIds),
       clearedCombatLocations: Array.from(state.clearedCombatLocations),
@@ -175,12 +177,22 @@ class SaveEngine {
   private deserialize(saved: SerializedGameState): GameState {
     return {
       ...saved,
+      metaProgress:           this.cloneMetaProgress(saved.metaProgress ?? null),
       rngState:               saved.rngState ?? (saved.seed >>> 0),
       firedEventIds:          new Set(saved.firedEventIds),
       visitedLocationIds:     new Set(saved.visitedLocationIds),
       clearedCombatLocations: new Set(saved.clearedCombatLocations ?? []),
       storyFlags:             new Set(saved.storyFlags ?? []),
       currentTurn:            null,
+    };
+  }
+
+  private cloneMetaProgress(metaProgress: MetaProgress | null): MetaProgress | null {
+    if (!metaProgress) return null;
+
+    return {
+      ...metaProgress,
+      unlockedCompanionIds: [...metaProgress.unlockedCompanionIds],
     };
   }
 
@@ -288,6 +300,36 @@ class SaveEngine {
       current = { ...current, schemaVersion: 7 };
     }
 
+    // v7 → v8: add metaProgress if missing
+    if (current.schemaVersion === 7) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['metaProgress'] === undefined) {
+        state['metaProgress'] = null;
+      }
+      current = { ...current, schemaVersion: 8 };
+    }
+
+    // v8 → v9: add consecutiveForcedMarches if missing
+    if (current.schemaVersion === 8) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['consecutiveForcedMarches'] === undefined) {
+        state['consecutiveForcedMarches'] = 0;
+      }
+      current = { ...current, schemaVersion: 9 };
+    }
+
+    // v9 → v10: add consecutiveStormDays and consecutiveCombatDays if missing
+    if (current.schemaVersion === 9) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['consecutiveStormDays'] === undefined) {
+        state['consecutiveStormDays'] = 0;
+      }
+      if (state['consecutiveCombatDays'] === undefined) {
+        state['consecutiveCombatDays'] = 0;
+      }
+      current = { ...current, schemaVersion: 10 };
+    }
+
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
     return current;
   }
@@ -310,6 +352,7 @@ class SaveEngine {
         companionsRecruited: state.companions.map(c => c.name),
         turnsPlayed:         state.turnHistory.length,
         summary:             this.buildSummary(state),
+        metaProgress:        this.cloneMetaProgress(state.metaProgress),
       };
 
       const trimmed = [entry, ...history].slice(0, 20);

@@ -2,17 +2,24 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { StatusBar } from '@components/StatusBar';
 import { makeGameState } from '../__fixtures__/gameState';
+import { useGameStore } from '@store/gameStore';
 
 describe('StatusBar', () => {
+  beforeEach(() => {
+    useGameStore.getState().clearGame();
+  });
+
   it('renders day number', () => {
     const state = makeGameState({ dayNumber: 42 });
-    render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    render(<StatusBar />);
     expect(screen.getByText('42')).toBeTruthy();
   });
 
   it('renders gold amount', () => {
     const state = makeGameState({ resources: { food: 8, gold: 99, items: [], maxSlots: 8, equippedItems: {} } });
-    render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    render(<StatusBar />);
     expect(screen.getByText('99')).toBeTruthy();
   });
 
@@ -24,26 +31,30 @@ describe('StatusBar', () => {
         statusEffects: [],
       },
     });
-    render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    render(<StatusBar />);
     expect(screen.getByText('5')).toBeTruthy();
   });
 
   it('renders food value with one decimal', () => {
     const state = makeGameState({ resources: { food: 8, gold: 25, items: [], maxSlots: 8, equippedItems: {} } });
-    render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    render(<StatusBar />);
     expect(screen.getByText('8.0')).toBeTruthy();
   });
 
   it('renders the current location number', () => {
     const state = makeGameState({ currentLocationId: 47 });
-    render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    render(<StatusBar />);
     expect(screen.getByText('47')).toBeTruthy();
     expect(screen.getByText('/125')).toBeTruthy();
   });
 
   it('renders food in red when below 3', () => {
     const state = makeGameState({ resources: { food: 2.5, gold: 25, items: [], maxSlots: 8, equippedItems: {} } });
-    const { getByText } = render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    const { getByText } = render(<StatusBar />);
     const foodText = getByText('2.5');
     expect(foodText.props.style).toEqual(
       expect.objectContaining({ color: '#ff8080' }),
@@ -52,7 +63,8 @@ describe('StatusBar', () => {
 
   it('renders food in yellow when between 3 and 5', () => {
     const state = makeGameState({ resources: { food: 4.0, gold: 25, items: [], maxSlots: 8, equippedItems: {} } });
-    const { getByText } = render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    const { getByText } = render(<StatusBar />);
     const foodText = getByText('4.0');
     expect(foodText.props.style).toEqual(
       expect.objectContaining({ color: '#ffcc44' }),
@@ -61,7 +73,8 @@ describe('StatusBar', () => {
 
   it('renders food with no color warning when at or above 5', () => {
     const state = makeGameState({ resources: { food: 5.0, gold: 25, items: [], maxSlots: 8, equippedItems: {} } });
-    const { getByText } = render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    const { getByText } = render(<StatusBar />);
     const foodText = getByText('5.0');
     // No explicit warning color — valueColor prop is undefined
     // The color defaults to Colors.parchment, not a warning color
@@ -79,7 +92,8 @@ describe('StatusBar', () => {
       },
       companions: [],
     });
-    const { getByText, queryByText } = render(<StatusBar gameState={state} />);
+    useGameStore.getState().initGame(state);
+    const { getByText, queryByText } = render(<StatusBar />);
 
     // The modal content should not be visible initially
     expect(queryByText('GALAHAD')).toBeFalsy();

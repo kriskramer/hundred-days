@@ -8,370 +8,11 @@ import {
   SpecialEffect,
 } from './types';
 
-// ─────────────────────────────────────────
-// Item definitions — all 30+ items
-// ─────────────────────────────────────────
+import { ITEMS, getItemDef, getItemDefinition } from '../data/items';
+import { getShopDef } from '../data/shops';
 
-export const ITEM_DEFINITIONS: ItemDefinition[] = [
-
-  // ── Consumables: Food ──────────────────────────────────────
-
-  {
-    id: 'dried_rations', name: 'Dried Rations',
-    description: 'Hard bread and preserved meat. Not good, but filling.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { foodRestore: 3 },
-    isConsumable: true,
-    shopPrice: 5,
-    foundInRegions: ['Senin Valley', 'Qanisi Borderlands'],
-    maxStack: 5,
-    iconId: 'rations',
-    rarity: 'common',
-  },
-  {
-    id: 'hearty_meal', name: 'Hearty Meal',
-    description: 'A proper cooked meal. Restores 6 food and grants Well-Fed status for 3 turns.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { foodRestore: 6, grantsStatusEffect: 'well_fed', statusDurationTurns: 3 },
-    isConsumable: true,
-    shopPrice: 12,
-    foundInRegions: ['Senin Valley', 'Qanisi Territory'],
-    maxStack: 3,
-    iconId: 'meal',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'hunters_jerky', name: "Hunter's Jerky",
-    description: 'Dense salted meat. Restores 5 food. Can be eaten even in combat.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { foodRestore: 5 },
-    isConsumable: true,
-    shopPrice: 8,
-    dropsFrom: ['wolves', 'wild_dogs'],
-    maxStack: 4,
-    iconId: 'jerky',
-    rarity: 'common',
-  },
-
-  // ── Consumables: Potions ───────────────────────────────────
-
-  {
-    id: 'healing_potion', name: 'Healing Potion',
-    description: 'A red vial of alchemical preparation. Restores 25 health immediately.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { healthRestore: 25 },
-    isConsumable: true,
-    shopPrice: 20,
-    foundInRegions: ['Qanisi Territory', 'Eastern Wilds', 'The Midlands'],
-    maxStack: 3,
-    iconId: 'potion_red',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'greater_healing_potion', name: 'Greater Healing Potion',
-    description: 'Restores 50 health and clears the Wounded status.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { healthRestore: 50, clearsStatusEffect: 'wounded' },
-    isConsumable: true,
-    shopPrice: 45,
-    foundInRegions: ['The Midlands', 'The Dark Reaches'],
-    maxStack: 2,
-    iconId: 'potion_red_large',
-    rarity: 'rare',
-  },
-  {
-    id: 'spirit_tonic', name: 'Spirit Tonic',
-    description: 'A bracing herbal brew. Restores 20 morale and clears Fatigued.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { moraleRestore: 20, clearsStatusEffect: 'fatigued' },
-    isConsumable: true,
-    shopPrice: 18,
-    foundInRegions: ['Eastern Wilds', 'The Midlands'],
-    maxStack: 3,
-    iconId: 'potion_blue',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'battle_draught', name: 'Battle Draught',
-    description: 'A sharp, burning liquid. Grants +6 attack and +4 speed for 3 combat rounds.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { tempAttackBonus: 6, tempSpeedBonus: 4, buffDurationRounds: 3 },
-    isConsumable: true,
-    shopPrice: 25,
-    foundInRegions: ['Eastern Wilds', 'The Midlands', 'The Dark Reaches'],
-    maxStack: 2,
-    iconId: 'potion_orange',
-    rarity: 'uncommon',
-  },
-
-  // ── Consumables: Throwables ────────────────────────────────
-
-  {
-    id: 'flash_powder', name: 'Flash Powder',
-    description: 'Throw at enemies to stun them for one round. Useless against undead.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { combatDamage: 0, combatEffect: SpecialEffect.Stun },
-    isConsumable: true,
-    shopPrice: 15,
-    maxStack: 3,
-    iconId: 'flash',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'smoke_bomb', name: 'Smoke Bomb',
-    description: 'Guarantees flee success when thrown. One use.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { combatDamage: 0, combatEffect: SpecialEffect.Stun },
-    isConsumable: true,
-    shopPrice: 22,
-    dropsFrom: ['bandits', 'goblins'],
-    maxStack: 2,
-    iconId: 'smoke',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'holy_water', name: 'Holy Water',
-    description: 'Deals 30 damage to undead and spectral enemies. Useless against the living.',
-    category: ItemCategory.Consumable, slot: ItemSlot.None,
-    activeEffect: { combatDamage: 30 },
-    isConsumable: true,
-    shopPrice: 30,
-    foundInRegions: ['Edge of the Known World', 'Colrandrir Mountains'],
-    maxStack: 2,
-    iconId: 'holy_water',
-    rarity: 'rare',
-  },
-
-  // ── Weapons ────────────────────────────────────────────────
-
-  {
-    id: 'travelers_blade', name: "Traveler's Blade",
-    description: 'A short, practical sword. Nothing fancy, nothing broken. +4 attack.',
-    category: ItemCategory.Weapon, slot: ItemSlot.Hand,
-    passiveEffect: { attackBonus: 4 },
-    isConsumable: false,
-    shopPrice: 25,
-    foundInRegions: ['Senin Valley', 'Qanisi Borderlands'],
-    maxStack: 1,
-    iconId: 'sword_short',
-    rarity: 'common',
-  },
-  {
-    id: 'hunters_bow', name: "Hunter's Bow",
-    description: '+3 attack in combat and +2 food when hunting — arrows bring down game cleanly.',
-    category: ItemCategory.Weapon, slot: ItemSlot.Hand,
-    passiveEffect: { attackBonus: 3, foragingBonus: 2 },
-    isConsumable: false,
-    shopPrice: 30,
-    foundInRegions: ['Qanisi Borderlands', 'Qanisi Territory'],
-    maxStack: 1,
-    iconId: 'bow',
-    rarity: 'common',
-  },
-  {
-    id: 'silver_blade', name: 'Silver-Edged Blade',
-    description: '+5 attack. +8 attack against undead and spectral enemies.',
-    category: ItemCategory.Weapon, slot: ItemSlot.Hand,
-    passiveEffect: { attackBonus: 5 },
-    isConsumable: false,
-    shopPrice: 65,
-    foundInRegions: ['The Midlands', 'The Dark Reaches'],
-    maxStack: 1,
-    iconId: 'sword_silver',
-    rarity: 'rare',
-  },
-  {
-    id: 'relic_blade', name: 'The Relic Blade',
-    description: 'An ancient weapon of unknown origin. +8 attack. Wraiths take full physical damage — their resistance means nothing to this blade.',
-    category: ItemCategory.Weapon, slot: ItemSlot.Hand,
-    passiveEffect: { attackBonus: 8, physicalResistanceBonus: 0.5 },
-    isConsumable: false,
-    maxStack: 1,
-    iconId: 'sword_relic',
-    rarity: 'unique',
-  },
-
-  // ── Armor ──────────────────────────────────────────────────
-
-  {
-    id: 'leather_armor', name: 'Leather Armor',
-    description: 'Light protection. +4 defense. Does not slow you down.',
-    category: ItemCategory.Armor, slot: ItemSlot.Body,
-    passiveEffect: { defenseBonus: 4 },
-    isConsumable: false,
-    shopPrice: 20,
-    foundInRegions: ['Senin Valley', 'Qanisi Borderlands'],
-    maxStack: 1,
-    iconId: 'armor_leather',
-    rarity: 'common',
-  },
-  {
-    id: 'chainmail', name: 'Chainmail',
-    description: '+8 defense. Heavy — increases forced march food cost by 0.3.',
-    category: ItemCategory.Armor, slot: ItemSlot.Body,
-    passiveEffect: { defenseBonus: 8, forcedMarchCostReduction: -0.3 },
-    isConsumable: false,
-    shopPrice: 55,
-    foundInRegions: ['Eastern Wilds', 'The Midlands'],
-    maxStack: 1,
-    iconId: 'armor_chain',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'shadow_shroud', name: 'Shadow Shroud',
-    description: '+5 defense, +3 speed. Increases flee success by 15%.',
-    category: ItemCategory.Armor, slot: ItemSlot.Body,
-    passiveEffect: { defenseBonus: 5, speedBonus: 3 },
-    isConsumable: false,
-    dropsFrom: ['bandits'],
-    maxStack: 1,
-    iconId: 'armor_shadow',
-    rarity: 'rare',
-  },
-
-  // ── Gear ───────────────────────────────────────────────────
-
-  {
-    id: 'warm_cloak', name: 'Warm Cloak',
-    description: 'Downgrades Severe weather to Poor for movement purposes. Storms slow you, but no longer stop you.',
-    category: ItemCategory.Gear, slot: ItemSlot.Back,
-    passiveEffect: { weatherProtection: true },
-    isConsumable: false,
-    shopPrice: 18,
-    foundInRegions: ['Senin Valley', 'Qanisi Borderlands'],
-    maxStack: 1,
-    iconId: 'cloak_warm',
-    rarity: 'common',
-  },
-  {
-    id: 'travelers_pack', name: "Traveler's Pack",
-    description: 'Increases inventory to 10 slots and reduces daily food consumption by 10%.',
-    category: ItemCategory.Gear, slot: ItemSlot.Back,
-    passiveEffect: { foodCostReduction: 0.10 },
-    isConsumable: false,
-    shopPrice: 35,
-    foundInRegions: ['Senin Valley', 'Qanisi Territory'],
-    maxStack: 1,
-    iconId: 'pack',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'scout_kit', name: "Scout's Kit",
-    description: 'Maps, rope, a good compass. +5% luck threshold and reveals hidden cache events.',
-    category: ItemCategory.Gear, slot: ItemSlot.Back,
-    passiveEffect: { luckModifier: 0.05, revealHiddenLocations: true },
-    isConsumable: false,
-    shopPrice: 40,
-    foundInRegions: ['Qanisi Territory', 'Eastern Wilds'],
-    maxStack: 1,
-    iconId: 'scout_kit',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'foragers_satchel', name: "Forager's Satchel",
-    description: 'Nets, snares, and drying racks. Adds +3 food to every hunt or forage action.',
-    category: ItemCategory.Gear, slot: ItemSlot.Back,
-    passiveEffect: { foragingBonus: 3 },
-    isConsumable: false,
-    shopPrice: 22,
-    foundInRegions: ['Senin Valley', 'Qanisi Borderlands', 'Qanisi Territory'],
-    maxStack: 1,
-    iconId: 'satchel',
-    rarity: 'common',
-  },
-
-  // ── Trinkets ───────────────────────────────────────────────
-
-  {
-    id: 'lucky_coin', name: 'Lucky Coin',
-    description: 'A coin that always lands the way you want. +8% luck threshold.',
-    category: ItemCategory.Trinket, slot: ItemSlot.Finger,
-    passiveEffect: { luckModifier: 0.08 },
-    isConsumable: false,
-    shopPrice: 30,
-    foundInRegions: ['Qanisi Territory', 'Eastern Wilds'],
-    maxStack: 1,
-    iconId: 'coin_gold',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'companionship_token', name: 'Companionship Token',
-    description: 'A carved wooden disc passed between friends. All companion loyalty gains +30%.',
-    category: ItemCategory.Trinket, slot: ItemSlot.Neck,
-    passiveEffect: { companionLoyaltyBonus: 0.30 },
-    isConsumable: false,
-    maxStack: 1,
-    iconId: 'token',
-    rarity: 'unique',
-  },
-  {
-    id: 'amulet_of_resolve', name: 'Amulet of Resolve',
-    description: 'Cold iron on a leather cord. Immune to the Terrify effect from ogres and wraiths.',
-    category: ItemCategory.Trinket, slot: ItemSlot.Neck,
-    passiveEffect: { immuneToTerrify: true },
-    isConsumable: false,
-    shopPrice: 50,
-    foundInRegions: ['The Dark Reaches', 'Edge of the Known World'],
-    maxStack: 1,
-    iconId: 'amulet',
-    rarity: 'rare',
-  },
-  {
-    id: 'merchants_ring', name: "Merchant's Ring",
-    description: 'A guild signet. Shop prices reduced by 20% and a small chance of extra gold in towns.',
-    category: ItemCategory.Trinket, slot: ItemSlot.Finger,
-    passiveEffect: { goldFindBonus: 3 },
-    isConsumable: false,
-    shopPrice: 40,
-    foundInRegions: ['Senin Valley', 'Qanisi Territory'],
-    maxStack: 1,
-    iconId: 'ring_merchant',
-    rarity: 'uncommon',
-  },
-  {
-    id: 'stone_of_comfort', name: 'Stone of Comfort',
-    description: 'A smooth river stone worn by worry. +1 morale per turn.',
-    category: ItemCategory.Trinket, slot: ItemSlot.Finger,
-    passiveEffect: { moralePerTurn: 1 },
-    isConsumable: false,
-    shopPrice: 15,
-    foundInRegions: ['Senin Valley'],
-    maxStack: 1,
-    iconId: 'stone',
-    rarity: 'common',
-  },
-
-  // ── Quest Items ────────────────────────────────────────────
-
-  {
-    id: 'letter_of_passage', name: 'Letter of Passage',
-    description: 'An official document with an important seal. Allows passage through Qanisi checkpoints without incident.',
-    category: ItemCategory.QuestItem, slot: ItemSlot.None,
-    isConsumable: true,
-    questDialogueId: 'qanisi_checkpoint',
-    maxStack: 1,
-    iconId: 'letter',
-    rarity: 'unique',
-  },
-  {
-    id: 'stone_figure', name: 'Stone Figure',
-    description: '"For luck," a child said in Nabis. +5% luck. You will not sell this.',
-    category: ItemCategory.QuestItem, slot: ItemSlot.None,
-    passiveEffect: { luckModifier: 0.05 },
-    isConsumable: false,
-    maxStack: 1,
-    iconId: 'stone_figure',
-    rarity: 'unique',
-  },
-];
-
-// ─────────────────────────────────────────
-// Lookup
-// ─────────────────────────────────────────
-
-export function getItemDef(id: string): ItemDefinition | undefined {
-  return ITEM_DEFINITIONS.find(d => d.id === id);
-}
+export const ITEM_DEFINITIONS = ITEMS;
+export { getItemDef, getItemDefinition };
 
 // ─────────────────────────────────────────
 // Inventory shape
@@ -507,30 +148,45 @@ export function useItem(
 // Compute all passive bonuses from equipped items
 // ─────────────────────────────────────────
 
+export function sumEquippedModifiers<K extends keyof ItemPassiveEffect>(
+  equipped: ItemPassiveEffect[],
+  key: K
+): number {
+  return equipped.reduce((sum, e) => sum + ((e[key] as number) ?? 0), 0);
+}
+
 export function computeEquippedBonuses(inv: Inventory): ItemPassiveEffect {
-  const bonuses: ItemPassiveEffect = {};
+  const equippedEffects: ItemPassiveEffect[] = [];
+  let weatherProtection = false;
+  let immuneToTerrify = false;
+  let revealHiddenLocations = false;
 
   for (const itemId of Object.values(inv.equippedItems)) {
     if (!itemId) continue;
     const def = getItemDef(itemId);
     if (!def?.passiveEffect) continue;
-    const fx = def.passiveEffect;
-
-    if (fx.attackBonus)              bonuses.attackBonus              = (bonuses.attackBonus              ?? 0) + fx.attackBonus;
-    if (fx.defenseBonus)             bonuses.defenseBonus             = (bonuses.defenseBonus             ?? 0) + fx.defenseBonus;
-    if (fx.speedBonus)               bonuses.speedBonus               = (bonuses.speedBonus               ?? 0) + fx.speedBonus;
-    if (fx.luckModifier)             bonuses.luckModifier             = (bonuses.luckModifier             ?? 0) + fx.luckModifier;
-    if (fx.foodCostReduction)        bonuses.foodCostReduction        = (bonuses.foodCostReduction        ?? 0) + fx.foodCostReduction;
-    if (fx.foragingBonus)            bonuses.foragingBonus            = (bonuses.foragingBonus            ?? 0) + fx.foragingBonus;
-    if (fx.moralePerTurn)            bonuses.moralePerTurn            = (bonuses.moralePerTurn            ?? 0) + fx.moralePerTurn;
-    if (fx.companionLoyaltyBonus)    bonuses.companionLoyaltyBonus    = (bonuses.companionLoyaltyBonus    ?? 0) + fx.companionLoyaltyBonus;
-    if (fx.forcedMarchCostReduction) bonuses.forcedMarchCostReduction = (bonuses.forcedMarchCostReduction ?? 0) + fx.forcedMarchCostReduction;
-    if (fx.physicalResistanceBonus)  bonuses.physicalResistanceBonus  = (bonuses.physicalResistanceBonus  ?? 0) + fx.physicalResistanceBonus;
-    if (fx.goldFindBonus)            bonuses.goldFindBonus            = (bonuses.goldFindBonus            ?? 0) + fx.goldFindBonus;
-    if (fx.weatherProtection)        bonuses.weatherProtection        = true;
-    if (fx.immuneToTerrify)          bonuses.immuneToTerrify          = true;
-    if (fx.revealHiddenLocations)    bonuses.revealHiddenLocations    = true;
+    equippedEffects.push(def.passiveEffect);
+    if (def.passiveEffect.weatherProtection) weatherProtection = true;
+    if (def.passiveEffect.immuneToTerrify)   immuneToTerrify = true;
+    if (def.passiveEffect.revealHiddenLocations) revealHiddenLocations = true;
   }
+
+  const bonuses: ItemPassiveEffect = {
+    attackBonus:              sumEquippedModifiers(equippedEffects, 'attackBonus') || undefined,
+    defenseBonus:             sumEquippedModifiers(equippedEffects, 'defenseBonus') || undefined,
+    speedBonus:               sumEquippedModifiers(equippedEffects, 'speedBonus') || undefined,
+    luckModifier:             sumEquippedModifiers(equippedEffects, 'luckModifier') || undefined,
+    foodCostReduction:        sumEquippedModifiers(equippedEffects, 'foodCostReduction') || undefined,
+    foragingBonus:            sumEquippedModifiers(equippedEffects, 'foragingBonus') || undefined,
+    moralePerTurn:            sumEquippedModifiers(equippedEffects, 'moralePerTurn') || undefined,
+    companionLoyaltyBonus:    sumEquippedModifiers(equippedEffects, 'companionLoyaltyBonus') || undefined,
+    forcedMarchCostReduction: sumEquippedModifiers(equippedEffects, 'forcedMarchCostReduction') || undefined,
+    physicalResistanceBonus:  sumEquippedModifiers(equippedEffects, 'physicalResistanceBonus') || undefined,
+    goldFindBonus:            sumEquippedModifiers(equippedEffects, 'goldFindBonus') || undefined,
+    weatherProtection:        weatherProtection || undefined,
+    immuneToTerrify:          immuneToTerrify || undefined,
+    revealHiddenLocations:    revealHiddenLocations || undefined,
+  };
 
   return bonuses;
 }
@@ -550,24 +206,18 @@ export function getShopInventory(
   playerGold: number,
   hasMerchantsRing: boolean,
 ): ShopItem[] {
-  // Determine which items are for sale here based on region
-  const forSale = ITEM_DEFINITIONS.filter(def => {
-    if (!def.shopPrice) return false;
-    if (def.category === ItemCategory.QuestItem) return false;
-    // Early shops stock basics; late shops stock advanced items
-    if (locationId <= 10 && def.rarity === 'rare')   return false;
-    if (locationId <= 20 && def.rarity === 'unique')  return false;
-    if (locationId >= 90 && def.rarity === 'common'
-      && def.category !== ItemCategory.Consumable)    return false;
-    return true;
-  });
+  const shop = getShopDef(locationId);
+  if (!shop) return [];
 
   const discount = hasMerchantsRing ? 0.80 : 1.0;
 
-  return forSale.map(def => {
-    const finalPrice = Math.floor((def.shopPrice ?? 0) * discount);
-    return { def, finalPrice, canAfford: playerGold >= finalPrice };
-  });
+  return shop.stock.reduce<ShopItem[]>((acc, entry) => {
+    const def = getItemDef(entry.itemId);
+    if (!def?.shopPrice) return acc;
+    const finalPrice = Math.floor(def.shopPrice * discount);
+    acc.push({ def, finalPrice, canAfford: playerGold >= finalPrice });
+    return acc;
+  }, []);
 }
 
 export function buyItem(

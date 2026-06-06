@@ -262,29 +262,29 @@ describe('calculateCombatPower', () => {
 
 describe('applyLevelUpChoice', () => {
   const baseStats = {
-    maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2,
+    maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2, luck: 0,
   };
 
-  it('fierce adds +3 attack, no other changes', () => {
-    const fierce = LEVEL_UP_CHOICES.find(c => c.id === 'fierce')!;
-    const result = applyLevelUpChoice(baseStats, fierce);
+  it('strength adds +3 attack, no other changes', () => {
+    const strength = LEVEL_UP_CHOICES.find(c => c.id === 'strength')!;
+    const result = applyLevelUpChoice(baseStats, strength);
     expect(result.attack).toBe(11);
     expect(result.defense).toBe(4);
     expect(result.maxHealth).toBe(100);
   });
 
-  it('tough adds +5 maxHealth and +2 defense', () => {
-    const tough = LEVEL_UP_CHOICES.find(c => c.id === 'tough')!;
-    const result = applyLevelUpChoice(baseStats, tough);
-    expect(result.maxHealth).toBe(105);
-    expect(result.defense).toBe(6);
+  it('vitality adds +15 maxHealth', () => {
+    const vitality = LEVEL_UP_CHOICES.find(c => c.id === 'vitality')!;
+    const result = applyLevelUpChoice(baseStats, vitality);
+    expect(result.maxHealth).toBe(115);
+    expect(result.defense).toBe(4);
     expect(result.attack).toBe(8);
   });
 
-  it('swift adds +2 speed', () => {
-    const swift = LEVEL_UP_CHOICES.find(c => c.id === 'swift')!;
-    const result = applyLevelUpChoice(baseStats, swift);
-    expect(result.speed).toBe(7);
+  it('fortune adds +5 luck', () => {
+    const fortune = LEVEL_UP_CHOICES.find(c => c.id === 'fortune')!;
+    const result = applyLevelUpChoice(baseStats, fortune);
+    expect(result.luck).toBe(5);
   });
 });
 
@@ -339,7 +339,23 @@ describe('createNewGameState', () => {
     expect(state.player.level).toBe(1);
     expect(state.player.xp).toBe(0);
     expect(state.player.health).toBe(100);
+    expect(state.player.stats.luck).toBe(0);
     expect(state.player.name).toBe('Test Hero');
+    expect(state.metaProgress).toBeNull();
+  });
+
+  it('carries forward meta progress into a new run', () => {
+    const state = createNewGameState('Test Hero', {
+      victoriesCount: 2,
+      ngPlusLevel: 1,
+      unlockedCompanionIds: ['rex_the_dog'],
+    });
+
+    expect(state.metaProgress).toEqual({
+      victoriesCount: 2,
+      ngPlusLevel: 1,
+      unlockedCompanionIds: ['rex_the_dog'],
+    });
   });
 
   it('initializes firedEventIds as a Set', () => {

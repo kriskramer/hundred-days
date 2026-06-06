@@ -1,8 +1,13 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Colors } from '@theme';
+import { useLocation, useMorale } from '@store/gameStore';
 
-export function JourneyBar({ locationId, dreadActive = false }: { locationId: number; dreadActive?: boolean }) {
+export function JourneyBar() {
+  const locationId = useLocation();
+  const morale = useMorale();
+  const dreadActive = morale?.dreadActive ?? false;
+
   const pct      = Math.min((locationId / 125) * 100, 100);
   const barColor = dreadActive ? Colors.blood : Colors.gold;
   const dotColor = dreadActive ? '#C94040' : Colors.goldLight;

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveEngine } from '@engine/SaveEngine';
 import { createNewGameState } from '@engine/GameState';
-import { makeSaveFileV0, makeSaveFileV1, makeSaveFileV3, makeSaveFileV5 } from '../__fixtures__/saveFile';
+import { makeSaveFileV0, makeSaveFileV1, makeSaveFileV3, makeSaveFileV5, makeSaveFileV7 } from '../__fixtures__/saveFile';
 
 // Mock locations for SaveEngine's archiveRun (calls getRegion)
 jest.mock('@data/locations', () => ({
@@ -76,12 +76,59 @@ describe('saveRun / loadActiveRun round-trip', () => {
     expect(result.found).toBe(false);
   });
 
+  it('round-trips runLayout without regenerating it', async () => {
+    const state = createNewGameState('Layout Test');
+    const originalLayout = state.runLayout;
+    expect(originalLayout).toBeDefined();
+    expect(originalLayout!.eliteSpawns.length).toBeGreaterThan(0);
+
+    await saveEngine.saveRun(state);
+    const result = await saveEngine.loadActiveRun();
+
+    expect(result.state?.runLayout).toBeDefined();
+    expect(result.state?.runLayout?.eliteSpawns).toEqual(originalLayout!.eliteSpawns);
+    expect(result.state?.runLayout?.activeShortcuts).toEqual(originalLayout!.activeShortcuts);
+    expect(result.state?.runLayout?.merchantLocations).toEqual(originalLayout!.merchantLocations);
+    expect(result.state?.runLayout?.npcSlots).toEqual(originalLayout!.npcSlots);
+  });
+
+  it('round-trips metaProgress', async () => {
+    const state = createNewGameState('Meta Test', {
+      victoriesCount: 2,
+      ngPlusLevel: 1,
+      unlockedCompanionIds: ['rex_the_dog'],
+    });
+    await saveEngine.saveRun(state);
+
+    const result = await saveEngine.loadActiveRun();
+    expect(result.state?.metaProgress).toEqual({
+      victoriesCount: 2,
+      ngPlusLevel: 1,
+      unlockedCompanionIds: ['rex_the_dog'],
+    });
+  });
+
   it('archives completed run and removes active save', async () => {
-    const state = { ...createNewGameState('Test'), isComplete: true, outcome: 'victory' as const };
+    const state = {
+      ...createNewGameState('Test', {
+        victoriesCount: 1,
+        ngPlusLevel: 0,
+        unlockedCompanionIds: [],
+      }),
+      isComplete: true,
+      outcome: 'victory' as const,
+    };
     await saveEngine.saveRun(state);
 
     const result = await saveEngine.loadActiveRun();
     expect(result.found).toBe(false);
+
+    const history = await saveEngine.getRunHistory();
+    expect(history[0]?.metaProgress).toEqual({
+      victoriesCount: 1,
+      ngPlusLevel: 0,
+      unlockedCompanionIds: [],
+    });
   });
 });
 
@@ -122,7 +169,7 @@ describe('backup recovery', () => {
 // ─────────────────────────────────────────
 
 describe('migration', () => {
-  it('migrates v0 file to v5: adds reputation field', async () => {
+  it('migrates v0 file to v8: adds reputation field', async () => {
     const v0 = makeSaveFileV0();
     await AsyncStorage.setItem('active_run', JSON.stringify(v0));
 
@@ -132,7 +179,7 @@ describe('migration', () => {
     expect(result.state?.reputation.value).toBe(50);
   });
 
-  it('migrates v0 to v5: adds maxSlots and equippedItems', async () => {
+  it('migrates v0 to v8: adds maxSlots and equippedItems', async () => {
     const v0 = makeSaveFileV0();
     await AsyncStorage.setItem('active_run', JSON.stringify(v0));
 
@@ -141,7 +188,7 @@ describe('migration', () => {
     expect(result.state?.resources.equippedItems).toEqual({});
   });
 
-  it('migrates v0 to v5: adds starvationTurns = 0', async () => {
+  it('migrates v0 to v8: adds starvationTurns = 0', async () => {
     const v0 = makeSaveFileV0();
     await AsyncStorage.setItem('active_run', JSON.stringify(v0));
 
@@ -149,7 +196,7 @@ describe('migration', () => {
     expect(result.state?.starvationTurns).toBe(0);
   });
 
-  it('migrates v0 to v5: adds clearedCombatLocations as Set', async () => {
+  it('migrates v0 to v8: adds clearedCombatLocations as Set', async () => {
     const v0 = makeSaveFileV0();
     await AsyncStorage.setItem('active_run', JSON.stringify(v0));
 
@@ -157,7 +204,7 @@ describe('migration', () => {
     expect(result.state?.clearedCombatLocations).toBeInstanceOf(Set);
   });
 
-  it('migrates v0 to v5: adds storyFlags as Set', async () => {
+  it('migrates v0 to v8: adds storyFlags as Set', async () => {
     const v0 = makeSaveFileV0();
     await AsyncStorage.setItem('active_run', JSON.stringify(v0));
 
@@ -176,13 +223,23 @@ describe('migration', () => {
     // v3 already had starvationTurns if it was a v2+ file
   });
 
-  it('v5 file loads without migration', async () => {
+  it('migrates v7 file to v8: adds metaProgress = null', async () => {
+    const v7 = makeSaveFileV7();
+    await AsyncStorage.setItem('active_run', JSON.stringify(v7));
+
+    const result = await saveEngine.loadActiveRun();
+    expect(result.found).toBe(true);
+    expect(result.state?.metaProgress).toBeNull();
+  });
+
+  it('v5 file loads through the migration ladder', async () => {
     const v5 = makeSaveFileV5();
     await AsyncStorage.setItem('active_run', JSON.stringify(v5));
 
     const result = await saveEngine.loadActiveRun();
     expect(result.found).toBe(true);
     expect(result.state?.dayNumber).toBe(v5.dayNumber);
+    expect(result.state?.metaProgress).toBeNull();
   });
 });
 

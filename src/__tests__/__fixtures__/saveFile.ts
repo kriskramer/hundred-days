@@ -29,6 +29,25 @@ export function makeSaveFileV5(): SaveFile {
   };
 }
 
+export function makeSaveFileV7(): Omit<SaveFile, 'schemaVersion'> & { schemaVersion: 7 } {
+  const base = makeSerializedState();
+  const { metaProgress, ...stateWithoutMetaProgress } = base as SerializedGameState & {
+    metaProgress?: unknown;
+  };
+
+  return {
+    schemaVersion: 7,
+    savedAt: new Date().toISOString(),
+    runId: 'run_v7_001',
+    dayNumber: 5,
+    locationId: 5,
+    playerLevel: 1,
+    isComplete: false,
+    outcome: null,
+    gameState: stateWithoutMetaProgress as SerializedGameState,
+  };
+}
+
 export function makeSaveFileV0(): Omit<SaveFile, 'schemaVersion'> & { schemaVersion: 0 } {
   const base = makeSerializedState();
   // v0 state has no reputation field

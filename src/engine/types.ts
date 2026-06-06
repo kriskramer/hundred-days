@@ -143,6 +143,45 @@ export enum SpecialEffect {
 }
 
 // ─────────────────────────────────────────
+export interface EnemyAbility {
+  id:               string;
+  name:             string;
+  probability:      number;
+  damageMultiplier: number;
+  specialEffect?:   SpecialEffect;
+  effectMagnitude?: number;
+}
+
+export interface EnemyDefinition {
+  id:                   string;
+  name:                 string;
+  description:          string;
+  baseHP:               number;
+  baseAttack:           number;
+  baseDefense:          number;
+  baseSpeed:            number;
+  behavior:             EnemyBehavior;
+  minLocationId:        number;
+  scaleFactor:          number;
+  abilities:            EnemyAbility[];
+  packCallSpawnId:      string | null;
+  packCallSpawnMaxPerCombat: number | null;
+  immuneToNegotiate:    boolean;
+  immuneToFlee?:        boolean;
+  physicalResistance:   number;
+  moraleDamageOnSight:  number;
+  xpReward:             number;
+  goldReward:           number;
+  foodReward:           number;
+  encounterTexts:       string[];
+  defeatText:           string;
+  victoryText:          string;
+  tags?:                string[];
+  isBoss?:              boolean;
+  bossLoot?:            string[];
+}
+
+// ─────────────────────────────────────────
 // Core state
 // ─────────────────────────────────────────
 
@@ -154,7 +193,14 @@ export interface PlayerStats {
   endurance:   number;
   perception:  number;
   leadership:  number;
+  luck?:       number;
   stealing?:   number;
+}
+
+export interface MetaProgress {
+  victoriesCount: number;
+  ngPlusLevel: number;
+  unlockedCompanionIds: string[];
 }
 
 export interface StatusEffect {
@@ -223,6 +269,13 @@ export interface CompanionPassiveBonus {
   revealHiddenLocations?:   boolean;
 }
 
+export interface CompanionRecruitmentRequirements {
+  minReputation?: number;
+  maxReputation?: number;
+  minMorale?: number;
+  maxMorale?: number;
+}
+
 export interface Companion {
   id:                   string;
   name:                 string;
@@ -236,6 +289,7 @@ export interface Companion {
     min?: number;
     max?: number;
   };
+  recruitRequirements?:  CompanionRecruitmentRequirements;
   foodCostPerTurn:      number;
   combatPower:          number;
   loyaltyGains: {
@@ -253,6 +307,7 @@ export interface Companion {
   personalQuestEventId?:  string;
   departureNarrative:     string;
   recruitNarrative:       string;
+  guaranteedFleeAtLevel?: number;
 }
 
 // ─────────────────────────────────────────
@@ -311,6 +366,11 @@ export interface ItemDefinition {
   iconId:        string;
   rarity:        'common' | 'uncommon' | 'rare' | 'unique';
   questDialogueId?: string;
+  combatUsesPerBattle: number | null;
+  usableInCombat: boolean;
+  usableOnRoad: boolean;
+  stealable: boolean;
+  dropSources: string[];
 }
 
 export interface InventoryItem {
@@ -362,6 +422,126 @@ export interface GameEvent {
   interactiveHandlerId?:string;
   repeatable:           boolean;
   tags:                 string[];
+}
+
+// ─────────────────────────────────────────
+// Dialogue
+// ─────────────────────────────────────────
+
+export type ChoiceTone =
+  | 'heroic'
+  | 'pragmatic'
+  | 'cunning'
+  | 'intimidating'
+  | 'villainous'
+  | 'curious'
+  | 'humorous';
+
+export type DialogueTrigger =
+  | 'location_enter'
+  | 'event_fired'
+  | 'player_initiated'
+  | 'companion_trigger'
+  | 'combat_precursor';
+
+export interface DialogueCondition {
+  minReputation?:          number;
+  maxReputation?:          number;
+  minMorale?:              number;
+  maxMorale?:              number;
+  minPlayerLevel?:         number;
+  requiredCompanionId?:    string;
+  forbiddenCompanionId?:   string;
+  minGold?:                number;
+  minFood?:                number;
+  locationId?:             number;
+  locationIds?:            number[];
+  minLocationId?:          number;
+  maxLocationId?:          number;
+  dayRange?:               [number, number];
+  notAlreadyMet?:          boolean;
+  requiredFlag?:           string;
+  forbiddenFlag?:          string;
+}
+
+export interface ChoiceOutcome {
+  nextNodeId: string | null;
+  resourceDelta?: {
+    food?: number;
+    gold?: number;
+    health?: number;
+  };
+  reputationDelta?: number;
+  moraleDelta?: number;
+  xpGained?: number;
+  companionEffect?: {
+    type: 'recruit' | 'loyalty_boost' | 'loyalty_loss' | 'dismiss';
+    companionId: string;
+    magnitude?: number;
+  };
+  eventTrigger?: {
+    type: 'combat' | 'item_gain' | 'status_effect' | 'unlock_location';
+    payload: string;
+  };
+  flagsSet?: string[];
+  outcomeText?: string;
+}
+
+export interface DialogueChoice {
+  id:          string;
+  text:        string;
+  tone:        ChoiceTone;
+  conditions?: DialogueCondition;
+  outcome:     ChoiceOutcome;
+  isHidden?:   boolean;
+}
+
+export interface DialogueNode {
+  id:                 string;
+  speakerName:        string;
+  speakerPortraitId?: string;
+  text:               string;
+  choices:            DialogueChoice[];
+  conditions?:        DialogueCondition;
+  autoAdvance?:       boolean;
+  autoAdvanceToId?:   string | null;
+  autoAdvanceDelayMs?: number;
+}
+
+export interface Dialogue {
+  id:                string;
+  title:             string;
+  triggerType:       DialogueTrigger;
+  triggerConditions: DialogueCondition;
+  rootNodeId:        string;
+  nodes:             Record<string, DialogueNode>;
+  repeatable:        boolean;
+  tags:              string[];
+  displayName?:      string;
+  canSteal?:         boolean;
+}
+
+export interface DialogueSessionOutcome {
+  dialogueId:      string;
+  reputationDelta: number;
+  moraleDelta:     number;
+  xpGained:        number;
+  resourceDeltas: {
+    food:   number;
+    gold:   number;
+    health: number;
+  };
+  companionEffects: ChoiceOutcome['companionEffect'][];
+  eventTriggers:    ChoiceOutcome['eventTrigger'][];
+  flagsSet:         string[];
+}
+
+export interface DialogueSession {
+  dialogueId:    string;
+  currentNodeId: string;
+  choiceHistory: string[];
+  isComplete:    boolean;
+  outcome:       DialogueSessionOutcome;
 }
 
 // ─────────────────────────────────────────
@@ -447,6 +627,10 @@ export interface GameState {
   currentTurn:            TurnState | null;
   turnHistory:        TurnRecord[];
   runLayout:          RunLayout;
+  metaProgress:       MetaProgress | null;
+  consecutiveForcedMarches: number;
+  consecutiveStormDays:     number;
+  consecutiveCombatDays:    number;
 }
 
 // ─────────────────────────────────────────
@@ -466,6 +650,7 @@ export interface CombatResult {
   injuriesGained:    string[];
   companionInjuries: Record<string, string[]>;
   itemsConsumed?:     string[];
+  lootedItems?:       string[];
 }
 
 // ─────────────────────────────────────────
@@ -515,6 +700,7 @@ export interface RunHistoryEntry {
   companionsRecruited: string[];
   turnsPlayed:         number;
   summary:             string;
+  metaProgress?:       MetaProgress | null;
 }
 
 export interface AppSettings {

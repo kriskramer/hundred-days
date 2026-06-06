@@ -462,7 +462,7 @@ function BonusList({ bonuses, gameState }: { bonuses: ItemPassiveEffect; gameSta
   push('Food cost',           bonuses.foodCostReduction ? -Math.round(bonuses.foodCostReduction * 100) : undefined, '%');
   push('Foraging bonus',      bonuses.foragingBonus, ' food');
   push('Morale per turn',     bonuses.moralePerTurn);
-  push('Gold find chance',    bonuses.goldFindBonus);
+  push('Gold find chance',    bonuses.goldFindBonus ? Math.round(bonuses.goldFindBonus * 100) : undefined, '%');
   push('Phys. resist bypass', bonuses.physicalResistanceBonus
     ? Math.round(bonuses.physicalResistanceBonus * 100) : undefined, '%');
   push('March food cost',     bonuses.forcedMarchCostReduction
@@ -639,7 +639,7 @@ function PassiveEffectList({ fx }: { fx: ItemPassiveEffect }) {
   if (fx.companionLoyaltyBonus)   lines.push(`+${Math.round(fx.companionLoyaltyBonus * 100)}% companion loyalty gains`);
   if (fx.forcedMarchCostReduction)lines.push(`${Math.round(fx.forcedMarchCostReduction * 100)}% march food cost`);
   if (fx.physicalResistanceBonus) lines.push(`Bypasses ${Math.round(fx.physicalResistanceBonus * 100)}% phys resist`);
-  if (fx.goldFindBonus)           lines.push(`+${fx.goldFindBonus} gold find`);
+  if (fx.goldFindBonus)           lines.push(`+${Math.round(fx.goldFindBonus * 100)}% gold find`);
   if (fx.weatherProtection)       lines.push('Severe weather → Poor for movement');
   if (fx.immuneToTerrify)         lines.push('Immune to Terrify');
   if (fx.revealHiddenLocations)   lines.push('Reveals hidden cache events');
