@@ -499,6 +499,17 @@ describe('findDialogueForLocation', () => {
     expect(dialogue).toBeNull();
   });
 
+  it('does not return a recruit dialogue when that companion is already in the party', () => {
+    const state = makeGameState({
+      currentLocationId: 19,
+      companions: [makeCompanion({ id: 'dain' })],
+    });
+
+    const dialogue = findDialogueForLocation(19, state);
+
+    expect(dialogue?.id).not.toBe('dain_recruitment');
+  });
+
   it('returns null for location with no dialogues defined', () => {
     const state = makeGameState({ currentLocationId: 50 });
     // Location 50 has no specific location_enter dialogue unless one matches

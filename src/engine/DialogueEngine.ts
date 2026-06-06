@@ -345,6 +345,16 @@ export const DIALOGUES: Dialogue[] = [
               flagsSet:   ['rex_dismissed_early'],
             },
           },
+          {
+            id:   'rex_kick',
+            text: 'Kick the fleabag until it leaves you alone.',
+            tone: 'villainous',
+            outcome: {
+              nextNodeId:      'rex_abused',
+              reputationDelta: -8,
+              flagsSet:        ['rex_abused_early'],
+            },
+          },
         ],
       },
       rex_joins: {
@@ -367,6 +377,14 @@ export const DIALOGUES: Dialogue[] = [
         id:          'rex_dismissed',
         speakerName: 'Narrator',
         text:        'Rex watches you walk away with a look of profound, tail-drooping disappointment. You feel it between your shoulder blades for the next mile.',
+        choices:     [],
+        autoAdvance: true,
+        autoAdvanceToId: null,
+      },
+      rex_abused: {
+        id:          'rex_abused',
+        speakerName: 'Narrator',
+        text:        'Rex yelps and scrambles away from you, all trust shattered in an instant. The sound lingers in the air long after he is gone.',
         choices:     [],
         autoAdvance: true,
         autoAdvanceToId: null,
@@ -1110,17 +1128,28 @@ export function getDialogue(id: string): Dialogue | undefined {
   return DIALOGUES.find(d => d.id === id);
 }
 
-const NPC_DIALOGUE_DISPLAY_NAMES: Record<string, string> = {
-  coron_priest:       'Coron',
-  finn_pickpocket:    'Finn',
-  griselda_herbalist: 'Griselda',
-  rex_the_dog:        'Rex',
-  sylas_collector:    'Sylas',
-  wounded_stranger:   'Wounded Stranger',
+const NPC_DIALOGUE_META: Record<string, { displayName: string; canSteal: boolean }> = {
+  coron_priest:       { displayName: 'Coron',            canSteal: true },
+  dain_recruitment:   { displayName: 'Dain',             canSteal: true },
+  finn_pickpocket:    { displayName: 'Finn',             canSteal: true },
+  griselda_herbalist: { displayName: 'Griselda',         canSteal: true },
+  lefty_recruitment:  { displayName: 'Lefty',            canSteal: true },
+  branniks_tent:      { displayName: 'Brannik',          canSteal: true },
+  rex_the_dog:        { displayName: 'Rex',              canSteal: false },
+  sylas_collector:    { displayName: 'Sylas',            canSteal: true },
+  wounded_stranger:   { displayName: 'Wounded Stranger', canSteal: true },
 };
 
+export function isNpcDialogue(id: string): boolean {
+  return id in NPC_DIALOGUE_META;
+}
+
+export function canStealFromDialogue(id: string): boolean {
+  return NPC_DIALOGUE_META[id]?.canSteal ?? true;
+}
+
 export function getDialogueDisplayName(id: string): string {
-  const explicitName = NPC_DIALOGUE_DISPLAY_NAMES[id];
+  const explicitName = NPC_DIALOGUE_META[id]?.displayName;
   if (explicitName) return explicitName;
 
   const dialogue = getDialogue(id);
@@ -1137,6 +1166,19 @@ export function getDialogueDisplayName(id: string): string {
   }
 
   return dialogue.title.split(',')[0] ?? dialogue.title;
+}
+
+function recruitsExistingCompanion(dialogue: Dialogue, gameState: GameState): boolean {
+  if (gameState.companions.length === 0) return false;
+
+  const recruitedCompanionIds = new Set(gameState.companions.map(companion => companion.id));
+
+  return Object.values(dialogue.nodes).some(node =>
+    node.choices.some(choice => {
+      const effect = choice.outcome.companionEffect;
+      return effect?.type === 'recruit' && recruitedCompanionIds.has(effect.companionId);
+    }),
+  );
 }
 
 export function findDialogueForLocation(
@@ -1156,6 +1198,7 @@ export function findDialogueForLocation(
     if (c.minReputation !== undefined && gameState.reputation.value < c.minReputation) continue;
     if (c.maxReputation !== undefined && gameState.reputation.value > c.maxReputation) continue;
     if (c.forbiddenCompanionId && gameState.companions.some(co => co.id === c.forbiddenCompanionId)) continue;
+    if (recruitsExistingCompanion(d, gameState)) continue;
     return d;
   }
   return null;

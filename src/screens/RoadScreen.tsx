@@ -3,10 +3,10 @@ import { ScrollView, View, Text, TouchableOpacity, Alert, Animated } from 'react
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
-import { pickLocationText } from '@engine/GameState';
+import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
 import { isBossLocation } from '@engine/bosses';
 import { hasEligibleDialogue } from '@engine/EventSystem';
-import { findDialogueForLocation, getDialogueDisplayName } from '@engine/DialogueEngine';
+import { canStealFromDialogue, findDialogueForLocation, getDialogueDisplayName, isNpcDialogue } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText } from '@components';
@@ -274,17 +274,28 @@ export function RoadScreen({
   const [forceComplete, setForceComplete]             = useState(false);
   const [lastEntryFinished, setLastEntryFinished]     = useState(false);
   const [locDescFinished, setLocDescFinished]         = useState(false);
+  const [randomTextFinished, setRandomTextFinished]   = useState(false);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
   const currentNpcSlot = gameState.runLayout?.npcSlots.find(
     slot => slot.locationId === gameState.currentLocationId && !gameState.firedEventIds.has(slot.npcEventId)
   ) ?? null;
-  const currentNpcName = currentNpcSlot ? getDialogueDisplayName(currentNpcSlot.npcEventId) : null;
-  const baseLocationText = pickLocationText(location, gameState.dayNumber, gameState.seed) || '';
-  const displayLocationText = dialogueCue
+  const currentNpcDialogueId = activeDialogue && isNpcDialogue(activeDialogue.id)
+    ? activeDialogue.id
+    : currentNpcSlot?.npcEventId ?? null;
+  const currentNpcName = currentNpcDialogueId ? getDialogueDisplayName(currentNpcDialogueId) : null;
+  const currentNpcCanSteal = currentNpcDialogueId ? canStealFromDialogue(currentNpcDialogueId) : false;
+
+  const baseLocationText = location.locationText || '';
+  const randomText = pickLocationRandomText(location, gameState.dayNumber, gameState.seed);
+
+  const displayLocationText = (dialogueCue && !randomText)
     ? `${baseLocationText}\n\n${dialogueCue}`
     : baseLocationText;
+  const displayRandomText = (dialogueCue && randomText)
+    ? `${randomText}\n\n${dialogueCue}`
+    : randomText;
 
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
@@ -304,10 +315,11 @@ export function RoadScreen({
     setForceComplete(false);
     setLastEntryFinished(false);
     setLocDescFinished(false);
+    setRandomTextFinished(false);
   }, [gameState.currentLocationId, showingLastEntry]);
 
   const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
-  const isLocationTyping = !showingLastEntry && !locDescFinished;
+  const isLocationTyping = !showingLastEntry && (!locDescFinished || (randomText !== null && !randomTextFinished));
   const isTyping = isJournalEntryTyping || isLocationTyping;
 
   let netFood = 0;
@@ -338,13 +350,13 @@ export function RoadScreen({
           variant: 'primary' as const,
           onPress: () => onOpenCombat?.(),
         },
-        ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        ...((dialogueNearby && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
-        ...(dialogueNearby ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
-        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
-        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'primary' as const,   onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
+        ...((dialogueNearby && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }) },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...activeShortcuts.map(s => ({
           label: s.label,
           sub: `To loc ${s.to} · 2 food`,
@@ -357,12 +369,12 @@ export function RoadScreen({
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
         { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) },
       ]).map(btn => ({ ...btn, disabled: isTyping }));
-  const npcActionButtons = currentNpcSlot && currentNpcName
+  const npcActionButtons = currentNpcDialogueId && currentNpcName
     ? [{
         label: currentNpcName,
-        sub: 'Talk · Steal',
+        sub: currentNpcCanSteal ? 'Talk · Steal' : 'Talk',
         variant: 'npc' as const,
-        onPress: () => onOpenNpc?.(currentNpcSlot.npcEventId),
+        onPress: () => onOpenNpc?.(currentNpcDialogueId),
         disabled: isTyping,
       }]
     : [];
@@ -577,6 +589,19 @@ export function RoadScreen({
                     onComplete={() => setLocDescFinished(true)}
                     style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                   />
+                  {randomText && locDescFinished && (
+                    <>
+                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
+                      <TypewriterText
+                        key={`loc-random-${location.id}-${showingLastEntry}`}
+                        text={displayRandomText || ''}
+                        interval={textInterval}
+                        forceComplete={forceComplete}
+                        onComplete={() => setRandomTextFinished(true)}
+                        style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </TouchableOpacity>
@@ -778,7 +803,7 @@ function SectionHeader({ label, right, centered }: { label: string; right?: stri
 type ActionDef = {
   label:   string;
   sub:     string;
-  variant: 'primary' | 'secondary' | 'default' | 'npc';
+  variant: 'primary' | 'secondary' | 'default' | 'npc' | 'move' | 'forceMarch';
   onPress: () => void;
   disabled?: boolean;
 };
@@ -801,13 +826,17 @@ function ActionGrid({ actions }: { actions: ActionDef[] }) {
 }
 
 function ActionButton({ label, sub, variant, onPress, disabled }: ActionDef) {
-  const bg          = variant === 'primary'   ? Colors.blood
-                    : variant === 'secondary' ? Colors.gold
-                    : variant === 'npc'       ? '#D8EEF9'
+  const bg          = variant === 'primary'    ? Colors.blood
+                    : variant === 'secondary'  ? Colors.gold
+                    : variant === 'npc'        ? '#D8EEF9'
+                    : variant === 'move'       ? '#3D6B4A'
+                    : variant === 'forceMarch' ? '#1E4E2C'
                     : Colors.ink;
-  const borderColor = variant === 'primary'   ? '#C94040'
-                    : variant === 'secondary' ? '#D4A017'
-                    : variant === 'npc'       ? '#7BAFCC'
+  const borderColor = variant === 'primary'    ? '#C94040'
+                    : variant === 'secondary'  ? '#D4A017'
+                    : variant === 'npc'        ? '#7BAFCC'
+                    : variant === 'move'       ? '#5E8A69'
+                    : variant === 'forceMarch' ? '#2F6A41'
                     : '#3A2E1C';
   const textColor   = variant === 'secondary' || variant === 'npc' ? Colors.ink : Colors.parchment;
 

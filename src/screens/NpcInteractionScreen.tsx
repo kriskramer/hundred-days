@@ -9,7 +9,7 @@ import {
 import type { GameState } from '@engine/types';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { DialogueScreen } from '@screens/DialogueScreen';
-import { getDialogueDisplayName } from '@engine/DialogueEngine';
+import { canStealFromDialogue, getDialogueDisplayName } from '@engine/DialogueEngine';
 
 interface Props {
   gameState:      GameState;
@@ -29,6 +29,7 @@ export function NpcInteractionScreen({
   onBackToRoad,
 }: Props) {
   const npcName = getDialogueDisplayName(dialogueId);
+  const canSteal = canStealFromDialogue(dialogueId);
 
   return (
     <View style={s.root}>
@@ -54,7 +55,7 @@ export function NpcInteractionScreen({
           onComplete={onComplete}
           onToast={onToast}
           onBackToRoad={onBackToRoad}
-          footerContent={(
+          footerContent={canSteal ? (
             <View style={s.footer}>
               <Text style={s.footerLabel}>Other action</Text>
               <TouchableOpacity
@@ -66,7 +67,7 @@ export function NpcInteractionScreen({
                 <Text style={s.stealButtonSubtext}>Try your luck instead of talking</Text>
               </TouchableOpacity>
             </View>
-          )}
+          ) : null}
         />
       </View>
     </View>

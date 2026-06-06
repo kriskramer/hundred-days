@@ -325,3 +325,17 @@ export function pickLocationText(
   const index = Math.floor(value * location.randomTexts.length);
   return location.randomTexts[index] || location.locationText || '';
 }
+
+export function pickLocationRandomText(
+  location: Location,
+  dayNumber: number,
+  seed: number,
+): string | null {
+  if (!location.randomTexts || location.randomTexts.length === 0) {
+    return null;
+  }
+  const xorState = (seed ^ location.id ^ dayNumber) >>> 0;
+  const { value } = nextMulberry32(xorState);
+  const index = Math.floor(value * location.randomTexts.length);
+  return location.randomTexts[index] || null;
+}

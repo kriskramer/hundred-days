@@ -174,6 +174,15 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
     }
   }, [combatState?.phase, combatState?.result, showResult]);
 
+  // Safety net: if phase enters post_combat but no log line calls handleLogFinished
+  // (e.g. empty enemy array), trigger result display directly.
+  useEffect(() => {
+    if (combatState?.phase === 'post_combat' && combatState?.result && !showResult) {
+      if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = setTimeout(() => setShowResult(true), 500);
+    }
+  }, [combatState?.phase, combatState?.result, showResult]);
+
   // ─────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────

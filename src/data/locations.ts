@@ -248,7 +248,7 @@ export const LOCATIONS: Location[] = [
     isTown: false,
     hasShop: false,
     mobs: [
-      { name: "Medium Rats", aggroPct: 30 },
+      { name: "Small Rats", aggroPct: 30 },
     ],
     actions: {
       canSteal:         false,
