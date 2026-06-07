@@ -20,19 +20,26 @@ export function TypewriterText({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCompleteRef = useRef(onComplete);
+  const displayedRef = useRef(displayed);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
   });
 
   useEffect(() => {
+    displayedRef.current = displayed;
+  }, [displayed]);
+
+  useEffect(() => {
     if (!text) {
       setDisplayed('');
+      displayedRef.current = '';
       return;
     }
 
     if (interval === 0 || forceComplete) {
       setDisplayed(text);
+      displayedRef.current = text;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -41,10 +48,27 @@ export function TypewriterText({
       return;
     }
 
-    setDisplayed('');
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    const startIndex = text.startsWith(displayedRef.current) ? displayedRef.current.length : 0;
+    if (startIndex === 0) {
+      setDisplayed('');
+      displayedRef.current = '';
+    }
 
     const start = () => {
-      let i = 0;
+      let i = startIndex;
+      if (i >= text.length) {
+        onCompleteRef.current?.();
+        return;
+      }
       intervalRef.current = setInterval(() => {
         i++;
         setDisplayed(text.slice(0, i));

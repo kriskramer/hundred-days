@@ -1,0 +1,7 @@
+# Settings for Firebase App Hosting
+# For documentation see: https://firebase.google.com/docs/app-hosting/configure
+
+# Custom scripts to build and run the application
+scripts:
+  buildCommand: npm run build
+  runCommand: node server.js

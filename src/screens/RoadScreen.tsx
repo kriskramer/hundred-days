@@ -11,14 +11,15 @@ import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
-import { hasMerchantAtLocation } from '@engine/ItemSystem';
+import { getMerchantAtLocation, hasMerchantAtLocation } from '@engine/ItemSystem';
+import { getShopEntryNarrative } from '@utils/tradeJournal';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
   gameState:       GameState;
   engine:          TurnEngine | null;
   onToast:         (msg: string) => void;
-  onOpenShop?:     () => void;
+  onOpenShop?:     (shopName: string) => void;
   onOpenCombat?:   () => void;
   onOpenDialogue?: () => void;
   onOpenNpc?:      (dialogueId: string) => void;
@@ -161,6 +162,7 @@ export function RoadScreen({
   const [lastEntryFinished, setLastEntryFinished]     = useState(false);
   const [locDescFinished, setLocDescFinished]         = useState(false);
   const [randomTextFinished, setRandomTextFinished]   = useState(false);
+  const [pendingShopName, setPendingShopName]         = useState<string | null>(null);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
@@ -186,26 +188,39 @@ export function RoadScreen({
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
+  const shopEntryNarrative = pendingShopName ? getShopEntryNarrative(pendingShopName) : null;
+  const locationNarrativeText = shopEntryNarrative && locDescFinished && !randomText
+    ? `${displayLocationText}\n\n${shopEntryNarrative}`
+    : displayLocationText;
+  const randomNarrativeText = shopEntryNarrative && locDescFinished && !!randomText && randomTextFinished
+    ? `${displayRandomText || ''}\n\n${shopEntryNarrative}`
+    : (displayRandomText || '');
 
   useEffect(() => {
     if (!lastTurnKey) {
       setShowingLastEntry(false);
       prevTurnKeyRef.current = null;
     } else if (lastTurnKey !== prevTurnKeyRef.current) {
-      setShowingLastEntry(true);
+      setShowingLastEntry(lastTurn?.action !== PlayerAction.Trade);
       prevTurnKeyRef.current = lastTurnKey;
     }
-  }, [lastTurnKey]);
+  }, [lastTurn?.action, lastTurnKey]);
 
   useEffect(() => {
     setForceComplete(false);
     setLastEntryFinished(false);
     setLocDescFinished(false);
     setRandomTextFinished(false);
+    setPendingShopName(null);
   }, [gameState.currentLocationId, showingLastEntry]);
 
   const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
-  const isLocationTyping = !showingLastEntry && (!locDescFinished || (randomText !== null && !randomTextFinished));
+  const isShopIntroTyping = pendingShopName !== null;
+  const isLocationTyping = !showingLastEntry && (
+    !locDescFinished
+    || (randomText !== null && !randomTextFinished)
+    || isShopIntroTyping
+  );
   const isTyping = isJournalEntryTyping || isLocationTyping;
   const showAlertBadges = !showingLastEntry && (dangerNearby || dialogueNearby || bossNearby);
 
@@ -235,6 +250,7 @@ export function RoadScreen({
     + (itemBonuses.luckModifier ?? 0);
   const isLucky = luckThreshold > 0.25;
   const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
+  const merchantName = getMerchantAtLocation(gameState.currentLocationId, gameState.runLayout)?.merchantName ?? location.name;
 
   const actionButtons = (bossNearby
     ? [
@@ -257,7 +273,15 @@ export function RoadScreen({
           variant: 'primary' as const,
           onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to })
         })),
-        ...(hasMerchant ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+        ...(hasMerchant ? [{
+          label: 'Trade',
+          sub: 'Buy · Sell',
+          variant: 'secondary' as const,
+          onPress: () => {
+            setForceComplete(false);
+            setPendingShopName(merchantName);
+          }
+        }] : []),
         ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
         { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
@@ -300,6 +324,15 @@ export function RoadScreen({
         </Text>
       </View>
     );
+  }
+
+  function handleShopIntroComplete() {
+    if (!pendingShopName) return;
+
+    const shopName = pendingShopName;
+    setPendingShopName(null);
+    setForceComplete(false);
+    setTimeout(() => onOpenShop?.(shopName), 0);
   }
 
 
@@ -469,10 +502,16 @@ export function RoadScreen({
                 <>
                   <TypewriterText
                     key={`loc-${location.id}-${showingLastEntry}`}
-                    text={displayLocationText}
+                    text={locationNarrativeText}
                     interval={textInterval}
                     forceComplete={forceComplete}
-                    onComplete={() => setLocDescFinished(true)}
+                    onComplete={() => {
+                      if (pendingShopName && !randomText) {
+                        handleShopIntroComplete();
+                        return;
+                      }
+                      setLocDescFinished(true);
+                    }}
                     style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                   />
                   {randomText && locDescFinished && (
@@ -480,10 +519,16 @@ export function RoadScreen({
                       <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
                       <TypewriterText
                         key={`loc-random-${location.id}-${showingLastEntry}`}
-                        text={displayRandomText || ''}
+                        text={randomNarrativeText}
                         interval={textInterval}
                         forceComplete={forceComplete}
-                        onComplete={() => setRandomTextFinished(true)}
+                        onComplete={() => {
+                          if (pendingShopName) {
+                            handleShopIntroComplete();
+                            return;
+                          }
+                          setRandomTextFinished(true);
+                        }}
                         style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                       />
                     </>

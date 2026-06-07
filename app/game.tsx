@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -45,6 +45,7 @@ import {
   buildLevelUpChoicePreviews,
 } from '@engine/GameState';
 import { isCombatEvent } from '@utils/isCombatEvent';
+import { createTradeJournalRecord } from '@utils/tradeJournal';
 
 type Tab = 'road' | 'combat' | 'dialogue' | 'npc' | 'inventory' | 'map';
 type NavItemId = Tab | 'journal' | 'settings';
@@ -174,6 +175,18 @@ export default function GameScreen() {
 
     handleConfirmCombat();
   }
+
+  const handleOpenShop = useCallback((shopName: string) => {
+    if (!gameState) return;
+
+    const nextState: GameState = {
+      ...gameState,
+      turnHistory: [...gameState.turnHistory, createTradeJournalRecord(gameState, shopName)],
+    };
+
+    syncExternalGameState(nextState);
+    setShopOpen(true);
+  }, [gameState]);
 
   function handleOpenDialogue() {
     if (!dialogueAvailable) return;
@@ -395,7 +408,7 @@ export default function GameScreen() {
             gameState={gameState}
             engine={engine}
             onToast={showToast}
-            onOpenShop={() => setShopOpen(true)}
+            onOpenShop={handleOpenShop}
             onOpenCombat={handleOpenCombat}
             onOpenDialogue={handleOpenDialogue}
             onOpenNpc={handleOpenNpc}
