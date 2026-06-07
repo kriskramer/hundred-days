@@ -22,6 +22,7 @@ interface Props {
   onOpenCombat?:   () => void;
   onOpenDialogue?: () => void;
   onOpenNpc?:      (dialogueId: string) => void;
+  canTalk?:        boolean;
   textInterval?: number;
   confirmActions?: boolean;
 }
@@ -143,6 +144,7 @@ export function RoadScreen({
   onOpenCombat,
   onOpenDialogue,
   onOpenNpc,
+  canTalk,
   textInterval = 22,
   confirmActions = true,
 }: Props) {
@@ -205,6 +207,7 @@ export function RoadScreen({
   const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
   const isLocationTyping = !showingLastEntry && (!locDescFinished || (randomText !== null && !randomTextFinished));
   const isTyping = isJournalEntryTyping || isLocationTyping;
+  const showAlertBadges = !showingLastEntry && (dangerNearby || dialogueNearby || bossNearby);
 
   let netFood = 0;
   let netGold = 0;
@@ -241,11 +244,11 @@ export function RoadScreen({
           variant: 'primary' as const,
           onPress: () => onOpenCombat?.(),
         },
-        ...((dialogueNearby && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
-        ...((dialogueNearby && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
+        ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }), isLucky },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...activeShortcuts.map(s => ({
@@ -395,7 +398,7 @@ export function RoadScreen({
               </View>
 
               {/* Alert badges row — only when relevant */}
-              {(dangerNearby || dialogueNearby || bossNearby) && (
+              {showAlertBadges && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   {bossNearby && (
                     <FlashingBadge style={{ backgroundColor: Colors.blood, borderWidth: 1, borderColor: Colors.goldLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 2 }}>
@@ -489,35 +492,8 @@ export function RoadScreen({
               )}
             </TouchableOpacity>
 
-            {/* Actions / Next button */}
-            {showingLastEntry ? (
-              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
-                <TouchableOpacity
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                    setShowingLastEntry(false);
-                  }}
-                  activeOpacity={0.8}
-                  style={{
-                    backgroundColor: Colors.blood,
-                    borderWidth: 1.5,
-                    borderColor: '#C94040',
-                    borderRadius: 3,
-                    alignItems: 'center',
-                    paddingVertical: 14,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.35,
-                    shadowRadius: 3,
-                    elevation: 4,
-                  }}
-                >
-                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: Colors.parchment, fontSize: 13, letterSpacing: 2 }}>
-                    NEXT
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
+            {/* Actions (only shown if not showing last journal entry) */}
+            {!showingLastEntry && (
               <>
                 <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
                   <SectionHeader label="Actions" right="Choose wisely" centered />
@@ -555,12 +531,23 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
-      {isTyping && !forceComplete && (
+      {showingLastEntry ? (
         <TouchableOpacity
           activeOpacity={1}
-          onPress={() => setForceComplete(true)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            setShowingLastEntry(false);
+          }}
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
         />
+      ) : (
+        isLocationTyping && !forceComplete && (
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setForceComplete(true)}
+            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+        )
       )}
       <CompanionDetailModal
         visible={selectedCompanionId !== null}

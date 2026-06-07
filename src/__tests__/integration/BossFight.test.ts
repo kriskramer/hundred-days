@@ -140,8 +140,8 @@ describe('buildBossEnemy', () => {
   });
 
   it('scales boss HP with player level', () => {
-    const level1 = makeGameState({ currentLocationId: 32, player: { ...makeGameState().player, level: 1 } });
-    const level5 = makeGameState({ currentLocationId: 32, player: { ...makeGameState().player, level: 5 } });
+    const level1 = makeGameState({ currentLocationId: 65, player: { ...makeGameState().player, level: 1 } });
+    const level5 = makeGameState({ currentLocationId: 65, player: { ...makeGameState().player, level: 5 } });
 
     const [boss1] = buildBossEnemy(level1);
     const [boss5] = buildBossEnemy(level5);
@@ -245,7 +245,7 @@ describe('TurnEngine.resolveLocationCombat', () => {
   it('does not mark location cleared on defeat', async () => {
     const engine = makeTurnEngine(32);
     await engine.resolveLocationCombat(32, makeCombatVictory({ outcome: 'defeat', lootedItems: [] }));
-    expect(engine.getState().clearedCombatLocations.has(32)).toBe(true);
+    expect(engine.getState().clearedCombatLocations.has(32)).toBe(false);
   });
 
   it('marks all four boss locations cleared and their events fired after victories', async () => {

@@ -249,10 +249,12 @@ export class TurnEngine {
     }
 
     const newCleared = new Set(this.state.clearedCombatLocations);
-    newCleared.add(locationId);
+    if (result.outcome === 'victory') {
+      newCleared.add(locationId);
+    }
 
     const bossEventId = BOSS_EVENT_MAP[locationId];
-    const newFired = bossEventId
+    const newFired = bossEventId && result.outcome === 'victory'
       ? new Set([...this.state.firedEventIds, bossEventId])
       : this.state.firedEventIds;
 
@@ -265,6 +267,18 @@ export class TurnEngine {
       firedEventIds:          newFired,
       consecutiveCombatDays:  nextConsecutive,
     });
+
+    if (newPlayer.health <= 0 || (bossEventId && result.outcome !== 'victory')) {
+      const bossDefeatMessages: Record<number, string> = {
+        32:  'The Orc Warchief holds the bridge. The road ends here.',
+        65:  'The Lich of Vorishy claims another soul. The world grows darker.',
+        93:  'The White Horseman\'s chill finds every weakness. You will not rise.',
+        125: 'Roachak was too powerful. The world falls into shadow.',
+      };
+      const bossMsg = bossEventId ? bossDefeatMessages[locationId] : undefined;
+      this.endRun('defeat', bossMsg ?? 'Your wounds were too great. The world falls to darkness.');
+      return;
+    }
 
     await saveEngine.saveRun(this.state);
   }
@@ -1109,7 +1123,14 @@ export class TurnEngine {
   private async checkWinLoss(): Promise<void> {
     const { currentLocationId, dayNumber } = this.state;
 
-    if (this.state.player.health <= 0) {
+    let projectedHealth = this.state.player.health;
+    for (const d of this.state.currentTurn?.pendingDeltas ?? []) {
+      if (d.health !== undefined) {
+        projectedHealth = clamp(projectedHealth + d.health, 0, this.state.player.stats.maxHealth);
+      }
+    }
+
+    if (projectedHealth <= 0) {
       this.endRun('defeat', 'Your wounds were too great. The world falls to darkness.');
       return;
     }

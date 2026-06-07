@@ -423,7 +423,7 @@ describe('buildBossEnemy', () => {
     expect(boss[0].enemyId).toBe('orc_warchief');
   });
 
-  it('scales Orc Warchief HP with player level', () => {
+  it('keeps Orc Warchief HP fixed at 100 regardless of player level', () => {
     const level1 = makeGameState({
       currentLocationId: 32,
       player: { name: 'T', level: 1, xp: 0, health: 100, stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 }, statusEffects: [] },
@@ -434,8 +434,8 @@ describe('buildBossEnemy', () => {
     });
     const boss1 = buildBossEnemy(level1);
     const boss5 = buildBossEnemy(level5);
-    expect(boss1[0].maxHP).toBe(85);
-    expect(boss5[0].maxHP).toBe(145);
+    expect(boss1[0].maxHP).toBe(100);
+    expect(boss5[0].maxHP).toBe(100);
   });
 
   it('scales boss HP with player level', () => {

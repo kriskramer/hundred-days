@@ -30,6 +30,7 @@ import {
   inventoryFromResources,
   getItemDef,
 } from '@engine/ItemSystem';
+import { clamp } from '@engine/GameState';
 
 import {
   CombatEngine,
@@ -205,6 +206,11 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const usableItems = inv.items
     .map(i => getItemDef(i.definitionId))
     .filter((def): def is ItemDefinition => !!def && def.usableInCombat);
+  const displayedMoraleDelta = getDisplayedMoraleDelta(
+    combatState.result,
+    gameState.morale.value,
+    gameState.consecutiveCombatDays
+  );
 
   return (
     <View style={s.root}>
@@ -380,7 +386,11 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
 
       {/* ── RESULT OVERLAY ── */}
       {showResult && combatState.result && (
-        <ResultOverlay result={combatState.result} onContinue={handleContinue} />
+        <ResultOverlay
+          result={combatState.result}
+          displayedMoraleDelta={displayedMoraleDelta}
+          onContinue={handleContinue}
+        />
       )}
     </View>
   );
@@ -629,8 +639,14 @@ function ActionBtn({
 }
 
 function ResultOverlay({
-  result, onContinue,
-}: { result: CombatResult; onContinue: () => void }) {
+  result,
+  displayedMoraleDelta,
+  onContinue,
+}: {
+  result: CombatResult;
+  displayedMoraleDelta: number;
+  onContinue: () => void;
+}) {
   const isGood   = result.outcome === 'victory' || result.outcome === 'negotiated';
   const isFled   = result.outcome === 'fled';
   const titles   = {
@@ -641,7 +657,7 @@ function ResultOverlay({
     result.xpGained   > 0 ? `+${result.xpGained} XP`      : null,
     result.goldGained > 0 ? `+${result.goldGained} gold`   : null,
     result.foodGained > 0 ? `+${result.foodGained} food`   : null,
-    result.moraleDelta> 0 ? `+${result.moraleDelta} morale`: null,
+    displayedMoraleDelta > 0 ? `+${displayedMoraleDelta} morale` : null,
     ...(result.lootedItems?.map(id => {
       const def = getItemDef(id);
       return def ? `Found: ${def.name}` : null;
@@ -650,7 +666,7 @@ function ResultOverlay({
 
   const losses = [
     result.healthLost  > 0 ? `−${result.healthLost} HP`       : null,
-    result.moraleDelta < 0 ? `${result.moraleDelta} morale`    : null,
+    displayedMoraleDelta < 0 ? `${displayedMoraleDelta} morale` : null,
     result.injuriesGained.length ? `Injured: ${result.injuriesGained.join(', ')}` : null,
   ].filter(Boolean) as string[];
 
@@ -702,6 +718,22 @@ function ResultOverlay({
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
+
+export function getDisplayedMoraleDelta(
+  result: CombatResult | null,
+  currentMorale: number,
+  consecutiveCombatDays: number,
+): number {
+  if (!result) return 0;
+
+  const nextConsecutiveCombatDays = consecutiveCombatDays + 1;
+  const fatiguePenalty = nextConsecutiveCombatDays > 1
+    ? -3 * (nextConsecutiveCombatDays - 1)
+    : 0;
+  const projectedMorale = clamp(currentMorale + result.moraleDelta + fatiguePenalty, 0, 100);
+
+  return projectedMorale - currentMorale;
+}
 
 function buildEnemiesFromContext(
   event: GameEvent | null,

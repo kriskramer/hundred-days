@@ -166,9 +166,10 @@ export function buildBossEnemy(game: GameState): EnemyCombatant[] {
   const def   = getEnemyDefinition(enemyId);
   const level = game.player.level;
 
-  const hp      = def.baseHP + level * 15;
-  const attack  = def.baseAttack  + level * 2;
-  const defense = def.baseDefense + level;
+  const scale   = def.fixedStats ? 0 : level;
+  const hp      = def.baseHP     + scale * 15;
+  const attack  = def.baseAttack + scale * 2;
+  const defense = def.baseDefense + scale;
 
   return [{
     enemyId:            def.id,

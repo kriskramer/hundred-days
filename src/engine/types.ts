@@ -179,6 +179,7 @@ export interface EnemyDefinition {
   tags?:                string[];
   isBoss?:              boolean;
   bossLoot?:            string[];
+  fixedStats?:          boolean;
 }
 
 // ─────────────────────────────────────────

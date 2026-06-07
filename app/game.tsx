@@ -399,6 +399,7 @@ export default function GameScreen() {
             onOpenCombat={handleOpenCombat}
             onOpenDialogue={handleOpenDialogue}
             onOpenNpc={handleOpenNpc}
+            canTalk={dialogueAvailable}
             textInterval={settings?.textSpeed === 'slow'
               ? 45
               : settings?.textSpeed === 'fast'
