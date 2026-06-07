@@ -7,11 +7,13 @@ import {
   useItem,
   computeEquippedBonuses,
   getShopInventory,
+  getMerchantAtLocation,
   sellItem,
   buyItem,
   Inventory,
 } from '@engine/ItemSystem';
 import { ItemSlot, ItemCategory } from '@engine/types';
+import type { RunLayout } from '@engine/RunLayout';
 import { makeInventory, makeInvWithItem, makeFullInventory } from '../__fixtures__/inventory';
 
 // ─────────────────────────────────────────
@@ -291,6 +293,24 @@ describe('computeEquippedBonuses', () => {
 // ─────────────────────────────────────────
 
 describe('getShopInventory', () => {
+  const roamingLayout: RunLayout = {
+    npcSlots: [],
+    roamingMerchants: [
+      {
+        id: 'roaming_merchant_50',
+        locationId: 50,
+        merchantName: 'Mira of the Red Cart',
+        archetypeId: 'roadside-provisions',
+        stock: [
+          { itemId: 'dried_rations', maxQuantity: 5 },
+          { itemId: 'travelers_pack', maxQuantity: 1 },
+        ],
+      },
+    ],
+    activeShortcuts: [],
+    eliteSpawns: [],
+  };
+
   it('returns empty array for a location with no shop', () => {
     const items = getShopInventory(50, 100, false);
     expect(items).toHaveLength(0);
@@ -326,6 +346,32 @@ describe('getShopInventory', () => {
     const items = getShopInventory(1, 0, false);
     const affordable = items.filter(i => i.canAfford);
     expect(affordable).toHaveLength(0);
+  });
+
+  it('returns roaming merchant stock when the run layout places a merchant there', () => {
+    const items = getShopInventory(50, 100, false, roamingLayout);
+    const ids = items.map(item => item.def.id);
+
+    expect(ids).toEqual(['dried_rations', 'travelers_pack']);
+  });
+
+  it('prefers permanent shop stock over roaming data at the same location', () => {
+    const overlappingLayout = {
+      ...roamingLayout,
+      roamingMerchants: [
+        {
+          ...roamingLayout.roamingMerchants[0],
+          locationId: 1,
+        },
+      ],
+    };
+
+    const merchant = getMerchantAtLocation(1, overlappingLayout);
+    const items = getShopInventory(1, 100, false, overlappingLayout);
+
+    expect(merchant?.kind).toBe('permanent');
+    expect(items.map(item => item.def.id)).toContain('healing_potion');
+    expect(items.map(item => item.def.id)).not.toEqual(['dried_rations', 'travelers_pack']);
   });
 });
 

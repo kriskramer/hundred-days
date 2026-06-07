@@ -7,9 +7,12 @@ import {
   InventoryItem,
   SpecialEffect,
 } from './types';
+import type { RunLayout } from './RunLayout';
 
 import { ITEMS, getItemDef, getItemDefinition } from '../data/items';
+import type { ShopDefinition, ShopStockEntry } from '../data/shops';
 import { getShopDef } from '../data/shops';
+import { findRoamingMerchant } from './RunLayout';
 
 export const ITEM_DEFINITIONS = ITEMS;
 export { getItemDef, getItemDefinition };
@@ -201,17 +204,61 @@ export interface ShopItem {
   canAfford:  boolean;
 }
 
+export interface MerchantDefinition {
+  kind: 'permanent' | 'roaming';
+  merchantName: string;
+  locationId: number;
+  stock: ShopStockEntry[];
+  archetypeId?: string;
+}
+
+function toMerchantDefinition(shop: ShopDefinition): MerchantDefinition {
+  return {
+    kind: 'permanent',
+    merchantName: shop.merchantName,
+    locationId: shop.locationId,
+    stock: shop.stock,
+  };
+}
+
+export function getMerchantAtLocation(
+  locationId: number,
+  runLayout?: RunLayout | null,
+): MerchantDefinition | undefined {
+  const shop = getShopDef(locationId);
+  if (shop) return toMerchantDefinition(shop);
+
+  const roamingMerchant = findRoamingMerchant(runLayout, locationId);
+  if (!roamingMerchant) return undefined;
+
+  return {
+    kind: 'roaming',
+    merchantName: roamingMerchant.merchantName,
+    locationId: roamingMerchant.locationId,
+    stock: roamingMerchant.stock,
+    archetypeId: roamingMerchant.archetypeId,
+  };
+}
+
+export function hasMerchantAtLocation(
+  locationId: number,
+  runLayout?: RunLayout | null,
+): boolean {
+  return getMerchantAtLocation(locationId, runLayout) !== undefined;
+}
+
 export function getShopInventory(
   locationId: number,
   playerGold: number,
   hasMerchantsRing: boolean,
+  runLayout?: RunLayout | null,
 ): ShopItem[] {
-  const shop = getShopDef(locationId);
-  if (!shop) return [];
+  const merchant = getMerchantAtLocation(locationId, runLayout);
+  if (!merchant) return [];
 
   const discount = hasMerchantsRing ? 0.80 : 1.0;
 
-  return shop.stock.reduce<ShopItem[]>((acc, entry) => {
+  return merchant.stock.reduce<ShopItem[]>((acc, entry) => {
     const def = getItemDef(entry.itemId);
     if (!def?.shopPrice) return acc;
     const finalPrice = Math.floor(def.shopPrice * discount);

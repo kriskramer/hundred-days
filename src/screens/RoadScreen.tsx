@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, Alert, Animated } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, Animated } from 'react-native';
 import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
@@ -11,6 +11,7 @@ import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
+import { hasMerchantAtLocation } from '@engine/ItemSystem';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
@@ -230,6 +231,7 @@ export function RoadScreen({
     + ((gameState.player.stats.luck ?? 0) / 100)
     + (itemBonuses.luckModifier ?? 0);
   const isLucky = luckThreshold > 0.25;
+  const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
 
   const actionButtons = (bossNearby
     ? [
@@ -252,7 +254,7 @@ export function RoadScreen({
           variant: 'primary' as const,
           onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to })
         })),
-        ...((location.hasShop || (gameState.runLayout && gameState.runLayout.merchantLocations.includes(gameState.currentLocationId))) ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
+        ...(hasMerchant ? [{ label: 'Trade',      sub: 'Buy · Sell',     variant: 'secondary' as const, onPress: () => onOpenShop?.()                                    }] : []),
         ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
         { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
@@ -311,15 +313,7 @@ export function RoadScreen({
     }
 
     if (params.action === PlayerAction.Move && gameState.resources.food < moveFoodThreshold) {
-      Alert.alert(
-        'March Hungry?',
-        'You can still move without enough food, but each hungry march costs health and morale, and the penalty grows if you keep pushing.',
-        [
-          { text: 'Stay',  style: 'cancel' },
-          { text: 'March', onPress: () => engine.submitAction(params).catch(console.error) },
-        ]
-      );
-      return;
+      onToast('Marching hungry — health and morale penalties will keep worsening until you find food.');
     }
 
     engine.submitAction(params).catch(console.error);
@@ -377,7 +371,7 @@ export function RoadScreen({
                     TOWN
                   </Text>
                 )}
-                {(location.hasShop || (gameState.runLayout && gameState.runLayout.merchantLocations.includes(gameState.currentLocationId))) && (
+                {hasMerchant && (
                   <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.gold }}>
                     SHOP
                   </Text>

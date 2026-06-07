@@ -5,9 +5,9 @@ import {
   buyItem as buyInventoryItem,
   sellItem as sellInventoryItem,
   getItemDef,
-  getShopInventory,
   inventoryFromResources,
   isItemEquipped,
+  getMerchantAtLocation,
   resourcesToInventory,
 } from '@engine/ItemSystem';
 import { useGameStore } from '@store/gameStore';
@@ -41,10 +41,16 @@ export function useShopActions() {
     if (!gameState) return { success: false, reason: 'No active game.' } satisfies ActionFailure;
 
     const hasMerchantsRing = isItemEquipped(gameState.resources, 'merchants_ring');
+    const merchant = getMerchantAtLocation(locationId, gameState.runLayout);
+    if (!merchant) {
+      return { success: false, reason: 'No merchant is trading here.' } satisfies ActionFailure;
+    }
+    if (!merchant.stock.some(entry => entry.itemId === itemId)) {
+      return { success: false, reason: `${merchant.merchantName} is not selling that item.` } satisfies ActionFailure;
+    }
+
     const def = getItemDef(itemId);
     if (!def) return { success: false, reason: 'Item definition missing.' } satisfies ActionFailure;
-
-
     const inventory = inventoryFromResources(gameState.resources);
     const result = buyInventoryItem(
       inventory,

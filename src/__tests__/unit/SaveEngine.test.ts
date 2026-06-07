@@ -88,7 +88,7 @@ describe('saveRun / loadActiveRun round-trip', () => {
     expect(result.state?.runLayout).toBeDefined();
     expect(result.state?.runLayout?.eliteSpawns).toEqual(originalLayout!.eliteSpawns);
     expect(result.state?.runLayout?.activeShortcuts).toEqual(originalLayout!.activeShortcuts);
-    expect(result.state?.runLayout?.merchantLocations).toEqual(originalLayout!.merchantLocations);
+    expect(result.state?.runLayout?.roamingMerchants).toEqual(originalLayout!.roamingMerchants);
     expect(result.state?.runLayout?.npcSlots).toEqual(originalLayout!.npcSlots);
   });
 
@@ -240,6 +240,47 @@ describe('migration', () => {
     expect(result.found).toBe(true);
     expect(result.state?.dayNumber).toBe(v5.dayNumber);
     expect(result.state?.metaProgress).toBeNull();
+  });
+
+  it('migrates v10 runLayout merchantLocations into roaming merchants without changing other layout data', async () => {
+    const state = createNewGameState('Legacy Merchants');
+    const legacyRunLayout = {
+      npcSlots: state.runLayout.npcSlots,
+      merchantLocations: state.runLayout.roamingMerchants.map(merchant => merchant.locationId),
+      activeShortcuts: state.runLayout.activeShortcuts,
+      eliteSpawns: state.runLayout.eliteSpawns,
+    };
+    const legacySave = {
+      schemaVersion: 10,
+      savedAt: new Date().toISOString(),
+      runId: state.runId,
+      dayNumber: state.dayNumber,
+      locationId: state.currentLocationId,
+      playerLevel: state.player.level,
+      isComplete: state.isComplete,
+      outcome: state.outcome,
+      gameState: {
+        ...state,
+        runLayout: legacyRunLayout,
+        firedEventIds: Array.from(state.firedEventIds),
+        visitedLocationIds: Array.from(state.visitedLocationIds),
+        clearedCombatLocations: Array.from(state.clearedCombatLocations),
+        storyFlags: Array.from(state.storyFlags),
+        currentTurn: null,
+      },
+    };
+
+    await AsyncStorage.setItem('active_run', JSON.stringify(legacySave));
+
+    const result = await saveEngine.loadActiveRun();
+
+    expect(result.found).toBe(true);
+    expect(result.state?.runLayout.npcSlots).toEqual(state.runLayout.npcSlots);
+    expect(result.state?.runLayout.activeShortcuts).toEqual(state.runLayout.activeShortcuts);
+    expect(result.state?.runLayout.eliteSpawns).toEqual(state.runLayout.eliteSpawns);
+    expect(result.state?.runLayout.roamingMerchants.map(merchant => merchant.locationId)).toEqual(
+      state.runLayout.roamingMerchants.map(merchant => merchant.locationId),
+    );
   });
 });
 

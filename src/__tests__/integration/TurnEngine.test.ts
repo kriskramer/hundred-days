@@ -909,7 +909,7 @@ describe('TurnEngine — Weather consequences', () => {
 
     await engine.submitAction({ action: PlayerAction.Rally });
 
-    expect(engine.getState().consecutiveStormDays).toBe(1);
+    expect(engine.getState().consecutiveStormDays).toBe(0);
   });
 
   it('applies correct morale hits for forced marches in sequence and poor/severe weather', async () => {
@@ -933,21 +933,21 @@ describe('TurnEngine — Weather consequences', () => {
     expect(engine.getState().morale.value).toBe(69);
     expect(engine.getState().consecutiveForcedMarches).toBe(2);
 
-    // 3. Normal move: no forced march penalty, morale unchanged, counter decays by 1 (2 -> 1)
+    // 3. Normal move: no forced march penalty, morale unchanged, counter decays by 2 (2 -> 0)
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
     expect(engine.getState().morale.value).toBe(69);
-    expect(engine.getState().consecutiveForcedMarches).toBe(1);
+    expect(engine.getState().consecutiveForcedMarches).toBe(0);
 
-    // 4. Forced march: increments counter (1 -> 2), penalty is -6 (69 -> 63)
+    // 4. Forced march: fresh streak restarts at 1, penalty is -5 (69 -> 64)
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
-    expect(engine.getState().morale.value).toBe(63);
-    expect(engine.getState().consecutiveForcedMarches).toBe(2);
-
-    // 5. Hunt action: decays counter by 1 (2 -> 1)
-    await engine.submitAction({ action: PlayerAction.Hunt, method: 'forage' });
+    expect(engine.getState().morale.value).toBe(64);
     expect(engine.getState().consecutiveForcedMarches).toBe(1);
 
-    // 6. Rest action: decays counter by 2 (1 -> 0)
+    // 5. Hunt action: decays counter by 2 (1 -> 0)
+    await engine.submitAction({ action: PlayerAction.Hunt, method: 'forage' });
+    expect(engine.getState().consecutiveForcedMarches).toBe(0);
+
+    // 6. Rest action: counter already 0, stays 0
     await engine.submitAction({ action: PlayerAction.Rest, atInn: false });
     expect(engine.getState().consecutiveForcedMarches).toBe(0);
   });

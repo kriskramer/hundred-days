@@ -27,7 +27,7 @@ import { GameBalance } from './GameBalance';
 // Schema version — increment when GameState
 // structure changes to trigger migration
 // ─────────────────────────────────────────
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 function describeLevelUpChoice(choice: ConfigLevelUpChoice): string {
   const statLabels: Record<ConfigLevelUpChoice['stat'], string> = {

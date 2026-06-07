@@ -8,7 +8,7 @@ import {
   MetaProgress,
 } from './types';
 import { SCHEMA_VERSION } from './GameState';
-import { generateRunLayout } from './RunLayout';
+import { generateRunLayout, normalizeRunLayout } from './RunLayout';
 import { getRegion } from '@data/locations';
 
 // ─────────────────────────────────────────
@@ -177,6 +177,7 @@ class SaveEngine {
   private deserialize(saved: SerializedGameState): GameState {
     return {
       ...saved,
+      runLayout:              normalizeRunLayout(saved.runLayout, saved.seed),
       metaProgress:           this.cloneMetaProgress(saved.metaProgress ?? null),
       rngState:               saved.rngState ?? (saved.seed >>> 0),
       firedEventIds:          new Set(saved.firedEventIds),
@@ -328,6 +329,19 @@ class SaveEngine {
         state['consecutiveCombatDays'] = 0;
       }
       current = { ...current, schemaVersion: 10 };
+    }
+
+    // v10 → v11: upgrade runLayout merchantLocations into roamingMerchants
+    if (current.schemaVersion === 10) {
+      const state = current.gameState as SerializedGameState & { runLayout?: unknown; seed?: unknown };
+      if (state.runLayout && typeof state.runLayout === 'object') {
+        const seed = typeof state.seed === 'number' ? state.seed : 0;
+        state.runLayout = normalizeRunLayout(
+          state.runLayout as Parameters<typeof normalizeRunLayout>[0],
+          seed,
+        );
+      }
+      current = { ...current, schemaVersion: 11 };
     }
 
     if (current.schemaVersion !== SCHEMA_VERSION) return null;

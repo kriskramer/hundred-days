@@ -39,6 +39,8 @@ export {
   sellItem,
   buyItem,
   getShopInventory,
+  getMerchantAtLocation,
+  hasMerchantAtLocation,
   computeEquippedBonuses,
   sumEquippedModifiers,
   createEmptyInventory,
@@ -50,7 +52,7 @@ export {
   SLOT_LABELS,
   CATEGORY_ICONS,
 } from './ItemSystem';
-export type { Inventory, ShopItem, InventoryResult } from './ItemSystem';
+export type { Inventory, ShopItem, InventoryResult, MerchantDefinition } from './ItemSystem';
 export type { SaveResult, LoadResult } from './SaveEngine';
 export { soundEngine } from './SoundEngine';
 export type { SoundId } from './SoundEngine';

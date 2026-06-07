@@ -366,15 +366,15 @@ export class TurnEngine {
 
   private resolveAction(params: ActionParams): void {
     if (params.action !== PlayerAction.Move) {
-      let fmDecay = 1;
-      let stormDecay = 1;
+      let fmDecay = 2;
+      let stormDecay = 2;
 
       if (params.action === PlayerAction.Rest || params.action === PlayerAction.Camp) {
-        fmDecay = 2;
-        stormDecay = 2;
+        fmDecay = 3;
+        stormDecay = 3;
       } else if (params.action === PlayerAction.Rally) {
-        fmDecay = 2;
-        stormDecay = 2;
+        fmDecay = 3;
+        stormDecay = 3;
       }
 
       const nextFM = Math.max(0, (this.state.consecutiveForcedMarches ?? 0) - fmDecay);
@@ -495,7 +495,7 @@ export class TurnEngine {
       nextConsecutive = (this.state.consecutiveForcedMarches ?? 0) + 1;
       forcedMarchMoralePenalty = -(4 + nextConsecutive); // -5 for 1st, -6 for 2nd, etc.
     } else {
-      nextConsecutive = Math.max(0, (this.state.consecutiveForcedMarches ?? 0) - 1);
+      nextConsecutive = Math.max(0, (this.state.consecutiveForcedMarches ?? 0) - 2);
     }
 
     // Weather penalties: storm (Poor) = -2 base, severe storm (Severe) = -3 base
@@ -512,7 +512,7 @@ export class TurnEngine {
       }
       nextStormDays = stormDays + 1;
     } else {
-      nextStormDays = Math.max(0, (this.state.consecutiveStormDays ?? 0) - 1);
+      nextStormDays = Math.max(0, (this.state.consecutiveStormDays ?? 0) - 2);
     }
 
     const totalMoralePenalty = forcedMarchMoralePenalty + weatherMoralePenalty;
@@ -1236,7 +1236,7 @@ export class TurnEngine {
 
     let nextCombatDays = this.state.consecutiveCombatDays ?? 0;
     if (!this.combatOccurredThisTurn) {
-      nextCombatDays = Math.max(0, nextCombatDays - 1);
+      nextCombatDays = Math.max(0, nextCombatDays - 2);
     }
 
     this.setState({

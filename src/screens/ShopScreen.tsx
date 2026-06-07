@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ItemCategory } from '@engine/types';
 import {
   getShopInventory,
+  getMerchantAtLocation,
   getItemDef,
   inventoryFromResources,
   isItemEquipped,
@@ -22,7 +23,7 @@ import {
 } from '@engine/ItemSystem';
 import { getLocation }  from '@data/locations';
 import { useShopActions } from '@hooks/useShopActions';
-import { useLocation, useResources } from '@store/gameStore';
+import { useGameStore, useLocation, useResources } from '@store/gameStore';
 
 // ─────────────────────────────────────────
 // Palette
@@ -60,13 +61,15 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
 
   const locationId = useLocation();
   const resources = useResources();
+  const runLayout = useGameStore(s => s.gameState?.runLayout);
 
   if (!resources) return null;
 
   const location         = getLocation(locationId);
+  const merchant         = getMerchantAtLocation(locationId, runLayout);
   const hasMerchantsRing = isItemEquipped(resources, 'merchants_ring');
   const inventory        = inventoryFromResources(resources);
-  const shopItems        = getShopInventory(locationId, resources.gold, hasMerchantsRing);
+  const shopItems        = getShopInventory(locationId, resources.gold, hasMerchantsRing, runLayout);
 
   // Only show items the player could sell (have a shop price, not quest items)
   const sellableItems = inventory.items
@@ -106,7 +109,10 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
         <View style={s.header}>
           <View style={s.headerTitle}>
             <Text style={s.merchantLabel}>MERCHANT</Text>
-            <Text style={s.locationName}>{location.name}</Text>
+            <Text style={s.locationName}>{merchant?.merchantName ?? location.name}</Text>
+            {merchant && (
+              <Text style={s.locationSubtitle}>{location.name}</Text>
+            )}
           </View>
           <View style={s.headerRight}>
             <View style={s.goldBox}>
@@ -303,6 +309,12 @@ const s = StyleSheet.create({
     color:      C.parchment,
     fontFamily: 'Cinzel_400Regular',
     fontSize:   20,
+    marginTop:  2,
+  },
+  locationSubtitle: {
+    color:      C.mist,
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize:   13,
     marginTop:  2,
   },
   headerRight: {
