@@ -263,6 +263,15 @@ export function RoadScreen({
   const typingKey = isTyping ? segments[firstTypingIdx].key : null;
   const showAlertBadges = dangerNearby || dialogueNearby || bossNearby;
 
+  useEffect(() => {
+    if (dangerNearby || bossNearby) return;
+
+    setSegments(prev => {
+      const next = prev.filter(seg => seg.type !== 'combat_intro');
+      return next.length === prev.length ? prev : next;
+    });
+  }, [bossNearby, dangerNearby]);
+
   let netFood = 0;
   let netGold = 0;
   let netHealth = 0;

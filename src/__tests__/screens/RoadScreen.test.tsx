@@ -228,4 +228,71 @@ describe('RoadScreen', () => {
     expect(queryByText('LAST ENTRY — DAY 1')).toBeNull();
     expect(queryByText('Trade')).toBeTruthy();
   });
+
+  it('removes stale combat intro text after the location is cleared', async () => {
+    jest.useFakeTimers();
+
+    const onToast = jest.fn();
+    const onOpenCombat = jest.fn();
+    const gameState1 = makeGameState({
+      currentLocationId: 8,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      clearedCombatLocations: new Set(),
+      turnHistory: [],
+    });
+
+    const engine = new TurnEngine(gameState1, () => undefined, () => undefined, () => undefined);
+    const { rerender, queryByText, UNSAFE_getAllByType } = render(
+      <RoadScreen
+        gameState={gameState1}
+        engine={engine}
+        onToast={onToast}
+        onOpenCombat={onOpenCombat}
+        textInterval={0}
+      />
+    );
+
+    const combatButton = await waitFor(() => {
+      const button = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
+        candidate.findAllByType(Text).some((textNode: { props: { children: unknown } }) => {
+          const children = textNode.props.children;
+          return children === 'Combat'
+            || (Array.isArray(children) && children.includes('Combat'));
+        })
+      );
+
+      expect(button).toBeDefined();
+      if (!button) {
+        throw new Error('Expected combat button to be present.');
+      }
+      return button;
+    });
+
+    fireEvent.press(combatButton);
+
+    act(() => {
+      jest.runAllTimers();
+    });
+
+    await waitFor(() => {
+      expect(queryByText('DANGER APPROACHES')).toBeTruthy();
+    });
+
+    rerender(
+      <RoadScreen
+        gameState={{ ...gameState1, clearedCombatLocations: new Set([8]) }}
+        engine={engine}
+        onToast={onToast}
+        onOpenCombat={onOpenCombat}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText('DANGER APPROACHES')).toBeNull();
+      expect(queryByText('Combat')).toBeNull();
+    });
+
+    jest.useRealTimers();
+  });
 });
