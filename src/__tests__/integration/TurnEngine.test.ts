@@ -782,6 +782,35 @@ describe('TurnEngine — interactive events', () => {
     expect(after.resources.items.some(item => item.definitionId === 'healing_potion')).toBe(false);
   });
 
+  it('ends the run immediately on interactive combat defeat', async () => {
+    const banditEvent: GameEvent = {
+      id: 'bandit_ambush', type: EventType.Combat,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Bandit Ambush', description: 'Bandits!',
+      conditions: { probability: 1.0 }, repeatable: true, tags: ['combat'],
+    };
+    mockSampleEvents.mockReturnValue([banditEvent]);
+
+    const { engine } = makeEngine({
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    await engine.resolveInteractiveEvent({
+      outcome: 'defeat', roundsFought: 2, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 5, healthDelta: -5, moraleDelta: -12, reputationDelta: 0,
+      injuriesGained: ['wounded'], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    const after = engine.getState();
+    expect(after.isComplete).toBe(true);
+    expect(after.outcome).toBe('defeat');
+  });
+
   it('applies full combat rewards for location combat results', async () => {
     const { engine } = makeEngine({
       player: {
@@ -826,6 +855,21 @@ describe('TurnEngine — interactive events', () => {
     const after = engine.getState();
     expect(after.clearedCombatLocations.has(32)).toBe(true);
     expect(after.firedEventIds.has('boss_orc_warchief')).toBe(true);
+  });
+
+  it('ends the run on boss location defeat even before projected health reaches 0', async () => {
+    const { engine } = makeEngine({ currentLocationId: 32 });
+
+    await engine.resolveLocationCombat(32, {
+      outcome: 'defeat', roundsFought: 2, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 5, healthDelta: -5, moraleDelta: -12, reputationDelta: 0,
+      injuriesGained: ['wounded'], companionInjuries: {}, itemsConsumed: [], lootedItems: [],
+    });
+
+    const after = engine.getState();
+    expect(after.isComplete).toBe(true);
+    expect(after.outcome).toBe('defeat');
+    expect(after.clearedCombatLocations.has(32)).toBe(false);
   });
 });
 

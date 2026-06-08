@@ -154,6 +154,20 @@ export class TurnEngine {
       },
     });
     this.applyEventResult(result);
+    const projectedHealth = clamp(
+      this.state.player.health + this.getCombatHealthDelta(result),
+      0,
+      this.state.player.stats.maxHealth,
+    );
+    const defeatNarrative = this.getCombatDefeatNarrative(
+      result,
+      projectedHealth,
+      bossLoc ? Number(bossLoc) : this.state.currentLocationId,
+    );
+    if (activeEvent?.type === EventType.Combat && defeatNarrative) {
+      this.endRun('defeat', defeatNarrative);
+      return;
+    }
     await this.continueFromPhase(TurnPhase.ResolvingEvents);
   }
 
@@ -268,15 +282,9 @@ export class TurnEngine {
       consecutiveCombatDays:  nextConsecutive,
     });
 
-    if (newPlayer.health <= 0 || (bossEventId && result.outcome !== 'victory')) {
-      const bossDefeatMessages: Record<number, string> = {
-        32:  'The Orc Warchief holds the bridge. The road ends here.',
-        65:  'The Lich of Vorishy claims another soul. The world grows darker.',
-        93:  'The White Horseman\'s chill finds every weakness. You will not rise.',
-        125: 'Roachak was too powerful. The world falls into shadow.',
-      };
-      const bossMsg = bossEventId ? bossDefeatMessages[locationId] : undefined;
-      this.endRun('defeat', bossMsg ?? 'Your wounds were too great. The world falls to darkness.');
+    const defeatNarrative = this.getCombatDefeatNarrative(result, newPlayer.health, locationId);
+    if (defeatNarrative) {
+      this.endRun('defeat', defeatNarrative);
       return;
     }
 
@@ -1414,6 +1422,28 @@ export class TurnEngine {
 
   private getCombatHealthDelta(result: CombatResult): number {
     return result.healthDelta ?? -result.healthLost;
+  }
+
+  private getCombatDefeatNarrative(
+    result: CombatResult,
+    projectedHealth: number,
+    locationId: number,
+  ): string | null {
+    if (BOSS_EVENT_MAP[locationId] && result.outcome !== 'victory') {
+      const bossDefeatMessages: Record<number, string> = {
+        32:  'The Orc Warchief holds the bridge. The road ends here.',
+        65:  'The Lich of Vorishy claims another soul. The world grows darker.',
+        93:  'The White Horseman\'s chill finds every weakness. You will not rise.',
+        125: 'Roachak was too powerful. The world falls into shadow.',
+      };
+      return bossDefeatMessages[locationId] ?? 'The road ends here.';
+    }
+
+    if (result.outcome === 'defeat' || projectedHealth <= 0) {
+      return 'Your wounds were too great. The world falls to darkness.';
+    }
+
+    return null;
   }
 
   private applyConsumedItems(
