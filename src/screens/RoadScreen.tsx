@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, Animated } from 'react-native';
-import { GameState, PlayerAction, ACTION_LABELS, WeatherType, CompanionArchetype, TurnRecord, Companion, CompanionPassiveBonus } from '@engine/types';
+import { GameState, PlayerAction, WeatherType, CompanionArchetype } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
 import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
@@ -12,8 +12,21 @@ import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
 import { getMerchantAtLocation, hasMerchantAtLocation } from '@engine/ItemSystem';
-import { getShopEntryNarrative } from '@utils/tradeJournal';
+import { getMerchantEntryNarrative } from '@utils/tradeJournal';
+import { getEnemyDefinition } from '@engine';
 import * as Haptics from 'expo-haptics';
+
+interface JournalSegment {
+  key:          string;
+  type:         'prev_entry' | 'prev_delta' | 'loc_desc' | 'random_text' | 'npc_cue'
+                | 'action_result' | 'combat_intro' | 'trade_intro';
+  text?:        string;
+  deltaFood?:   number;
+  deltaGold?:   number;
+  deltaHealth?: number;
+  deltaMorale?: number;
+  instant:      boolean;
+}
 
 interface Props {
   gameState:       GameState;
@@ -157,12 +170,10 @@ export function RoadScreen({
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
 
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
-  const [showingLastEntry, setShowingLastEntry]       = useState(false);
-  const [forceComplete, setForceComplete]             = useState(false);
-  const [lastEntryFinished, setLastEntryFinished]     = useState(false);
-  const [locDescFinished, setLocDescFinished]         = useState(false);
-  const [randomTextFinished, setRandomTextFinished]   = useState(false);
-  const [pendingShopName, setPendingShopName]         = useState<string | null>(null);
+  const [segments, setSegments]           = useState<JournalSegment[]>([]);
+  const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set());
+  const [forceComplete, setForceComplete] = useState(false);
+  const journalScrollRef = useRef<ScrollView>(null);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
@@ -178,51 +189,79 @@ export function RoadScreen({
   const baseLocationText = location.locationText || '';
   const randomText = pickLocationRandomText(location, gameState.dayNumber, gameState.seed);
 
-  const displayLocationText = (dialogueCue && !randomText)
-    ? `${baseLocationText}\n\n${dialogueCue}`
-    : baseLocationText;
-  const displayRandomText = (dialogueCue && randomText)
-    ? `${randomText}\n\n${dialogueCue}`
-    : randomText;
-
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
-  const shopEntryNarrative = pendingShopName ? getShopEntryNarrative(pendingShopName) : null;
-  const locationNarrativeText = shopEntryNarrative && locDescFinished && !randomText
-    ? `${displayLocationText}\n\n${shopEntryNarrative}`
-    : displayLocationText;
-  const randomNarrativeText = shopEntryNarrative && locDescFinished && !!randomText && randomTextFinished
-    ? `${displayRandomText || ''}\n\n${shopEntryNarrative}`
-    : (displayRandomText || '');
 
+  // Effect A — reset journal panel on location arrival
   useEffect(() => {
-    if (!lastTurnKey) {
-      setShowingLastEntry(false);
-      prevTurnKeyRef.current = null;
-    } else if (lastTurnKey !== prevTurnKeyRef.current) {
-      setShowingLastEntry(lastTurn?.action !== PlayerAction.Trade);
-      prevTurnKeyRef.current = lastTurnKey;
+    const segs: JournalSegment[] = [];
+
+    if (lastTurn) {
+      segs.push({
+        key:     `prev-entry-${lastTurn.dayNumber}-${lastTurn.action}`,
+        type:    'prev_entry',
+        text:    lastTurn.narrativeSummary || 'The day passed without incident.',
+        instant: true,
+      });
+      if (hasDelta) {
+        segs.push({
+          key:         `prev-delta-${lastTurn.dayNumber}`,
+          type:        'prev_delta',
+          deltaFood:   netFood,
+          deltaGold:   netGold,
+          deltaHealth: netHealth,
+          deltaMorale: netMorale,
+          instant:     true,
+        });
+      }
     }
-  }, [lastTurn?.action, lastTurnKey]);
 
-  useEffect(() => {
+    if (baseLocationText)
+      segs.push({ key: `loc-${gameState.currentLocationId}`, type: 'loc_desc',    text: baseLocationText, instant: false });
+    if (randomText)
+      segs.push({ key: `rnd-${gameState.currentLocationId}`, type: 'random_text', text: randomText,        instant: false });
+    if (dialogueCue)
+      segs.push({ key: `npc-${gameState.currentLocationId}`, type: 'npc_cue',     text: dialogueCue,       instant: false });
+
+    setSegments(segs);
+    setCompletedKeys(new Set());
     setForceComplete(false);
-    setLastEntryFinished(false);
-    setLocDescFinished(false);
-    setRandomTextFinished(false);
-    setPendingShopName(null);
-  }, [gameState.currentLocationId, showingLastEntry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.currentLocationId]); // snapshot lastTurn/deltas at arrival only; same-location actions handled by Effect B
 
-  const isJournalEntryTyping = showingLastEntry && !lastEntryFinished;
-  const isShopIntroTyping = pendingShopName !== null;
-  const isLocationTyping = !showingLastEntry && (
-    !locDescFinished
-    || (randomText !== null && !randomTextFinished)
-    || isShopIntroTyping
+  // Effect B — append result for same-location actions
+  useEffect(() => {
+    if (!lastTurnKey || lastTurnKey === prevTurnKeyRef.current) return;
+    prevTurnKeyRef.current = lastTurnKey;
+    if (lastTurn?.locationAfter !== lastTurn?.locationBefore) return; // movement handled by Effect A
+
+    const text = lastTurn?.narrativeSummary || 'The day continued.';
+    setSegments(prev => [...prev, {
+      key:     `action-${lastTurnKey}`,
+      type:    'action_result',
+      text,
+      instant: false,
+    }]);
+  }, [lastTurnKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effect C — auto-scroll when new segments are added
+  useEffect(() => {
+    if (segments.length > 0) {
+      const t = setTimeout(() => journalScrollRef.current?.scrollToEnd({ animated: true }), 80);
+      return () => clearTimeout(t);
+    }
+  }, [segments]);
+
+  const firstTypingIdx = segments.findIndex(
+    (s, i) =>
+      !s.instant &&
+      !completedKeys.has(s.key) &&
+      segments.slice(0, i).filter(p => !p.instant).every(p => completedKeys.has(p.key))
   );
-  const isTyping = isJournalEntryTyping || isLocationTyping;
-  const showAlertBadges = !showingLastEntry && (dangerNearby || dialogueNearby || bossNearby);
+  const isTyping  = firstTypingIdx !== -1;
+  const typingKey = isTyping ? segments[firstTypingIdx].key : null;
+  const showAlertBadges = dangerNearby || dialogueNearby || bossNearby;
 
   let netFood = 0;
   let netGold = 0;
@@ -252,18 +291,38 @@ export function RoadScreen({
   const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
   const merchantName = getMerchantAtLocation(gameState.currentLocationId, gameState.runLayout)?.merchantName ?? location.name;
 
+  function appendCombatIntro(onOpen: () => void) {
+    const hostileMob = location.mobs.find(m => m.aggroPct > 0 && !m.isCompanion);
+    let encounterText = 'Danger looms ahead.';
+    if (hostileMob) {
+      try {
+        const def = getEnemyDefinition(hostileMob.enemyId);
+        if (def.encounterTexts?.length) {
+          encounterText = def.encounterTexts[Math.floor(Math.random() * def.encounterTexts.length)];
+        }
+      } catch { /* fallback */ }
+    }
+    setSegments(prev => [...prev, {
+      key:     `combat-${Date.now()}`,
+      type:    'combat_intro',
+      text:    encounterText,
+      instant: false,
+    }]);
+    // onOpen fires from the segment's onComplete callback
+  }
+
   const actionButtons = (bossNearby
     ? [
         {
           label: 'Fight Boss',
           sub: 'Begin combat',
           variant: 'primary' as const,
-          onPress: () => onOpenCombat?.(),
+          onPress: () => appendCombatIntro(() => onOpenCombat?.()),
         },
         ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
       ]
     : [
-        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => onOpenCombat?.() }] : []),
+        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => appendCombatIntro(() => onOpenCombat?.()) }] : []),
         ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }), isLucky },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
@@ -278,8 +337,14 @@ export function RoadScreen({
           sub: 'Buy · Sell',
           variant: 'secondary' as const,
           onPress: () => {
-            setForceComplete(false);
-            setPendingShopName(merchantName);
+            const flavorText = getMerchantEntryNarrative(merchantName);
+            setSegments(prev => [...prev, {
+              key:     `trade-${Date.now()}`,
+              type:    'trade_intro',
+              text:    flavorText,
+              instant: false,
+            }]);
+            // onOpenShop fires from the segment's onComplete callback
           }
         }] : []),
         ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
@@ -325,16 +390,6 @@ export function RoadScreen({
       </View>
     );
   }
-
-  function handleShopIntroComplete() {
-    if (!pendingShopName) return;
-
-    const shopName = pendingShopName;
-    setPendingShopName(null);
-    setForceComplete(false);
-    setTimeout(() => onOpenShop?.(shopName), 0);
-  }
-
 
   function submit(params: ActionParams) {
     if (!engine) { onToast('Engine not ready'); return; }
@@ -460,98 +515,52 @@ export function RoadScreen({
               )}
             </View>
 
-            {/* Narrative / Combined Panel */}
-            <TouchableOpacity
-              activeOpacity={0.95}
-              onPress={() => setForceComplete(true)}
-              style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}
+            {/* Narrative / Journal Panel — accumulates the day's events */}
+            <ScrollView
+              ref={journalScrollRef}
+              style={{ maxHeight: 340 }}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
             >
-              {showingLastEntry && lastTurn ? (
-                // Last Entry Content
-                <>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 0.5, borderBottomColor: '#C8A060', paddingBottom: 6 }}>
-                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, color: Colors.blood, letterSpacing: 0.5 }}>
-                      LAST ENTRY — DAY {lastTurn.dayNumber}
-                    </Text>
-                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, color: Colors.mist, letterSpacing: 0.5 }}>
-                      {ACTION_LABELS[lastTurn.action].toUpperCase()}
-                    </Text>
-                  </View>
-                  <TypewriterText
-                    key={`journal-${lastTurn.dayNumber}-${lastTurn.action}`}
-                    text={lastTurn.narrativeSummary || 'The day passed without incident.'}
-                    interval={textInterval}
-                    forceComplete={forceComplete}
-                    onComplete={() => setLastEntryFinished(true)}
-                    style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.ink }}
-                  />
-                  {hasDelta && (
-                    <>
-                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 10 }} />
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                        {renderDelta(netFood, 'food', '🍎')}
-                        {renderDelta(netGold, 'gold', '🪙')}
-                        {renderDelta(netHealth, 'health', '❤️')}
-                        {renderDelta(netMorale, 'morale', '🎭')}
-                      </View>
-                    </>
-                  )}
-                </>
-              ) : (
-                // Location Content
-                <>
-                  <TypewriterText
-                    key={`loc-${location.id}-${showingLastEntry}`}
-                    text={locationNarrativeText}
-                    interval={textInterval}
-                    forceComplete={forceComplete}
+              <TouchableOpacity
+                activeOpacity={0.95}
+                onPress={() => setForceComplete(true)}
+                style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}
+              >
+                {segments.map((seg, i) => (
+                  <JournalSegmentView
+                    key={seg.key}
+                    seg={seg}
+                    isTyping={seg.key === typingKey}
+                    isCompleted={completedKeys.has(seg.key)}
+                    forceComplete={forceComplete && seg.key === typingKey}
+                    textInterval={textInterval}
+                    showDivider={i > 0}
+                    renderDelta={renderDelta}
                     onComplete={() => {
-                      if (pendingShopName && !randomText) {
-                        handleShopIntroComplete();
-                        return;
-                      }
-                      setLocDescFinished(true);
+                      setCompletedKeys(prev => new Set([...prev, seg.key]));
+                      setForceComplete(false);
+                      if (seg.type === 'trade_intro')  setTimeout(() => onOpenShop?.(merchantName), 0);
+                      if (seg.type === 'combat_intro') setTimeout(() => onOpenCombat?.(), 0);
                     }}
-                    style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
                   />
-                  {randomText && locDescFinished && (
-                    <>
-                      <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />
-                      <TypewriterText
-                        key={`loc-random-${location.id}-${showingLastEntry}`}
-                        text={randomNarrativeText}
-                        interval={textInterval}
-                        forceComplete={forceComplete}
-                        onComplete={() => {
-                          if (pendingShopName) {
-                            handleShopIntroComplete();
-                            return;
-                          }
-                          setRandomTextFinished(true);
-                        }}
-                        style={{ fontFamily: 'CrimsonText_400Regular_Italic', fontSize: 15, lineHeight: 22, color: Colors.inkLight }}
-                      />
-                    </>
-                  )}
-                </>
-              )}
-            </TouchableOpacity>
+                ))}
+              </TouchableOpacity>
+            </ScrollView>
 
-            {/* Actions (only shown if not showing last journal entry) */}
-            {!showingLastEntry && (
-              <>
+            {/* Actions */}
+            <>
+              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                <SectionHeader label="Actions" right="Choose wisely" centered />
+                <ActionGrid actions={actionButtons} />
+              </View>
+              {npcActionButtons.length > 0 && (
                 <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
-                  <SectionHeader label="Actions" right="Choose wisely" centered />
-                  <ActionGrid actions={actionButtons} />
+                  <SectionHeader label="NPC" right="Talk or take your chances" centered />
+                  <ActionGrid actions={npcActionButtons} />
                 </View>
-                {npcActionButtons.length > 0 && (
-                  <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
-                    <SectionHeader label="NPC" right="Talk or take your chances" centered />
-                    <ActionGrid actions={npcActionButtons} />
-                  </View>
-                )}
-              </>
-            )}
+              )}
+            </>
 
             {/* Companions */}
             {gameState.companions.length > 0 && (
@@ -576,23 +585,15 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
-      {showingLastEntry ? (
+      {isTyping && !forceComplete && (
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            setShowingLastEntry(false);
+            setForceComplete(true);
           }}
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
         />
-      ) : (
-        isLocationTyping && !forceComplete && (
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => setForceComplete(true)}
-            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-          />
-        )
       )}
       <CompanionDetailModal
         visible={selectedCompanionId !== null}
@@ -604,6 +605,91 @@ export function RoadScreen({
 }
 
 // ── Sub-components ────────────────────────
+
+function Divider() {
+  return <View style={{ height: 1, backgroundColor: '#C8A060', opacity: 0.4, marginVertical: 8 }} />;
+}
+
+const SEGMENT_HEADERS: Partial<Record<JournalSegment['type'], string>> = {
+  prev_entry:    'PREVIOUS DAY',
+  action_result: 'YOU ACTED',
+  combat_intro:  'DANGER APPROACHES',
+  trade_intro:   'AT THE MARKET',
+};
+
+function JournalSegmentView({
+  seg,
+  isTyping,
+  isCompleted,
+  forceComplete,
+  textInterval,
+  showDivider,
+  renderDelta,
+  onComplete,
+}: {
+  seg:           JournalSegment;
+  isTyping:      boolean;
+  isCompleted:   boolean;
+  forceComplete: boolean;
+  textInterval:  number;
+  showDivider:   boolean;
+  renderDelta:   (val: number, label: string, icon: string) => React.ReactNode;
+  onComplete:    () => void;
+}) {
+  const isPrevEntry = seg.type === 'prev_entry';
+  const textStyle = isPrevEntry
+    ? { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 14, lineHeight: 21, color: Colors.mist, opacity: 0.8 }
+    : { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 15, lineHeight: 22, color: Colors.inkLight };
+
+  const header = SEGMENT_HEADERS[seg.type] ?? null;
+
+  if (seg.type === 'prev_delta') {
+    return (
+      <>
+        {showDivider && <Divider />}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {renderDelta(seg.deltaFood   ?? 0, 'food',   '🍎')}
+          {renderDelta(seg.deltaGold   ?? 0, 'gold',   '🪙')}
+          {renderDelta(seg.deltaHealth ?? 0, 'health', '❤️')}
+          {renderDelta(seg.deltaMorale ?? 0, 'morale', '🎭')}
+        </View>
+      </>
+    );
+  }
+
+  // Segments not yet reached in the chain are hidden
+  if (!seg.instant && !isCompleted && !isTyping) return null;
+
+  return (
+    <>
+      {showDivider && <Divider />}
+      {header && (
+        <Text style={{
+          fontFamily: 'Cinzel_600SemiBold',
+          fontSize: 10,
+          letterSpacing: 0.5,
+          color: isPrevEntry ? Colors.mist : Colors.blood,
+          opacity: isPrevEntry ? 0.7 : 1,
+          marginBottom: 4,
+        }}>
+          {header}
+        </Text>
+      )}
+      {seg.instant || isCompleted ? (
+        <Text style={textStyle}>{seg.text}</Text>
+      ) : (
+        <TypewriterText
+          key={seg.key}
+          text={seg.text ?? ''}
+          interval={textInterval}
+          forceComplete={forceComplete}
+          onComplete={onComplete}
+          style={textStyle}
+        />
+      )}
+    </>
+  );
+}
 
 function statColor(value: number): string {
   if (value >= 75) return Colors.greenLight;

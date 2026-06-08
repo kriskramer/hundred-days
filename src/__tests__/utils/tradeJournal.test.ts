@@ -1,6 +1,6 @@
 import { PlayerAction, WeatherType } from '@engine/types';
 import { makeGameState } from '../__fixtures__/gameState';
-import { createTradeJournalRecord, getShopEntryNarrative } from '@utils/tradeJournal';
+import { createTradeJournalRecord, getShopEntryNarrative, getMerchantEntryNarrative } from '@utils/tradeJournal';
 
 describe('tradeJournal', () => {
   it('builds a trade journal record for the current location and day', () => {
@@ -25,5 +25,11 @@ describe('tradeJournal', () => {
 
   it('formats the shop entry narrative', () => {
     expect(getShopEntryNarrative('Kanlin\'s Supplies')).toBe('You enter the Kanlin\'s Supplies.');
+  });
+
+  it('getMerchantEntryNarrative returns a string containing the shop name', () => {
+    const result = getMerchantEntryNarrative("Kanlin's Supplies");
+    expect(typeof result).toBe('string');
+    expect(result).toContain("Kanlin's Supplies");
   });
 });

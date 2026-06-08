@@ -34,15 +34,15 @@ describe('RoadScreen', () => {
     const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
     const submitAction = jest.spyOn(engine, 'submitAction').mockResolvedValue(undefined);
 
+    // textInterval={0} makes all typing segments complete instantly — no overlay needed
     const { UNSAFE_getAllByType } = render(
       <RoadScreen
         gameState={gameState}
         engine={engine}
         onToast={onToast}
+        textInterval={0}
       />
     );
-
-    fireEvent.press(UNSAFE_getAllByType(TouchableOpacity)[0]);
 
     const moveButton = await waitFor(() => {
       const button = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
@@ -68,30 +68,34 @@ describe('RoadScreen', () => {
     );
   });
 
-  it('triggers the Next action and goes to the location view when tapping the screen on the journal entry display', async () => {
+  it('shows previous day entry and alert badges when arriving at a new location', async () => {
     const onToast = jest.fn();
+
+    // Start at location 26 with no history
     const gameState1 = makeGameState({
-      currentLocationId: 27,
+      currentLocationId: 26,
       resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
       turnHistory: [],
     });
 
     const engine = new TurnEngine(gameState1, () => undefined, () => undefined, () => undefined);
 
-    const { rerender, UNSAFE_getAllByType, queryByText } = render(
+    const { rerender, queryByText } = render(
       <RoadScreen
         gameState={gameState1}
         engine={engine}
         onToast={onToast}
+        textInterval={0}
       />
     );
 
-    // At first, journal should not be showing
-    expect(queryByText('LAST ENTRY — DAY 1')).toBeNull();
+    // No previous day entry yet
+    expect(queryByText('PREVIOUS DAY')).toBeNull();
 
-    // Now simulate taking an action by updating the state prop
+    // Simulate a move: location changes from 26 to 27, history gains a move entry
     const gameState2 = {
       ...gameState1,
+      currentLocationId: 27,
       turnHistory: [
         {
           dayNumber: 1,
@@ -112,27 +116,16 @@ describe('RoadScreen', () => {
         gameState={gameState2}
         engine={engine}
         onToast={onToast}
+        textInterval={0}
       />
     );
 
-    // Now the journal entry text should be visible
-    expect(queryByText('LAST ENTRY — DAY 1')).toBeTruthy();
-    expect(queryByText('⚔ DANGER')).toBeNull();
-    expect(queryByText('◇ STRANGER NEARBY')).toBeNull();
-    // And Next button should NOT exist
-    expect(queryByText('NEXT')).toBeNull();
-
-    // The full-screen overlay should be present
-    const overlay = UNSAFE_getAllByType(TouchableOpacity).find(c =>
-      c.props.style && c.props.style.position === 'absolute'
-    );
-    expect(overlay).toBeDefined();
-    fireEvent.press(overlay!);
-
-    // Tapping it should turn showingLastEntry to false, and the main location view actions should show
+    // Previous day entry should now appear in the journal panel
     await waitFor(() => {
-      expect(queryByText('LAST ENTRY — DAY 1')).toBeNull();
+      expect(queryByText('PREVIOUS DAY')).toBeTruthy();
     });
+
+    // Alert badges (danger and stranger) are always visible in the new design
     expect(queryByText('⚔ DANGER')).toBeTruthy();
     expect(queryByText('◇ STRANGER NEARBY')).toBeTruthy();
   });
@@ -155,17 +148,11 @@ describe('RoadScreen', () => {
         engine={engine}
         onToast={onToast}
         onOpenShop={onOpenShop}
-        textInterval={1}
+        textInterval={0}
       />
     );
 
-    const initialOverlay = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
-      candidate.props.style && candidate.props.style.position === 'absolute'
-    );
-    expect(initialOverlay).toBeDefined();
-
-    fireEvent.press(initialOverlay!);
-
+    // With textInterval=0, all initial segments (loc_desc etc.) complete instantly
     const tradeButton = await waitFor(() => {
       const button = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
         candidate.findAllByType(Text).some((textNode: { props: { children: unknown } }) => {
@@ -181,10 +168,13 @@ describe('RoadScreen', () => {
     });
 
     fireEvent.press(tradeButton);
+    // onOpenShop should not fire immediately — it fires when the trade_intro segment finishes typing
     expect(onOpenShop).not.toHaveBeenCalled();
 
+    // Advance timers: trade_intro types (interval=0 so immediate), then the setTimeout(...,0)
+    // in onComplete fires onOpenShop
     act(() => {
-      jest.advanceTimersByTime(100);
+      jest.runAllTimers();
     });
 
     expect(onOpenShop).toHaveBeenCalledWith('The Sdrakam Armory');
