@@ -332,6 +332,7 @@ export class TurnEngine {
     const turn: TurnState = {
       phase:                  TurnPhase.AwaitingAction,
       action,
+      executedForcedMarch:    false,
       locationBefore:         this.state.currentLocationId,
       eventsQueue:            [],
       triggeredEventIds:      [],
@@ -540,6 +541,9 @@ export class TurnEngine {
 
     this.setState({
       currentLocationId:  newLoc,
+      currentTurn: this.state.currentTurn
+        ? { ...this.state.currentTurn, executedForcedMarch: isForcedMarchExecuted }
+        : this.state.currentTurn,
       visitedLocationIds: new Set([...this.state.visitedLocationIds, newLoc]),
       consecutiveForcedMarches: nextConsecutive,
       consecutiveStormDays:     nextStormDays,
@@ -921,6 +925,7 @@ export class TurnEngine {
 
   private updateStats(): void {
     const { companions, morale, resources } = this.state;
+    const blocksMoraleRecovery = this.state.currentTurn?.executedForcedMarch ?? false;
 
     // ── Item passive bonuses ─────────────────────────────────
     const itemBonuses = computeEquippedBonuses(inventoryFromResources(resources));
@@ -950,9 +955,11 @@ export class TurnEngine {
 
     // ── Morale per turn ──────────────────────────────────
     // Companions (Bard, Elara) + item bonuses (Stone of Comfort, etc.)
-    let moraleDelta = companions.reduce(
-      (sum, c) => sum + (c.passiveBonus.moralePerTurn ?? 0), 0,
-    ) + (itemBonuses.moralePerTurn ?? 0);
+    let moraleDelta = blocksMoraleRecovery
+      ? 0
+      : companions.reduce(
+        (sum, c) => sum + (c.passiveBonus.moralePerTurn ?? 0), 0,
+      ) + (itemBonuses.moralePerTurn ?? 0);
 
     // Dread
     const dreadNow = isDreadActive(this.state.dayNumber, this.state.currentLocationId);
@@ -971,7 +978,8 @@ export class TurnEngine {
     if (this.state.weather === WeatherType.Severe && this.nextRandom() < 0.10) {
       this.addDelta({ source: 'weather', food: -1, narrative: 'Rations ruined by the storm.' });
     }
-    if (this.state.weather === WeatherType.Ideal
+    if (!blocksMoraleRecovery
+        && this.state.weather === WeatherType.Ideal
         && this.state.currentTurn?.action === PlayerAction.Move) {
       this.addDelta({ source: 'weather', morale: 2, narrative: 'Morale lifts under clear skies.' });
     }

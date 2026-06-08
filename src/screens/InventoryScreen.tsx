@@ -320,7 +320,7 @@ function ItemGrid({
 
   return (
     <View style={s.grid}>
-      {inventory.items.map((item) => {
+      {inventory.items.map((item, index) => {
         const def       = getItemDef(item.definitionId);
         if (!def) return null;
         const isSelected = item.definitionId === selectedId;
@@ -329,7 +329,7 @@ function ItemGrid({
 
         return (
           <TouchableOpacity
-            key={item.definitionId}
+            key={`${item.definitionId}_${index}`}
             onPress={() => onSelect(item.definitionId)}
             activeOpacity={0.75}
             style={[

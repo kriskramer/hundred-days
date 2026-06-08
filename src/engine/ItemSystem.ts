@@ -75,20 +75,56 @@ export function addItem(inv: Inventory, itemId: string): InventoryResult {
 }
 
 export function removeItem(inv: Inventory, itemId: string, qty = 1): InventoryResult {
-  const existing = inv.items.find(i => i.definitionId === itemId);
-  if (!existing || existing.quantity < qty) {
+  const totalCount = inv.items
+    .filter(i => i.definitionId === itemId)
+    .reduce((sum, i) => sum + i.quantity, 0);
+
+  if (totalCount < qty) {
     return { success: false, reason: 'Item not in inventory' };
   }
 
-  const newQty = existing.quantity - qty;
-  const items  = newQty <= 0
-    ? inv.items.filter(i => i.definitionId !== itemId)
-    : inv.items.map(i => i.definitionId === itemId ? { ...i, quantity: newQty } : i);
+  let remainingToRemove = qty;
 
-  // Unequip if equipped
+  // Pass 1: Remove from unequipped items of this itemId
+  let items = inv.items.map(item => {
+    if (item.definitionId === itemId && !item.isEquipped && remainingToRemove > 0) {
+      if (item.quantity > remainingToRemove) {
+        const nextQty = item.quantity - remainingToRemove;
+        remainingToRemove = 0;
+        return { ...item, quantity: nextQty };
+      } else {
+        remainingToRemove -= item.quantity;
+        return null;
+      }
+    }
+    return item;
+  }).filter((item): item is InventoryItem => item !== null);
+
+  // Pass 2: If we still need to remove, remove from equipped items of this itemId
+  if (remainingToRemove > 0) {
+    items = items.map(item => {
+      if (item.definitionId === itemId && item.isEquipped && remainingToRemove > 0) {
+        if (item.quantity > remainingToRemove) {
+          const nextQty = item.quantity - remainingToRemove;
+          remainingToRemove = 0;
+          return { ...item, quantity: nextQty };
+        } else {
+          remainingToRemove -= item.quantity;
+          return null;
+        }
+      }
+      return item;
+    }).filter((item): item is InventoryItem => item !== null);
+  }
+
+  // Update equippedItems if we no longer have any equipped instance of this item
   const equippedItems = { ...inv.equippedItems };
-  for (const [slot, id] of Object.entries(equippedItems)) {
-    if (id === itemId) delete equippedItems[slot as ItemSlot];
+  const def = getItemDef(itemId);
+  if (def && def.slot !== ItemSlot.None) {
+    const hasEquipped = items.some(i => i.definitionId === itemId && i.isEquipped);
+    if (!hasEquipped && equippedItems[def.slot] === itemId) {
+      delete equippedItems[def.slot];
+    }
   }
 
   return { success: true, inventory: { ...inv, items, equippedItems } };
@@ -106,9 +142,21 @@ export function equipItem(inv: Inventory, itemId: string): InventoryResult {
   // Unequip whatever is in this slot
   const equippedItems = { ...inv.equippedItems };
   const currentInSlot = equippedItems[def.slot];
+
+  let equippedOne = false;
   const items = inv.items.map(i => {
-    if (i.definitionId === currentInSlot) return { ...i, isEquipped: false, equippedSlot: undefined };
-    if (i.definitionId === itemId)        return { ...i, isEquipped: true,  equippedSlot: def.slot };
+    if (i.definitionId === currentInSlot) {
+      return { ...i, isEquipped: false, equippedSlot: undefined };
+    }
+    return i;
+  }).map(i => {
+    if (i.definitionId === itemId) {
+      if (!equippedOne) {
+        equippedOne = true;
+        return { ...i, isEquipped: true, equippedSlot: def.slot };
+      }
+      return { ...i, isEquipped: false, equippedSlot: undefined };
+    }
     return i;
   });
 

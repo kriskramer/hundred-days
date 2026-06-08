@@ -605,7 +605,7 @@
     "id": "orc_warchief",
     "name": "The Orc Warchief",
     "description": "The warlord who holds Samson's Bridge. Armies have broken against him.",
-    "baseHP": 100,
+    "baseHP": 120,
     "baseAttack": 13,
     "baseDefense": 8,
     "baseSpeed": 5,

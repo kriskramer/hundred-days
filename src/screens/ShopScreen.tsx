@@ -165,9 +165,9 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
           {tab === 'buy' && shopItems.length === 0 && (
             <Text style={s.empty}>The merchant has nothing to offer here.</Text>
           )}
-          {tab === 'buy' && shopItems.map(item => (
+          {tab === 'buy' && shopItems.map((item, index) => (
             <BuyRow
-              key={item.def.id}
+              key={`${item.def.id}_${index}`}
               item={item}
               onBuy={() => handleBuy(item.def.id)}
             />
@@ -176,9 +176,9 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
           {tab === 'sell' && sellableItems.length === 0 && (
             <Text style={s.empty}>You have nothing worth selling.</Text>
           )}
-          {tab === 'sell' && sellableItems.map(({ invItem, def }) => def && (
+          {tab === 'sell' && sellableItems.map(({ invItem, def }, index) => def && (
             <SellRow
-              key={invItem.definitionId}
+              key={`${invItem.definitionId}_${index}`}
               name={def.name}
               quantity={invItem.quantity}
               salePrice={Math.floor((def.shopPrice ?? 0) * 0.5)}

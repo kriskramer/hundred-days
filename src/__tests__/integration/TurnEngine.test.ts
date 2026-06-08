@@ -165,6 +165,32 @@ describe('TurnEngine — Move action', () => {
     expect(engine.getState().currentLocationId).toBe(locBefore + 1);
   });
 
+  it('blocks turn-end morale recovery on executed forced marches', async () => {
+    const companion = makeCompanion({
+      passiveBonus: { moralePerTurn: 2 },
+    });
+
+    const { engine: normalMove } = makeEngine({
+      weather: WeatherType.Ideal,
+      companions: [companion],
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    await normalMove.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    expect(normalMove.getState().morale.value).toBe(84);
+
+    const { engine: forcedMarch } = makeEngine({
+      weather: WeatherType.Ideal,
+      companions: [companion],
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    await forcedMarch.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+    expect(forcedMarch.getState().morale.value).toBe(75);
+  });
+
   it('stops at the nearest uncleared boss checkpoint', async () => {
     // Start at loc 30, boss at 32, clear combat locations empty → should stop at 32
     const { engine, onAwaitInput } = makeEngine({

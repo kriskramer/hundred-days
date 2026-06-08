@@ -589,6 +589,7 @@ export interface TurnRecord {
 export interface TurnState {
   phase:                  TurnPhase;
   action:                 PlayerAction | null;
+  executedForcedMarch:    boolean;
   locationBefore:         number;
   eventsQueue:            GameEvent[];
   triggeredEventIds:      string[];

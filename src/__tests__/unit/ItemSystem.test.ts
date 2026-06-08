@@ -120,6 +120,24 @@ describe('removeItem', () => {
     if (!removeResult.success) return;
     expect(removeResult.inventory.equippedItems[ItemSlot.Hand]).toBeUndefined();
   });
+
+  it('removes only one entry when player has two duplicate non-stackable items', () => {
+    let inv = createEmptyInventory();
+    const add1 = addItem(inv, 'travelers_blade');
+    expect(add1.success).toBe(true);
+    if (!add1.success) return;
+    const add2 = addItem(add1.inventory, 'travelers_blade');
+    expect(add2.success).toBe(true);
+    if (!add2.success) return;
+    inv = add2.inventory;
+    expect(inv.items).toHaveLength(2);
+
+    const removeResult = removeItem(inv, 'travelers_blade', 1);
+    expect(removeResult.success).toBe(true);
+    if (!removeResult.success) return;
+    expect(removeResult.inventory.items).toHaveLength(1);
+    expect(removeResult.inventory.items[0].definitionId).toBe('travelers_blade');
+  });
 });
 
 // ─────────────────────────────────────────
