@@ -4,6 +4,25 @@ export function getShopEntryNarrative(shopName: string): string {
   return `You enter the ${shopName}.`;
 }
 
+export function getTradePurchaseNarrative(
+  itemName: string,
+  goldSpent: number,
+  autoEquipped = false,
+): string {
+  return autoEquipped
+    ? `You purchased ${itemName} for ${goldSpent} gold and equipped it.`
+    : `You purchased ${itemName} for ${goldSpent} gold.`;
+}
+
+export function appendTradeJournalLine(record: TurnRecord, line: string): TurnRecord {
+  return {
+    ...record,
+    narrativeSummary: record.narrativeSummary
+      ? `${record.narrativeSummary}\n${line}`
+      : line,
+  };
+}
+
 const MERCHANT_GREETINGS = [
   'nods as you enter, hands folded on the counter',
   "looks up from their ledger with a merchant's eye",

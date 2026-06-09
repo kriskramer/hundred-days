@@ -232,18 +232,38 @@ export function RoadScreen({
 
   // Effect B — append result for same-location actions
   useEffect(() => {
-    if (!lastTurnKey || lastTurnKey === prevTurnKeyRef.current) return;
-    prevTurnKeyRef.current = lastTurnKey;
-    if (lastTurn?.locationAfter !== lastTurn?.locationBefore) return; // movement handled by Effect A
+    if (!lastTurnKey || !lastTurn) return;
+    if (lastTurn.locationAfter !== lastTurn.locationBefore) return; // movement handled by Effect A
 
-    const text = lastTurn?.narrativeSummary || 'The day continued.';
-    setSegments(prev => [...prev, {
-      key:     `action-${lastTurnKey}`,
-      type:    'action_result',
-      text,
-      instant: false,
-    }]);
-  }, [lastTurnKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    const narrativeText = lastTurn.narrativeSummary || 'The day continued.';
+    const text = lastTurn.action === PlayerAction.Trade
+      ? narrativeText.split('\n').slice(1).join('\n').trim()
+      : narrativeText;
+    if (!text) return;
+
+    const segmentKey = `action-${lastTurnKey}`;
+    const isNewTurn = lastTurnKey !== prevTurnKeyRef.current;
+    prevTurnKeyRef.current = lastTurnKey;
+
+    setSegments(prev => {
+      const existingIndex = prev.findIndex(seg => seg.key === segmentKey);
+      if (existingIndex !== -1) {
+        if (prev[existingIndex].text === text) return prev;
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], text };
+        return next;
+      }
+
+      if (!isNewTurn) return prev;
+
+      return [...prev, {
+        key:     segmentKey,
+        type:    'action_result',
+        text,
+        instant: false,
+      }];
+    });
+  }, [lastTurn, lastTurnKey]);
 
   // Effect C — auto-scroll when new segments are added
   useEffect(() => {
@@ -357,9 +377,9 @@ export function RoadScreen({
           }
         }] : []),
         ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
-        { label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) },
+        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) }] : []),
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
-        { label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) },
+        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) }] : []),
       ]).map(btn => ({ ...btn, disabled: isTyping }));
   const npcActionButtons = currentNpcDialogueId && currentNpcName
     ? [{
@@ -559,16 +579,16 @@ export function RoadScreen({
 
             {/* Actions */}
             <>
-              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
-                <SectionHeader label="Actions" right="Choose wisely" centered />
-                <ActionGrid actions={actionButtons} />
-              </View>
               {npcActionButtons.length > 0 && (
                 <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
                   <SectionHeader label="NPC" right="Talk or take your chances" centered />
                   <ActionGrid actions={npcActionButtons} />
                 </View>
               )}
+              <View style={{ borderTopWidth: 1, borderTopColor: '#C8B89A', paddingTop: 12, marginTop: 12, marginBottom: 16 }}>
+                <SectionHeader label="Actions" right="Choose wisely" centered />
+                <ActionGrid actions={actionButtons} />
+              </View>
             </>
 
             {/* Companions */}

@@ -458,6 +458,7 @@ describe('buyItem', () => {
     const inv = createEmptyInventory();
     const result = buyItem(inv, 'travelers_blade', 50, false);
     expect(result.success).toBe(true);
+    expect(result.autoEquipped).toBe(true);
     if (!result.success || !result.inventory) return;
 
     expect(result.inventory.equippedItems[ItemSlot.Hand]).toBe('travelers_blade');
@@ -478,6 +479,7 @@ describe('buyItem', () => {
     // Now buy travelers_blade, which also goes into ItemSlot.Hand
     const result = buyItem(inv, 'travelers_blade', 50, false);
     expect(result.success).toBe(true);
+    expect(result.autoEquipped).toBe(false);
     if (!result.success || !result.inventory) return;
 
     // The slot should still be hunters_bow, and travelers_blade is not equipped

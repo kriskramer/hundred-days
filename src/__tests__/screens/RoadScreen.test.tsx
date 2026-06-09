@@ -4,7 +4,7 @@ import { RoadScreen } from '@screens/RoadScreen';
 import { PlayerAction, WeatherType } from '@engine/types';
 import { TurnEngine } from '@engine/TurnEngine';
 import { makeGameState } from '../__fixtures__/gameState';
-import { getShopEntryNarrative } from '@utils/tradeJournal';
+import { getShopEntryNarrative, getTradePurchaseNarrative } from '@utils/tradeJournal';
 
 jest.mock('@components', () => {
   const actual = jest.requireActual('@components');
@@ -229,6 +229,67 @@ describe('RoadScreen', () => {
     expect(queryByText('Trade')).toBeTruthy();
   });
 
+  it('updates the latest trade journal text when a purchase line is added', async () => {
+    const onToast = jest.fn();
+    const gameState1 = makeGameState({
+      currentLocationId: 27,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      turnHistory: [],
+    });
+
+    const engine = new TurnEngine(gameState1, () => undefined, () => undefined, () => undefined);
+    const { rerender, getByText } = render(
+      <RoadScreen
+        gameState={gameState1}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    const baseTradeRecord = {
+      dayNumber: 1,
+      locationBefore: 27,
+      locationAfter: 27,
+      action: PlayerAction.Trade,
+      weather: WeatherType.Neutral,
+      eventsTriggered: [],
+      deltas: [],
+      levelUpOccurred: false,
+      narrativeSummary: getShopEntryNarrative('The Sdrakam Armory'),
+    };
+
+    rerender(
+      <RoadScreen
+        gameState={{ ...gameState1, turnHistory: [baseTradeRecord] }}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    const purchaseLine = getTradePurchaseNarrative('Traveler\'s Blade', 25, true);
+
+    rerender(
+      <RoadScreen
+        gameState={{
+          ...gameState1,
+          turnHistory: [{
+            ...baseTradeRecord,
+            narrativeSummary: `${baseTradeRecord.narrativeSummary}\n${purchaseLine}`,
+          }],
+        }}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getByText(/You purchased Traveler's Blade for 25 gold and equipped it\./)).toBeTruthy();
+    });
+  });
+
   it('removes stale combat intro text after the location is cleared', async () => {
     jest.useFakeTimers();
 
@@ -294,5 +355,49 @@ describe('RoadScreen', () => {
     });
 
     jest.useRealTimers();
+  });
+
+  it('hides Forage and Make Camp buttons in a town location, but shows them in a wilderness location', async () => {
+    const onToast = jest.fn();
+    
+    // Test case 1: In a town location (location 27 - Sdrakam)
+    const townGameState = makeGameState({
+      currentLocationId: 27,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+    const townEngine = new TurnEngine(townGameState, () => undefined, () => undefined, () => undefined);
+
+    const { queryByText, rerender } = render(
+      <RoadScreen
+        gameState={townGameState}
+        engine={townEngine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    expect(queryByText('Forage')).toBeNull();
+    expect(queryByText('Make Camp')).toBeNull();
+    expect(queryByText('Rest at Inn')).toBeTruthy();
+
+    // Test case 2: In a wilderness location (location 3 - Osiran Fields)
+    const wildGameState = makeGameState({
+      currentLocationId: 3,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+    const wildEngine = new TurnEngine(wildGameState, () => undefined, () => undefined, () => undefined);
+
+    rerender(
+      <RoadScreen
+        gameState={wildGameState}
+        engine={wildEngine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    expect(queryByText('Forage')).toBeTruthy();
+    expect(queryByText('Make Camp')).toBeTruthy();
+    expect(queryByText('Rest at Inn')).toBeNull();
   });
 });

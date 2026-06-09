@@ -24,6 +24,7 @@ import {
 import { getLocation }  from '@data/locations';
 import { useShopActions } from '@hooks/useShopActions';
 import { useGameStore, useLocation, useResources } from '@store/gameStore';
+import { getTradePurchaseNarrative } from '@utils/tradeJournal';
 
 // ─────────────────────────────────────────
 // Palette
@@ -88,7 +89,11 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
       return;
     }
 
-    onToast(`Bought ${result.itemName} · ${result.goldSpent} gold`);
+    onToast(getTradePurchaseNarrative(
+      result.itemName,
+      result.goldSpent,
+      result.autoEquipped,
+    ));
   }
 
   async function handleSell(itemId: string) {

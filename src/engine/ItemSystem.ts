@@ -320,7 +320,7 @@ export function buyItem(
   itemId:      string,
   playerGold:  number,
   hasMerchantsRing: boolean,
-): { success: boolean; inventory?: Inventory; goldSpent?: number; reason?: string } {
+): { success: boolean; inventory?: Inventory; goldSpent?: number; reason?: string; autoEquipped?: boolean } {
   const def = getItemDef(itemId);
   if (!def?.shopPrice) return { success: false, reason: 'Not for sale' };
 
@@ -335,17 +335,19 @@ export function buyItem(
   if (!result.success) return { success: false, reason: result.reason };
 
   let finalInventory = result.inventory;
+  let autoEquipped = false;
   if (!def.isConsumable && def.slot !== ItemSlot.None) {
     const isSlotEmpty = !finalInventory.equippedItems[def.slot];
     if (isSlotEmpty) {
       const equipResult = equipItem(finalInventory, itemId);
       if (equipResult.success) {
         finalInventory = equipResult.inventory;
+        autoEquipped = true;
       }
     }
   }
 
-  return { success: true, inventory: finalInventory, goldSpent: finalPrice };
+  return { success: true, inventory: finalInventory, goldSpent: finalPrice, autoEquipped };
 }
 
 export function sellItem(

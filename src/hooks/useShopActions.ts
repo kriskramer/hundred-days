@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { saveEngine } from '@engine/SaveEngine';
-import type { GameState } from '@engine/types';
+import { PlayerAction, type GameState } from '@engine/types';
 import {
   buyItem as buyInventoryItem,
   sellItem as sellInventoryItem,
@@ -11,6 +11,11 @@ import {
   resourcesToInventory,
 } from '@engine/ItemSystem';
 import { useGameStore } from '@store/gameStore';
+import {
+  appendTradeJournalLine,
+  createTradeJournalRecord,
+  getTradePurchaseNarrative,
+} from '@utils/tradeJournal';
 
 type ActionFailure = { success: false; reason: string };
 type CommitResult = { success: true } | ActionFailure;
@@ -69,7 +74,33 @@ export function useShopActions() {
       },
       result.inventory,
     );
-    const nextState = { ...gameState, resources: nextResources };
+    const purchaseNarrative = getTradePurchaseNarrative(
+      def.name,
+      result.goldSpent ?? 0,
+      result.autoEquipped ?? false,
+    );
+    const turnHistory = [...gameState.turnHistory];
+    const lastTurn = turnHistory[turnHistory.length - 1];
+    const nextTradeRecord = lastTurn
+      && lastTurn.action === PlayerAction.Trade
+      && lastTurn.dayNumber === gameState.dayNumber
+      && lastTurn.locationAfter === gameState.currentLocationId
+        ? appendTradeJournalLine(lastTurn, purchaseNarrative)
+        : appendTradeJournalLine(
+            createTradeJournalRecord(gameState, merchant.merchantName),
+            purchaseNarrative,
+          );
+
+    if (turnHistory.length > 0 && lastTurn === turnHistory[turnHistory.length - 1]
+      && lastTurn?.action === PlayerAction.Trade
+      && lastTurn.dayNumber === gameState.dayNumber
+      && lastTurn.locationAfter === gameState.currentLocationId) {
+      turnHistory[turnHistory.length - 1] = nextTradeRecord;
+    } else {
+      turnHistory.push(nextTradeRecord);
+    }
+
+    const nextState = { ...gameState, resources: nextResources, turnHistory };
     const persisted = await commitState(nextState);
     if (!persisted.success) return persisted;
 
@@ -77,6 +108,7 @@ export function useShopActions() {
       success: true as const,
       goldSpent: result.goldSpent ?? 0,
       itemName: def.name,
+      autoEquipped: result.autoEquipped ?? false,
       foodGained: undefined as number | undefined,
     };
   }, [commitState]);

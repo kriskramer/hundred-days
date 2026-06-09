@@ -132,6 +132,54 @@ export default function TitleScreen() {
             )}
           </TouchableOpacity>
 
+          <TouchableOpacity
+            onPress={() => {}}
+            activeOpacity={0.75}
+            style={{
+              width: '100%',
+              backgroundColor: '#1A1208',
+              borderWidth: 1.5,
+              borderColor: '#3A2E1C',
+              borderRadius: 3,
+              alignItems: 'center',
+              paddingVertical: 16,
+              paddingHorizontal: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.4,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
+              LEADERBOARD
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {}}
+            activeOpacity={0.75}
+            style={{
+              width: '100%',
+              backgroundColor: '#1A1208',
+              borderWidth: 1.5,
+              borderColor: '#3A2E1C',
+              borderRadius: 3,
+              alignItems: 'center',
+              paddingVertical: 16,
+              paddingHorizontal: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.4,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
+              PROFILE
+            </Text>
+          </TouchableOpacity>
+
           {history.length > 0 && (
             <TouchableOpacity
               onPress={() => setShowHistory(h => !h)}
