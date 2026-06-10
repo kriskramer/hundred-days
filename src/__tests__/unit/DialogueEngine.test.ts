@@ -6,6 +6,7 @@ import {
   findDialogueForLocation,
   DIALOGUES,
 } from '@engine/DialogueEngine';
+import { CompanionArchetype } from '@engine/types';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
 
 // ─────────────────────────────────────────
@@ -166,6 +167,56 @@ describe('DialogueEngine — evalConditions via visible choices', () => {
     engine.start(state, []);
     const [, visible] = onNodeChange.mock.calls[0];
     expect(visible.find((c: any) => c.id === 'needs_rex')).toBeUndefined();
+  });
+
+  it('hides choice when requiredAnyCompanion is true and the party is empty', () => {
+    const dialogue = makeDialogue({
+      nodes: {
+        node_01: {
+          id: 'node_01', speakerName: 'Narrator', text: 'Test.',
+          choices: [
+            {
+              id: 'needs_any_companion', text: 'Needs company.', tone: 'curious',
+              conditions: { requiredAnyCompanion: true },
+              outcome: { nextNodeId: null },
+            },
+            { id: 'open', text: 'Open.', tone: 'pragmatic', outcome: { nextNodeId: null } },
+          ],
+        },
+      },
+    });
+    const state = makeGameState();
+    const onNodeChange = jest.fn();
+    const engine = new DialogueEngine(dialogue, state, onNodeChange, jest.fn());
+    engine.start(state, []);
+    const [, visible] = onNodeChange.mock.calls[0];
+    expect(visible.find((c: any) => c.id === 'needs_any_companion')).toBeUndefined();
+  });
+
+  it('shows choice when a companion meets the loyalty threshold', () => {
+    const dialogue = makeDialogue({
+      nodes: {
+        node_01: {
+          id: 'node_01', speakerName: 'Narrator', text: 'Test.',
+          choices: [
+            {
+              id: 'loyalty_gate', text: 'Needs trusted ally.', tone: 'heroic',
+              conditions: { minCompanionLoyalty: 70, requiredCompanionArchetype: CompanionArchetype.Warrior },
+              outcome: { nextNodeId: null },
+            },
+          ],
+        },
+      },
+    });
+    const state = makeGameState();
+    const companion = makeCompanion({
+      loyalty: { value: 75, desertsBelow: 15, complainsBelow: 35 },
+    });
+    const onNodeChange = jest.fn();
+    const engine = new DialogueEngine(dialogue, state, onNodeChange, jest.fn());
+    engine.start(state, [companion]);
+    const [, visible] = onNodeChange.mock.calls[0];
+    expect(visible.find((c: any) => c.id === 'loyalty_gate')).toBeDefined();
   });
 
   it('hides choice when forbiddenCompanionId is in party', () => {

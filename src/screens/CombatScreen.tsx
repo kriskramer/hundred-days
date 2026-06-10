@@ -218,14 +218,14 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 8 }}
       >
-        {/* Encounter text — shown on round 1 */}
-        {combatState.round === 1 && (
+        {/* Encounter text — persistent narrative header */}
+        {encounterText ? (
           <View style={s.encounterBanner}>
             <Text style={s.encounterText}>
               {encounterText}
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* ── ENEMY BLOCKS ── */}
         <View style={s.enemiesSection}>

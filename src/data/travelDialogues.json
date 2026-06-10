@@ -1,0 +1,236 @@
+[
+  {
+    "id": "npc_reputation_heroic_town_01",
+    "speakerType": "npc",
+    "speakerName": "Passing Merchant",
+    "text": "If half the stories are true, maybe the east still has a chance.",
+    "conditions": {
+      "minReputation": 75,
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 5
+    },
+    "weight": 3,
+    "repeatable": false,
+    "tags": ["npc", "reputation", "town"]
+  },
+  {
+    "id": "npc_reputation_fearful_settlement_01",
+    "speakerType": "npc",
+    "speakerName": "Anxious Villager",
+    "text": "Keep your hands where I can see them, traveler. The road already bleeds enough.",
+    "conditions": {
+      "maxReputation": 25,
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 8
+    },
+    "weight": 3,
+    "repeatable": false,
+    "tags": ["npc", "reputation", "town"]
+  },
+  {
+    "id": "npc_wilderness_warning_late_01",
+    "speakerType": "npc",
+    "speakerName": "Gaunt Traveler",
+    "text": "If you're still heading east after all this, then either you're brave or too tired to turn around.",
+    "conditions": {
+      "minLocationId": 55,
+      "locationTypes": ["wilderness"],
+      "maxMorale": 45
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["npc", "wilderness", "morale"]
+  },
+  {
+    "id": "npc_storm_town_mutter_01",
+    "speakerType": "npc",
+    "speakerName": "Stablehand",
+    "text": "Bad sky for marching. Bad year for everything, really.",
+    "conditions": {
+      "requiredWeather": ["poor", "severe"],
+      "locationTypes": ["town", "settlement"]
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["npc", "weather", "town"]
+  },
+  {
+    "id": "companion_general_high_morale_01",
+    "speakerType": "companion",
+    "text": "Feels like the road is finally giving something back.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "minMorale": 80
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "morale"]
+  },
+  {
+    "id": "companion_general_low_morale_01",
+    "speakerType": "companion",
+    "text": "We've gone quiet. That's how I know this stretch is getting to everyone.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "maxMorale": 35
+    },
+    "weight": 4,
+    "repeatable": true,
+    "tags": ["companion", "morale"]
+  },
+  {
+    "id": "companion_loyalty_frayed_mercenary_01",
+    "speakerType": "companion",
+    "speakerArchetype": "mercenary",
+    "text": "This is the sort of march people start regretting out loud.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "mercenary",
+      "maxCompanionLoyalty": 35,
+      "maxMorale": 45
+    },
+    "weight": 5,
+    "repeatable": true,
+    "tags": ["companion", "loyalty", "mercenary"]
+  },
+  {
+    "id": "companion_loyalty_frayed_general_01",
+    "speakerType": "companion",
+    "text": "Keep pushing like this and someone is going to decide the dark behind us looks friendlier than the road ahead.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "maxCompanionLoyalty": 35
+    },
+    "weight": 4,
+    "repeatable": true,
+    "tags": ["companion", "loyalty"]
+  },
+  {
+    "id": "companion_reputation_high_warrior_01",
+    "speakerType": "companion",
+    "speakerArchetype": "warrior",
+    "text": "People are standing straighter when we pass. They think we might actually finish this.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "warrior",
+      "minReputation": 70
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "reputation", "warrior"]
+  },
+  {
+    "id": "companion_reputation_low_rogue_01",
+    "speakerType": "companion",
+    "speakerArchetype": "rogue",
+    "text": "Useful look, that fear. Unpleasant. Useful.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "rogue",
+      "maxReputation": 30
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "reputation", "rogue"]
+  },
+  {
+    "id": "companion_bard_high_morale_01",
+    "speakerType": "companion",
+    "speakerArchetype": "bard",
+    "text": "Give me another mile like this and I can make the whole march rhyme.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "bard",
+      "minMorale": 75
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "bard", "morale"]
+  },
+  {
+    "id": "companion_bard_low_morale_01",
+    "speakerType": "companion",
+    "speakerArchetype": "bard",
+    "text": "I had a better line for this morning. I think the mud swallowed it.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "bard",
+      "maxMorale": 40
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "bard", "morale"]
+  },
+  {
+    "id": "companion_healer_high_rep_01",
+    "speakerType": "companion",
+    "speakerArchetype": "healer",
+    "text": "People keep offering directions instead of excuses. That's new.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "healer",
+      "minReputation": 65,
+      "locationTypes": ["town", "settlement"]
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "healer", "reputation"]
+  },
+  {
+    "id": "companion_scout_wilderness_01",
+    "speakerType": "companion",
+    "speakerArchetype": "scout",
+    "text": "Tracks are old. Good. I'd rather follow trouble than have it follow us.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "scout",
+      "locationTypes": ["wilderness"],
+      "minLocationId": 10
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["companion", "scout", "wilderness"]
+  },
+  {
+    "id": "companion_sage_late_road_01",
+    "speakerType": "companion",
+    "speakerArchetype": "sage",
+    "text": "Every league east strips away another illusion. I suppose that is its own kind of mercy.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "sage",
+      "minLocationId": 45
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["companion", "sage", "late_game"]
+  },
+  {
+    "id": "companion_animal_high_morale_01",
+    "speakerType": "companion",
+    "speakerArchetype": "animal",
+    "text": "lets out a happy bark and runs a little ahead before circling back.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "animal",
+      "minMorale": 70
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "animal", "morale"]
+  },
+  {
+    "id": "companion_animal_low_morale_01",
+    "speakerType": "companion",
+    "speakerArchetype": "animal",
+    "text": "whines softly and stays close to your heel.",
+    "conditions": {
+      "requiredAnyCompanion": true,
+      "requiredCompanionArchetype": "animal",
+      "maxMorale": 35
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["companion", "animal", "morale"]
+  }
+]

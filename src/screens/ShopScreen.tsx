@@ -1,5 +1,5 @@
 /* eslint-disable react-native/sort-styles */
-import { useState, memo } from 'react';
+import { useState, memo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,11 @@ import {
 import { getLocation }  from '@data/locations';
 import { useShopActions } from '@hooks/useShopActions';
 import { useGameStore, useLocation, useResources } from '@store/gameStore';
-import { getTradePurchaseNarrative } from '@utils/tradeJournal';
+import {
+  getTradePurchaseNarrative,
+  getMerchantBuyReaction,
+  getMerchantSellReaction,
+} from '@utils/tradeJournal';
 
 // ─────────────────────────────────────────
 // Palette
@@ -47,18 +51,34 @@ const C = {
 // ─────────────────────────────────────────
 
 interface Props {
-  visible:    boolean;
-  onClose:    () => void;
-  onToast:    (msg: string) => void;
+  visible:                boolean;
+  onClose:                () => void;
+  onToast:                (msg: string) => void;
+  merchantEntryNarrative?: string;
 }
 
 // ─────────────────────────────────────────
 // ShopScreen
 // ─────────────────────────────────────────
 
-export function ShopScreen({ visible, onClose, onToast }: Props) {
+export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }: Props) {
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
+  const [narrativeLines, setNarrativeLines] = useState<string[]>([]);
+  const narrativeScrollRef = useRef<ScrollView>(null);
   const { buyItem, sellItem } = useShopActions();
+
+  useEffect(() => {
+    if (visible && merchantEntryNarrative) {
+      setNarrativeLines([merchantEntryNarrative]);
+    }
+    if (!visible) {
+      setNarrativeLines([]);
+    }
+  }, [visible, merchantEntryNarrative]);
+
+  useEffect(() => {
+    narrativeScrollRef.current?.scrollToEnd({ animated: true });
+  }, [narrativeLines]);
 
   const locationId = useLocation();
   const resources = useResources();
@@ -85,15 +105,15 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
     }
 
     if (result.foodGained) {
-      onToast(`+${result.foodGained} food · ${result.goldSpent} gold`);
+      const foodText = `+${result.foodGained} food · ${result.goldSpent} gold`;
+      onToast(foodText);
+      setNarrativeLines(prev => [...prev, foodText, getMerchantBuyReaction(result.itemName)]);
       return;
     }
 
-    onToast(getTradePurchaseNarrative(
-      result.itemName,
-      result.goldSpent,
-      result.autoEquipped,
-    ));
+    const purchaseText = getTradePurchaseNarrative(result.itemName, result.goldSpent, result.autoEquipped);
+    onToast(purchaseText);
+    setNarrativeLines(prev => [...prev, purchaseText, getMerchantBuyReaction(result.itemName)]);
   }
 
   async function handleSell(itemId: string) {
@@ -103,7 +123,9 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
       return;
     }
 
+    const sellText = `You sell the ${result.itemName} for ${result.goldGained} gold.`;
     onToast(`Sold ${result.itemName} · +${result.goldGained} gold`);
+    setNarrativeLines(prev => [...prev, sellText, getMerchantSellReaction(result.goldGained)]);
   }
 
   return (
@@ -142,6 +164,23 @@ export function ShopScreen({ visible, onClose, onToast }: Props) {
             <Text style={s.discountText}>
               {"Merchant's Ring — prices reduced 20%"}
             </Text>
+          </View>
+        )}
+
+        {/* ── Narrative panel ──────────────────── */}
+        {narrativeLines.length > 0 && (
+          <View style={s.narrativePanel}>
+            <ScrollView
+              ref={narrativeScrollRef}
+              style={s.narrativeScroll}
+              contentContainerStyle={s.narrativeContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {narrativeLines.map((line, i) => (
+                <Text key={i} style={s.narrativeLine}>{line}</Text>
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -376,6 +415,29 @@ const s = StyleSheet.create({
     fontFamily: 'CrimsonText_400Regular_Italic',
     fontSize:   13,
     textAlign:  'center',
+  },
+
+  // Narrative panel
+  narrativePanel: {
+    backgroundColor:   'rgba(245, 234, 214, 0.07)',
+    borderBottomColor: C.gold,
+    borderBottomWidth: 1,
+    maxHeight:         110,
+    paddingBottom:     10,
+    paddingHorizontal: 20,
+    paddingTop:        10,
+  },
+  narrativeScroll: {
+    flex: 1,
+  },
+  narrativeContent: {
+    gap: 4,
+  },
+  narrativeLine: {
+    color:      '#D4C5A0',
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize:   14,
+    lineHeight: 20,
   },
 
   // Tabs

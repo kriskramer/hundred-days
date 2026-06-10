@@ -446,12 +446,19 @@ export type DialogueTrigger =
   | 'combat_precursor';
 
 export interface DialogueCondition {
+  requiredWeather?:         WeatherType[];
+  locationTypes?:           string[];
   minReputation?:          number;
   maxReputation?:          number;
   minMorale?:              number;
   maxMorale?:              number;
   minPlayerLevel?:         number;
+  requiredAnyCompanion?:   boolean;
+  requiredCompanionCount?: number;
   requiredCompanionId?:    string;
+  requiredCompanionArchetype?: CompanionArchetype;
+  minCompanionLoyalty?:    number;
+  maxCompanionLoyalty?:    number;
   forbiddenCompanionId?:   string;
   minGold?:                number;
   minFood?:                number;
@@ -545,6 +552,30 @@ export interface DialogueSession {
   outcome:       DialogueSessionOutcome;
 }
 
+export type TravelDialogueSpeakerType = 'companion' | 'npc';
+
+export interface TravelDialogueEntry {
+  id:               string;
+  speakerType:      TravelDialogueSpeakerType;
+  speakerName?:     string;
+  speakerId?:       string;
+  speakerArchetype?: CompanionArchetype;
+  text:             string;
+  conditions:       DialogueCondition;
+  weight:           number;
+  repeatable:       boolean;
+  tags:             string[];
+}
+
+export interface TravelDialogueOccurrence {
+  id:          string;
+  sourceId:    string;
+  speakerType: TravelDialogueSpeakerType;
+  speakerName: string;
+  text:        string;
+  speakerId?:  string;
+}
+
 // ─────────────────────────────────────────
 // Turn state
 // ─────────────────────────────────────────
@@ -582,6 +613,7 @@ export interface TurnRecord {
     summary?:  string;
   };
   deltas:          StatDelta[];
+  travelDialogue?: TravelDialogueOccurrence;
   levelUpOccurred: boolean;
   narrativeSummary:string;
 }
@@ -596,6 +628,7 @@ export interface TurnState {
   activeInteractiveEvent: GameEvent | null;
   eventOutcome?:          TurnRecord['eventOutcome'];
   pendingDeltas:          StatDelta[];
+  travelDialogue?:        TravelDialogueOccurrence;
   levelUpOccurred:        boolean;
   log:                    TurnLogEntry[];
 }

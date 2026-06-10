@@ -130,6 +130,50 @@ describe('RoadScreen', () => {
     expect(queryByText('◇ STRANGER NEARBY')).toBeTruthy();
   });
 
+  it('renders stored travel dialogue as an on-the-road segment', async () => {
+    const onToast = jest.fn();
+    const gameState = makeGameState({
+      currentLocationId: 27,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      turnHistory: [
+        {
+          dayNumber: 1,
+          locationBefore: 26,
+          locationAfter: 27,
+          action: PlayerAction.Move,
+          weather: WeatherType.Neutral,
+          eventsTriggered: [],
+          deltas: [],
+          travelDialogue: {
+            id: 'companion_sage_late_road_01:sage_one',
+            sourceId: 'companion_sage_late_road_01',
+            speakerType: 'companion',
+            speakerName: 'Ilya',
+            speakerId: 'sage_one',
+            text: 'Every league east strips away another illusion. I suppose that is its own kind of mercy.',
+          },
+          levelUpOccurred: false,
+          narrativeSummary: 'The road stretches ahead.',
+        },
+      ],
+    });
+
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+    const { queryByText } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText('ON THE ROAD')).toBeTruthy();
+    });
+    expect(queryByText('Ilya: "Every league east strips away another illusion. I suppose that is its own kind of mercy."')).toBeTruthy();
+  });
+
   it('types the shop entry line before opening the shop', async () => {
     jest.useFakeTimers();
 
@@ -177,7 +221,7 @@ describe('RoadScreen', () => {
       jest.runAllTimers();
     });
 
-    expect(onOpenShop).toHaveBeenCalledWith('The Sdrakam Armory');
+    expect(onOpenShop).toHaveBeenCalledWith('The Sdrakam Armory', expect.any(String));
     jest.useRealTimers();
   });
 

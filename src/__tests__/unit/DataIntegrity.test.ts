@@ -5,6 +5,7 @@ import { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE } from '@data/events';
 import { LOCATIONS, REGIONS } from '@data/locations';
 import { getAllShops } from '@data/shops';
 import { ITEMS } from '@data/items';
+import { TRAVEL_DIALOGUES } from '@data/travelDialogues';
 import { BOSS_EVENT_MAP } from '@engine/bosses';
 import {
   CompanionArchetype,
@@ -36,6 +37,7 @@ describe('Data integrity', () => {
     expect(findDuplicates(EVENT_DEFINITIONS.map(event => event.id))).toEqual([]);
     expect(findDuplicates(COMPANIONS.map(companion => companion.id))).toEqual([]);
     expect(findDuplicates(DIALOGUES.map(dialogue => dialogue.id))).toEqual([]);
+    expect(findDuplicates(TRAVEL_DIALOGUES.map(dialogue => dialogue.id))).toEqual([]);
     expect(findDuplicates(getAllShops().map(shop => shop.id))).toEqual([]);
     expect(findDuplicates(ENEMIES.map(enemy => enemy.id))).toEqual([]);
     expect(findDuplicates(ITEMS.map(item => item.id))).toEqual([]);
@@ -232,6 +234,16 @@ describe('Data integrity', () => {
       expect(itemCategories.has(item.category)).toBe(true);
       if (item.slot) {
         expect(itemSlots.has(item.slot)).toBe(true);
+      }
+    }
+
+    for (const dialogue of TRAVEL_DIALOGUES) {
+      if (dialogue.speakerArchetype) {
+        expect(companionArchetypes.has(dialogue.speakerArchetype)).toBe(true);
+      }
+
+      for (const locationType of dialogue.conditions.locationTypes ?? []) {
+        expect(locationTypes.has(locationType)).toBe(true);
       }
     }
   });

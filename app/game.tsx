@@ -66,6 +66,8 @@ export default function GameScreen() {
   const [levelUpChoices, setLevelUpChoices]   = useState<LevelUpChoice[] | null>(null);
   const [toastMsg, setToastMsg]               = useState('');
   const [shopOpen, setShopOpen]               = useState(false);
+  const [shopEntryNarrative, setShopEntryNarrative] = useState('');
+  const [shopCloseKey, setShopCloseKey]       = useState(0);
   const [journalOpen, setJournalOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen]       = useState(false);
   const [settings, setSettings]               = useState<AppSettings | null>(null);
@@ -176,7 +178,7 @@ export default function GameScreen() {
     handleConfirmCombat();
   }
 
-  const handleOpenShop = useCallback((shopName: string) => {
+  const handleOpenShop = useCallback((shopName: string, entryNarrative: string) => {
     if (!gameState) return;
 
     const nextState: GameState = {
@@ -185,6 +187,7 @@ export default function GameScreen() {
     };
 
     syncExternalGameState(nextState);
+    setShopEntryNarrative(entryNarrative);
     setShopOpen(true);
   }, [gameState]);
 
@@ -421,6 +424,7 @@ export default function GameScreen() {
                   ? 0
                   : 22}
             confirmActions={settings?.confirmActions ?? true}
+            shopCloseKey={shopCloseKey}
           />
         </View>
         {activeTab === 'combat'    && (
@@ -514,8 +518,12 @@ export default function GameScreen() {
       {/* Shop modal */}
       <ShopScreen
         visible={shopOpen}
-        onClose={() => setShopOpen(false)}
+        onClose={() => {
+          setShopOpen(false);
+          setShopCloseKey(k => k + 1);
+        }}
         onToast={showToast}
+        merchantEntryNarrative={shopEntryNarrative}
       />
 
       {/* Level-up modal */}

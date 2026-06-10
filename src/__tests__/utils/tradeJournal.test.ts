@@ -3,7 +3,9 @@ import { makeGameState } from '../__fixtures__/gameState';
 import {
   appendTradeJournalLine,
   createTradeJournalRecord,
+  getMerchantBuyReaction,
   getMerchantEntryNarrative,
+  getMerchantSellReaction,
   getShopEntryNarrative,
   getTradePurchaseNarrative,
 } from '@utils/tradeJournal';
@@ -59,5 +61,19 @@ describe('tradeJournal', () => {
     const result = getMerchantEntryNarrative("Kanlin's Supplies");
     expect(typeof result).toBe('string');
     expect(result).toContain("Kanlin's Supplies");
+  });
+
+  it('getMerchantBuyReaction returns a non-empty merchant quote', () => {
+    const result = getMerchantBuyReaction('Iron Sword');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).toContain('The merchant:');
+  });
+
+  it('getMerchantSellReaction returns a non-empty merchant quote', () => {
+    const result = getMerchantSellReaction(15);
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).toContain('The merchant:');
   });
 });

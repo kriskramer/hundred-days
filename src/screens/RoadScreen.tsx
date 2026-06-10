@@ -19,7 +19,7 @@ import * as Haptics from 'expo-haptics';
 interface JournalSegment {
   key:          string;
   type:         'prev_entry' | 'prev_delta' | 'loc_desc' | 'random_text' | 'npc_cue'
-                | 'action_result' | 'combat_intro' | 'trade_intro';
+                | 'travel_dialogue' | 'action_result' | 'combat_intro' | 'trade_intro';
   text?:        string;
   deltaFood?:   number;
   deltaGold?:   number;
@@ -32,13 +32,14 @@ interface Props {
   gameState:       GameState;
   engine:          TurnEngine | null;
   onToast:         (msg: string) => void;
-  onOpenShop?:     (shopName: string) => void;
+  onOpenShop?:     (shopName: string, entryNarrative: string) => void;
   onOpenCombat?:   () => void;
   onOpenDialogue?: () => void;
   onOpenNpc?:      (dialogueId: string) => void;
   canTalk?:        boolean;
-  textInterval?: number;
+  textInterval?:   number;
   confirmActions?: boolean;
+  shopCloseKey?:   number;
 }
 
 function getForageLabel(huntYield: number | null): string | null {
@@ -161,6 +162,7 @@ export function RoadScreen({
   canTalk,
   textInterval = 22,
   confirmActions = true,
+  shopCloseKey,
 }: Props) {
   const location       = getLocation(gameState.currentLocationId);
   const dialogueNearby = hasEligibleDialogue(gameState);
@@ -173,7 +175,9 @@ export function RoadScreen({
   const [segments, setSegments]           = useState<JournalSegment[]>([]);
   const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set());
   const [forceComplete, setForceComplete] = useState(false);
+  const [pendingShopNarrative, setPendingShopNarrative] = useState('');
   const journalScrollRef = useRef<ScrollView>(null);
+  const prevShopCloseKeyRef = useRef(shopCloseKey ?? 0);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
@@ -186,10 +190,14 @@ export function RoadScreen({
   const currentNpcName = currentNpcDialogueId ? getDialogueDisplayName(currentNpcDialogueId) : null;
   const currentNpcCanSteal = currentNpcDialogueId ? canStealFromDialogue(currentNpcDialogueId) : false;
 
+  const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const baseLocationText = location.locationText || '';
   const randomText = pickLocationRandomText(location, gameState.dayNumber, gameState.seed);
-
-  const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
+  const travelDialogueText = lastTurn?.travelDialogue
+    && lastTurn.locationAfter === gameState.currentLocationId
+    && lastTurn.locationAfter !== lastTurn.locationBefore
+    ? `${lastTurn.travelDialogue.speakerName}: "${lastTurn.travelDialogue.text}"`
+    : null;
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
 
@@ -221,6 +229,8 @@ export function RoadScreen({
       segs.push({ key: `loc-${gameState.currentLocationId}`, type: 'loc_desc',    text: baseLocationText, instant: false });
     if (randomText)
       segs.push({ key: `rnd-${gameState.currentLocationId}`, type: 'random_text', text: randomText,        instant: false });
+    if (travelDialogueText)
+      segs.push({ key: `travel-${lastTurn?.dayNumber}-${lastTurn?.travelDialogue?.id}`, type: 'travel_dialogue', text: travelDialogueText, instant: false });
     if (dialogueCue)
       segs.push({ key: `npc-${gameState.currentLocationId}`, type: 'npc_cue',     text: dialogueCue,       instant: false });
 
@@ -272,6 +282,19 @@ export function RoadScreen({
       return () => clearTimeout(t);
     }
   }, [segments]);
+
+  // Effect D — append exit text when shop closes
+  useEffect(() => {
+    if (shopCloseKey === undefined) return;
+    if (shopCloseKey === prevShopCloseKeyRef.current) return;
+    prevShopCloseKeyRef.current = shopCloseKey;
+    setSegments(prev => [...prev, {
+      key:     `shop-exit-${shopCloseKey}`,
+      type:    'action_result',
+      text:    'You step back out onto the road.',
+      instant: false,
+    }]);
+  }, [shopCloseKey]);
 
   const firstTypingIdx = segments.findIndex(
     (s, i) =>
@@ -367,6 +390,7 @@ export function RoadScreen({
           variant: 'secondary' as const,
           onPress: () => {
             const flavorText = getMerchantEntryNarrative(merchantName);
+            setPendingShopNarrative(flavorText);
             setSegments(prev => [...prev, {
               key:     `trade-${Date.now()}`,
               type:    'trade_intro',
@@ -569,7 +593,7 @@ export function RoadScreen({
                     onComplete={() => {
                       setCompletedKeys(prev => new Set([...prev, seg.key]));
                       setForceComplete(false);
-                      if (seg.type === 'trade_intro')  setTimeout(() => onOpenShop?.(merchantName), 0);
+                      if (seg.type === 'trade_intro')  setTimeout(() => onOpenShop?.(merchantName, pendingShopNarrative), 0);
                       if (seg.type === 'combat_intro') setTimeout(() => onOpenCombat?.(), 0);
                     }}
                   />
@@ -641,6 +665,7 @@ function Divider() {
 
 const SEGMENT_HEADERS: Partial<Record<JournalSegment['type'], string>> = {
   prev_entry:    'PREVIOUS DAY',
+  travel_dialogue:'ON THE ROAD',
   action_result: 'YOU ACTED',
   combat_intro:  'DANGER APPROACHES',
   trade_intro:   'AT THE MARKET',
@@ -666,8 +691,11 @@ function JournalSegmentView({
   onComplete:    () => void;
 }) {
   const isPrevEntry = seg.type === 'prev_entry';
+  const isTravelDialogue = seg.type === 'travel_dialogue';
   const textStyle = isPrevEntry
     ? { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 14, lineHeight: 21, color: Colors.mist, opacity: 0.8 }
+    : isTravelDialogue
+      ? { fontFamily: 'CrimsonText_400Regular' as const, fontSize: 15, lineHeight: 23, color: Colors.ink }
     : { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 15, lineHeight: 22, color: Colors.inkLight };
 
   const header = SEGMENT_HEADERS[seg.type] ?? null;

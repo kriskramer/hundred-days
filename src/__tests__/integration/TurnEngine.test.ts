@@ -1,5 +1,5 @@
 import { TurnEngine } from '@engine/TurnEngine';
-import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType, GameState, TurnPhase } from '@engine/types';
+import { PlayerAction, WeatherType, MoraleTier, GameEvent, ResolutionType, EventType, GameState, TurnPhase, CompanionArchetype } from '@engine/types';
 import { saveEngine } from '@engine/SaveEngine';
 import { makeGameState, makeCompanion } from '../__fixtures__/gameState';
 import { getLocation, getRegion } from '@data/locations';
@@ -225,6 +225,26 @@ describe('TurnEngine — Move action', () => {
     await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
 
     expect(saveEngine.saveRun).toHaveBeenCalled();
+  });
+
+  it('stores sampled travel dialogue in turn history after moving', async () => {
+    const rolls = [0.99, 0.01, 0.2];
+    const { engine } = makeEngine({
+      currentLocationId: 60,
+      companions: [
+        makeCompanion({
+          id: 'sage_one',
+          name: 'Ilya',
+          archetype: CompanionArchetype.Sage,
+        }),
+      ],
+    }, () => rolls.shift() ?? 0.99);
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    const lastTurn = engine.getState().turnHistory[engine.getState().turnHistory.length - 1];
+    expect(lastTurn.travelDialogue?.sourceId).toBe('companion_sage_late_road_01');
+    expect(lastTurn.travelDialogue?.speakerName).toBe('Ilya');
   });
 });
 
@@ -930,6 +950,8 @@ describe('TurnEngine — Weather consequences', () => {
     randomSpy.mockReset();
     randomSpy = jest.spyOn(Math, 'random')
       .mockReturnValueOnce(0.99) // luck roll
+      .mockReturnValueOnce(0.99) // travel dialogue gate
+      .mockReturnValueOnce(0.99) // travel dialogue selection
       .mockReturnValueOnce(0.05) // weather check
       .mockReturnValue(0.99);    // general fallback
 

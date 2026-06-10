@@ -1,4 +1,4 @@
-import { GameState, WeatherType } from './types';
+import { CompanionArchetype, GameState, WeatherType } from './types';
 import { getLocation } from '@data/locations';
 
 export interface UnifiedConditions {
@@ -17,7 +17,12 @@ export interface UnifiedConditions {
   minMorale?:               number;
   maxMorale?:               number;
   minPlayerLevel?:          number;
+  requiredAnyCompanion?:    boolean;
+  requiredCompanionCount?:  number;
   requiredCompanionId?:     string;
+  requiredCompanionArchetype?: CompanionArchetype;
+  minCompanionLoyalty?:     number;
+  maxCompanionLoyalty?:     number;
   forbiddenCompanionId?:    string;
   minGold?:                 number;
   locationId?:              number;
@@ -84,8 +89,25 @@ export function evalConditions(
   if (c.minPlayerLevel !== undefined && game.player.level < c.minPlayerLevel) return false;
 
   // Companions
+  if (c.requiredAnyCompanion && companions.length === 0) {
+    return false;
+  }
+  if (c.requiredCompanionCount !== undefined && companions.length < c.requiredCompanionCount) {
+    return false;
+  }
   if (c.requiredCompanionId !== undefined) {
     if (!companions.some(co => co.id === c.requiredCompanionId)) return false;
+  }
+  if (c.requiredCompanionArchetype !== undefined) {
+    if (!companions.some(co => co.archetype === c.requiredCompanionArchetype)) return false;
+  }
+  if (c.minCompanionLoyalty !== undefined) {
+    const minCompanionLoyalty = c.minCompanionLoyalty;
+    if (!companions.some(co => co.loyalty.value >= minCompanionLoyalty)) return false;
+  }
+  if (c.maxCompanionLoyalty !== undefined) {
+    const maxCompanionLoyalty = c.maxCompanionLoyalty;
+    if (!companions.some(co => co.loyalty.value <= maxCompanionLoyalty)) return false;
   }
   if (c.forbiddenCompanionId !== undefined) {
     if (companions.some(co => co.id === c.forbiddenCompanionId)) return false;

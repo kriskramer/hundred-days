@@ -44,6 +44,7 @@ import {
   passiveOutcomeToDelta,
   EVENT_DEFINITIONS,
 } from './EventSystem';
+import { sampleTravelDialogue } from './RoadDialogueSystem';
 
 import { saveEngine } from './SaveEngine';
 
@@ -347,6 +348,7 @@ export class TurnEngine {
       activeInteractiveEvent: null,
       eventOutcome:           undefined,
       pendingDeltas:          [],
+      travelDialogue:         undefined,
       levelUpOccurred:        false,
       log:                    [],
     };
@@ -547,6 +549,17 @@ export class TurnEngine {
       narrative,
     });
 
+    const travelDialogueGateRoll = this.nextRandom();
+    const travelDialoguePickRoll = this.nextRandom();
+    const travelDialogue = sampleTravelDialogue(
+      {
+        ...this.state,
+        currentLocationId: newLoc,
+      },
+      travelDialogueGateRoll,
+      travelDialoguePickRoll,
+    );
+
     this.setState({
       currentLocationId:  newLoc,
       currentTurn: this.state.currentTurn
@@ -556,6 +569,10 @@ export class TurnEngine {
       consecutiveForcedMarches: nextConsecutive,
       consecutiveStormDays:     nextStormDays,
     });
+
+    if (travelDialogue) {
+      this.updateTurn({ travelDialogue });
+    }
   }
 
   private resolveHunt(method: 'forage' | 'hunt'): void {
@@ -1364,6 +1381,7 @@ export class TurnEngine {
       eventsTriggered: turn?.triggeredEventIds ?? [],
       eventOutcome:    turn?.eventOutcome,
       deltas,
+      travelDialogue:  turn?.travelDialogue,
       levelUpOccurred: turn?.levelUpOccurred ?? false,
       narrativeSummary:allNarratives.slice(0, 300),
     };
