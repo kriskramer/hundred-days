@@ -37,6 +37,7 @@ import {
 import { confirmAction }     from '@utils/confirmAction';
 import * as Haptics          from 'expo-haptics';
 import { useInventoryActions } from '@hooks/useInventoryActions';
+import { NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
 // ─────────────────────────────────────────
 // Props
@@ -84,8 +85,8 @@ export function InventoryScreen({ gameState, onToast }: Props) {
     setSelectedId(prev => {
       if (prev === itemId) return null;
       Animated.sequence([
-        Animated.timing(detailSlide, { toValue: 8,  duration: 60,  useNativeDriver: true }),
-        Animated.timing(detailSlide, { toValue: 0,  duration: 120, useNativeDriver: true }),
+        Animated.timing(detailSlide, { toValue: 8,  duration: 60,  useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(detailSlide, { toValue: 0,  duration: 120, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
       ]).start();
       return itemId;
     });

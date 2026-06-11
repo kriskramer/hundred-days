@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { GameEvent } from '@engine/types';
+import { createShadowStyle, NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
 interface CombatAlertModalProps {
   visible: boolean;
@@ -29,12 +30,12 @@ export function CombatAlertModal({
           toValue: 1,
           friction: 6,
           tension: 40,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_ANIMATED_DRIVER,
         }),
         Animated.timing(opacityAnim, {
           toValue: 1,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_ANIMATED_DRIVER,
         }),
       ]).start();
     }
@@ -119,14 +120,10 @@ const styles = StyleSheet.create({
     borderColor: '#D4A017',
     borderRadius: 2,
     borderWidth: 1,
-    elevation: 3,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
     width: '100%',
+    ...createShadowStyle({ color: '#000', offsetX: 0, offsetY: 2, opacity: 0.4, radius: 4, elevation: 3 }),
   },
   buttonText: {
     color: '#F5EAD6',
@@ -139,13 +136,9 @@ const styles = StyleSheet.create({
     borderColor: '#B8860B',
     borderRadius: 4,
     borderWidth: 2,
-    elevation: 10,
     maxWidth: 360,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
     width: '100%',
+    ...createShadowStyle({ color: '#000', offsetX: 0, offsetY: 6, opacity: 0.6, radius: 12, elevation: 10 }),
   },
   description: {
     color: '#F5EAD6',

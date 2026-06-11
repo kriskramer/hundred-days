@@ -4,11 +4,13 @@ import {
   EventType,
   PassiveOutcome,
   StatDelta,
+  ResolutionType,
 } from './types';
 import { LOCATIONS } from '@data/locations';
 import { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE } from '@data/events';
-import { findDialogueForLocation } from './DialogueEngine';
+import { findDialogueForLocation, getDialogue } from './DialogueEngine';
 import { evalConditions } from './ConditionEvaluator';
+import { getNpcArchetypesForLocation } from '@data/npcEncounters';
 
 export { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE };
 
@@ -44,7 +46,63 @@ export function sampleEventsForTurn(
     }
   }
 
+  // Add one NPC road encounter if the turn has room
+  if (fired.length < 2) {
+    const npcEvent = sampleNpcEncounterForTurn(state, rng);
+    if (npcEvent) fired.push(npcEvent);
+  }
+
   return fired;
+}
+
+export function sampleNpcEncounterForTurn(
+  state: GameState,
+  rng: () => number,
+): GameEvent | null {
+  const archetypes = getNpcArchetypesForLocation(state.currentLocationId);
+  if (archetypes.length === 0) return null;
+
+  // Shuffle archetypes via rng
+  const shuffled = [...archetypes].sort(() => rng() - 0.5);
+
+  for (const archetype of shuffled) {
+    if (rng() > archetype.baseProbability) continue;
+
+    // Pick a random dialogue from this archetype's pool
+    const pool = archetype.dialoguePool;
+    if (pool.length === 0) continue;
+
+    const poolIndex = Math.floor(rng() * pool.length);
+    let dialogueId = pool[poolIndex];
+
+    // Evaluate dialogue conditions — try each pool entry until one works
+    let found = false;
+    for (let i = 0; i < pool.length; i++) {
+      const candidateId = pool[(poolIndex + i) % pool.length];
+      const dialogue = getDialogue(candidateId);
+      if (!dialogue) continue;
+      if (state.firedEventIds.has(candidateId) && !dialogue.repeatable) continue;
+      if (!evalConditions(dialogue.triggerConditions, state, { dialogueId: candidateId })) continue;
+      dialogueId = candidateId;
+      found = true;
+      break;
+    }
+    if (!found) continue;
+
+    return {
+      id:                   dialogueId,
+      type:                 EventType.NpcEncounter,
+      resolutionType:       ResolutionType.Interactive,
+      name:                 archetype.name,
+      description:          `You encounter a ${archetype.name.toLowerCase()} on the road.`,
+      conditions:           { probability: 1.0 },
+      interactiveHandlerId: 'dialogue_handler',
+      repeatable:           true,
+      tags:                 ['npc_encounter', ...archetype.tags],
+    };
+  }
+
+  return null;
 }
 
 export function hasEligibleDialogue(state: GameState): boolean {

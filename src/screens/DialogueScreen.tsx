@@ -30,6 +30,28 @@ import {
   findDialogueForLocation,
   getDialogue,
 } from '@engine/DialogueEngine';
+import { TypewriterText } from '@components';
+import { NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
+
+// ─────────────────────────────────────────
+// Typewriter pacing
+// ─────────────────────────────────────────
+
+const DEFAULT_TYPE_INTERVAL = 18;
+const MIN_TYPE_INTERVAL     = 4;
+const AUTO_ADVANCE_BUFFER_MS = 300;
+
+// Auto-advancing nodes fire on a fixed timer regardless of how long the text
+// takes to type out. Speed up long auto-advance text so it finishes typing
+// before the engine moves on, instead of getting cut off mid-sentence.
+function typeIntervalFor(node: DialogueNode): number {
+  if (!node.autoAdvance || !node.text.length) return DEFAULT_TYPE_INTERVAL;
+
+  const budget = (node.autoAdvanceDelayMs ?? 1800) - AUTO_ADVANCE_BUFFER_MS;
+  if (budget <= 0) return MIN_TYPE_INTERVAL;
+
+  return Math.min(DEFAULT_TYPE_INTERVAL, Math.max(MIN_TYPE_INTERVAL, budget / node.text.length));
+}
 
 // ─────────────────────────────────────────
 // Props
@@ -93,6 +115,8 @@ export function DialogueScreen({
   const [outcome,        setOutcome]        = useState<DialogueSessionOutcome | null>(null);
   const [noDialogue,     setNoDialogue]     = useState(false);
   const [outcomeText,    setOutcomeText]    = useState<string | null>(null);
+  const [isTyping,       setIsTyping]       = useState(true);
+  const [forceComplete,  setForceComplete]  = useState(false);
 
   const engineRef    = useRef<DialogueEngine | null>(null);
   const fadeAnim     = useRef(new Animated.Value(0)).current;
@@ -131,6 +155,8 @@ export function DialogueScreen({
         setCurrentNode(node);
         setVisibleChoices(choices);
         setOutcomeText(null);
+        setIsTyping(true);
+        setForceComplete(false);
       },
       (sessionOutcome) => {
         setOutcome(sessionOutcome);
@@ -150,8 +176,8 @@ export function DialogueScreen({
     fadeAnim.setValue(0);
     slideAnim.setValue(16);
     Animated.parallel([
-      Animated.timing(fadeAnim,  { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 220, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
     ]).start();
   }, [fadeAnim, slideAnim]);
 
@@ -206,18 +232,6 @@ export function DialogueScreen({
   }
 
   // ─────────────────────────────────────────
-  // Render: outcome screen
-  // ─────────────────────────────────────────
-
-  if (outcome) {
-    return (
-      <View style={s.root}>
-        <OutcomeScreen outcome={outcome} onDismiss={handleOutcomeDismiss} />
-      </View>
-    );
-  }
-
-  // ─────────────────────────────────────────
   // Render: loading
   // ─────────────────────────────────────────
 
@@ -235,89 +249,110 @@ export function DialogueScreen({
 
   const isAutoAdvance = currentNode.autoAdvance && visibleChoices.length === 0;
   const isNarrator    = currentNode.speakerName === 'Narrator';
+  const showResponse  = visibleChoices.length > 0 && !isTyping && !outcome;
 
   return (
-    <ScrollView
-      style={s.root}
-      contentContainerStyle={s.scroll}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Location crumb */}
-      <Text style={s.crumb}>
-        Location {gameState.currentLocationId}  ·  Day {gameState.dayNumber}
-      </Text>
+    <View style={s.root}>
+      <ScrollView
+        style={s.scrollRoot}
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Location crumb */}
+        <Text style={s.crumb}>
+          Location {gameState.currentLocationId}  ·  Day {gameState.dayNumber}
+        </Text>
 
-      {/* Speaker block */}
-      <Animated.View style={[
-        s.speakerBlock,
-        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-      ]}>
-        {/* Avatar */}
-        <View style={[s.avatar, isNarrator && s.avatarNarrator]}>
-          <Text style={s.avatarText}>
-            {isNarrator
-              ? '✦'
-              : currentNode.speakerName.slice(0, 2).toUpperCase()}
-          </Text>
-        </View>
-
-        {/* Bubble */}
-        <View style={[s.bubble, isNarrator && s.bubbleNarrator]}>
-          <Text style={s.speakerName}>
-            {currentNode.speakerName.toUpperCase()}
-          </Text>
-          <Text style={[s.bubbleText, isNarrator && s.bubbleTextNarrator]}>
-            {currentNode.text}
-          </Text>
-        </View>
-      </Animated.View>
-
-      {/* Outcome text flash */}
-      {outcomeText && (
-        <View style={s.outcomeTextBox}>
-          <Text style={s.outcomeTextContent}>{outcomeText}</Text>
-        </View>
-      )}
-
-      {/* Auto-advance indicator */}
-      {isAutoAdvance && (
-        <View style={s.autoAdvancePill}>
-          <ActivityIndicator size="small" color={C.gold} style={{ marginRight: 6 }} />
-          <Text style={s.autoAdvanceText}>Continuing...</Text>
-        </View>
-      )}
-
-      {/* Choices */}
-      {visibleChoices.length > 0 && (
+        {/* Speaker block */}
         <Animated.View style={[
-          s.choicesSection,
+          s.speakerBlock,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}>
-          <Text style={s.choicesHeader}>Your response</Text>
-          {visibleChoices.map((choice) => (
-            <ChoiceButton
-              key={choice.id}
-              choice={choice}
-              onPress={() => handleChoice(choice)}
+          {/* Avatar */}
+          <View style={[s.avatar, isNarrator && s.avatarNarrator]}>
+            <Text style={s.avatarText}>
+              {isNarrator
+                ? '✦'
+                : currentNode.speakerName.slice(0, 2).toUpperCase()}
+            </Text>
+          </View>
+
+          {/* Bubble */}
+          <View style={[s.bubble, isNarrator && s.bubbleNarrator]}>
+            <Text style={s.speakerName}>
+              {currentNode.speakerName.toUpperCase()}
+            </Text>
+            <TypewriterText
+              key={currentNode.id}
+              text={currentNode.text}
+              style={[s.bubbleText, isNarrator && s.bubbleTextNarrator]}
+              interval={typeIntervalFor(currentNode)}
+              forceComplete={forceComplete}
+              onComplete={() => setIsTyping(false)}
             />
-          ))}
+          </View>
         </Animated.View>
-      )}
 
-      {/* Reputation / morale hint */}
-      {visibleChoices.length > 0 && (
-        <View style={s.toneKey}>
-          {(['heroic', 'cunning', 'villainous'] as ChoiceTone[]).map(tone => (
-            <View key={tone} style={s.toneKeyItem}>
-              <View style={[s.toneDot, { backgroundColor: TONE_META[tone].color }]} />
-              <Text style={s.toneKeyLabel}>{TONE_META[tone].label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+        {/* Outcome text flash */}
+        {outcomeText && (
+          <View style={s.outcomeTextBox}>
+            <Text style={s.outcomeTextContent}>{outcomeText}</Text>
+          </View>
+        )}
 
-      {footerContent}
-    </ScrollView>
+        {/* Auto-advance indicator */}
+        {isAutoAdvance && !isTyping && !outcome && (
+          <View style={s.autoAdvancePill}>
+            <ActivityIndicator size="small" color={C.gold} style={{ marginRight: 6 }} />
+            <Text style={s.autoAdvanceText}>Continuing...</Text>
+          </View>
+        )}
+
+        {/* Choices */}
+        {showResponse && (
+          <Animated.View style={[
+            s.choicesSection,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}>
+            <Text style={s.choicesHeader}>Your response</Text>
+            {visibleChoices.map((choice) => (
+              <ChoiceButton
+                key={choice.id}
+                choice={choice}
+                onPress={() => handleChoice(choice)}
+              />
+            ))}
+          </Animated.View>
+        )}
+
+        {/* Reputation / morale hint */}
+        {showResponse && (
+          <View style={s.toneKey}>
+            {(['heroic', 'cunning', 'villainous'] as ChoiceTone[]).map(tone => (
+              <View key={tone} style={s.toneKeyItem}>
+                <View style={[s.toneDot, { backgroundColor: TONE_META[tone].color }]} />
+                <Text style={s.toneKeyLabel}>{TONE_META[tone].label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Conversation results — shown alongside the final dialogue line */}
+        {outcome && !isTyping && (
+          <OutcomeSummary outcome={outcome} onDismiss={handleOutcomeDismiss} />
+        )}
+
+        {!outcome && footerContent}
+      </ScrollView>
+
+      {isTyping && !forceComplete && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setForceComplete(true)}
+          style={StyleSheet.absoluteFillObject}
+        />
+      )}
+    </View>
   );
 }
 
@@ -336,10 +371,10 @@ function ChoiceButton({
   const pressScale = useRef(new Animated.Value(1)).current;
 
   function onPressIn() {
-    Animated.timing(pressScale, { toValue: 0.97, duration: 80, useNativeDriver: true }).start();
+    Animated.timing(pressScale, { toValue: 0.97, duration: 80, useNativeDriver: NATIVE_ANIMATED_DRIVER }).start();
   }
   function onPressOut() {
-    Animated.timing(pressScale, { toValue: 1, duration: 120, useNativeDriver: true }).start();
+    Animated.timing(pressScale, { toValue: 1, duration: 120, useNativeDriver: NATIVE_ANIMATED_DRIVER }).start();
   }
 
   return (
@@ -365,10 +400,10 @@ function ChoiceButton({
 }
 
 // ─────────────────────────────────────────
-// Outcome screen
+// Outcome summary (shown inline once the conversation ends)
 // ─────────────────────────────────────────
 
-function OutcomeScreen({
+function OutcomeSummary({
   outcome,
   onDismiss,
 }: {
@@ -386,7 +421,7 @@ function OutcomeScreen({
   );
 
   return (
-    <View style={s.outcomeRoot}>
+    <View style={s.outcomeSection}>
       {/* Recruited companion celebration */}
       {recruited.length > 0 && (
         <View style={s.recruitedBanner}>
@@ -459,6 +494,9 @@ const s = StyleSheet.create({
   root: {
     backgroundColor: C.parchment,
     flex:            1,
+  },
+  scrollRoot: {
+    flex: 1,
   },
   scroll: {
     padding:      16,
@@ -679,10 +717,9 @@ const s = StyleSheet.create({
     letterSpacing: 1.2,
   },
 
-  // Outcome screen
-  outcomeRoot: {
-    flex:    1,
-    padding: 20,
+  // Outcome summary
+  outcomeSection: {
+    marginTop: 16,
   },
   recruitedBanner: {
     alignItems:      'center',

@@ -90,6 +90,7 @@ export enum EventType {
   MoralChoice      = 'moral_choice',
   CompanionMeet    = 'companion_meet',
   BossEncounter    = 'boss_encounter',
+  NpcEncounter     = 'npc_encounter',
 }
 
 export enum ResolutionType {
@@ -309,6 +310,8 @@ export interface Companion {
   departureNarrative:     string;
   recruitNarrative:       string;
   guaranteedFleeAtLevel?: number;
+  witnessedEvents?:       string[];
+  conversationsHad?:      string[];
 }
 
 // ─────────────────────────────────────────
@@ -666,6 +669,7 @@ export interface GameState {
   consecutiveForcedMarches: number;
   consecutiveStormDays:     number;
   consecutiveCombatDays:    number;
+  consecutiveLowMorale:     number;
 }
 
 // ─────────────────────────────────────────

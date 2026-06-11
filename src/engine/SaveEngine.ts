@@ -344,6 +344,27 @@ class SaveEngine {
       current = { ...current, schemaVersion: 11 };
     }
 
+    // v11 → v12: add witnessedEvents and conversationsHad to companions
+    if (current.schemaVersion === 11) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (Array.isArray(state['companions'])) {
+        for (const companion of (state['companions'] as Record<string, unknown>[])) {
+          if (!Array.isArray(companion['witnessedEvents'])) companion['witnessedEvents'] = [];
+          if (!Array.isArray(companion['conversationsHad'])) companion['conversationsHad'] = [];
+        }
+      }
+      current = { ...current, schemaVersion: 12 };
+    }
+
+    // v12 → v13: add consecutiveLowMorale if missing
+    if (current.schemaVersion === 12) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      if (state['consecutiveLowMorale'] === undefined) {
+        state['consecutiveLowMorale'] = 0;
+      }
+      current = { ...current, schemaVersion: 13 };
+    }
+
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
     return current;
   }

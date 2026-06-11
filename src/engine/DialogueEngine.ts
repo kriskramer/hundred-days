@@ -210,3 +210,35 @@ export function findDialogueForLocation(locationId: number, gameState: GameState
 
   return null;
 }
+
+export function findCompanionDialogue(companionId: string, gameState: GameState): Dialogue | null {
+  const companion = gameState.companions.find(c => c.id === companionId);
+  if (!companion) return null;
+
+  const alreadyHad = new Set(companion.conversationsHad ?? []);
+
+  // Prioritize event-reactive dialogues (non-repeatable, contextual)
+  const candidates = DIALOGUES.filter(d => {
+    if (d.triggerType !== 'player_initiated') return false;
+    if (!d.tags.includes(companionId)) return false;
+    if (!d.repeatable && alreadyHad.has(d.id)) return false;
+    return evalConditions(d.triggerConditions, gameState, { dialogueId: d.id });
+  });
+
+  // Prefer non-repeatable (contextual) over repeatable (generic)
+  const contextual = candidates.filter(d => !d.repeatable);
+  if (contextual.length > 0) return contextual[0];
+  if (candidates.length > 0) return candidates[0];
+  return null;
+}
+
+export function findShopDialogue(locationId: number, gameState: GameState): Dialogue | null {
+  const checkState = { ...gameState, currentLocationId: locationId };
+  for (const dialogue of DIALOGUES) {
+    if (dialogue.triggerType !== 'player_initiated') continue;
+    if (!dialogue.tags.includes('shopkeeper')) continue;
+    if (!evalConditions(dialogue.triggerConditions, checkState, { dialogueId: dialogue.id })) continue;
+    return dialogue;
+  }
+  return null;
+}

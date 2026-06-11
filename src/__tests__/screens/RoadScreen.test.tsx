@@ -444,4 +444,32 @@ describe('RoadScreen', () => {
     expect(queryByText('Make Camp')).toBeTruthy();
     expect(queryByText('Rest at Inn')).toBeNull();
   });
+
+  it('renders individual NPC buttons instead of a generic Talk button', async () => {
+    const onToast = jest.fn();
+    const onOpenNpc = jest.fn();
+    const onOpenDialogue = jest.fn();
+    
+    const gameState = makeGameState({
+      currentLocationId: 2,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+
+    const { queryByText } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        onOpenNpc={onOpenNpc}
+        onOpenDialogue={onOpenDialogue}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText('Rex')).toBeTruthy();
+      expect(queryByText('Start dialogue')).toBeNull();
+    });
+  });
 });

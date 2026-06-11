@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import type { DialogueSessionOutcome } from '@engine/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ItemCategory } from '@engine/types';
@@ -29,6 +30,9 @@ import {
   getMerchantBuyReaction,
   getMerchantSellReaction,
 } from '@utils/tradeJournal';
+import { findShopDialogue } from '@engine/DialogueEngine';
+import { CompanionDialogueModal } from '@components/CompanionDialogueModal';
+import { TypewriterText } from '@components';
 
 // ─────────────────────────────────────────
 // Palette
@@ -45,6 +49,23 @@ const C = {
   goldLight: '#D4A017',
   mist:      '#6B7C6E',
 };
+
+// ─────────────────────────────────────────
+// Typewriter pacing
+// ─────────────────────────────────────────
+
+const NARRATIVE_TYPE_INTERVAL = 22;
+const NARRATIVE_LINE_GAP_MS   = 150;
+
+function getNarrativeAnimationDelay(lines: string[], animateFromIdx: number, idx: number): number {
+  if (idx < animateFromIdx) return -1;
+
+  let delay = 0;
+  for (let i = animateFromIdx; i < idx; i++) {
+    delay += lines[i].length * NARRATIVE_TYPE_INTERVAL + NARRATIVE_LINE_GAP_MS;
+  }
+  return delay;
+}
 
 // ─────────────────────────────────────────
 // Props
@@ -64,15 +85,19 @@ interface Props {
 export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }: Props) {
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
   const [narrativeLines, setNarrativeLines] = useState<string[]>([]);
+  const [animateFromIdx, setAnimateFromIdx] = useState(0);
+  const [shopDialogueId, setShopDialogueId] = useState<string | null>(null);
   const narrativeScrollRef = useRef<ScrollView>(null);
   const { buyItem, sellItem } = useShopActions();
 
   useEffect(() => {
     if (visible && merchantEntryNarrative) {
       setNarrativeLines([merchantEntryNarrative]);
+      setAnimateFromIdx(0);
     }
     if (!visible) {
       setNarrativeLines([]);
+      setAnimateFromIdx(0);
     }
   }, [visible, merchantEntryNarrative]);
 
@@ -83,8 +108,9 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
   const locationId = useLocation();
   const resources = useResources();
   const runLayout = useGameStore(s => s.gameState?.runLayout);
+  const gameState = useGameStore(s => s.gameState);
 
-  if (!resources) return null;
+  if (!resources || !gameState) return null;
 
   const location         = getLocation(locationId);
   const merchant         = getMerchantAtLocation(locationId, runLayout);
@@ -107,12 +133,14 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
     if (result.foodGained) {
       const foodText = `+${result.foodGained} food · ${result.goldSpent} gold`;
       onToast(foodText);
+      setAnimateFromIdx(narrativeLines.length);
       setNarrativeLines(prev => [...prev, foodText, getMerchantBuyReaction(result.itemName)]);
       return;
     }
 
     const purchaseText = getTradePurchaseNarrative(result.itemName, result.goldSpent, result.autoEquipped);
     onToast(purchaseText);
+    setAnimateFromIdx(narrativeLines.length);
     setNarrativeLines(prev => [...prev, purchaseText, getMerchantBuyReaction(result.itemName)]);
   }
 
@@ -125,6 +153,7 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
 
     const sellText = `You sell the ${result.itemName} for ${result.goldGained} gold.`;
     onToast(`Sold ${result.itemName} · +${result.goldGained} gold`);
+    setAnimateFromIdx(narrativeLines.length);
     setNarrativeLines(prev => [...prev, sellText, getMerchantSellReaction(result.goldGained)]);
   }
 
@@ -142,6 +171,18 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
             )}
           </View>
           <View style={s.headerRight}>
+            {findShopDialogue(locationId, gameState) && (
+              <TouchableOpacity
+                onPress={() => {
+                  const d = findShopDialogue(locationId, gameState);
+                  if (d) setShopDialogueId(d.id);
+                }}
+                style={s.talkBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={s.talkBtnText}>TALK</Text>
+              </TouchableOpacity>
+            )}
             <View style={s.goldBox}>
               <Text style={s.goldLabel}>GOLD</Text>
               <Text style={s.goldValue}>{Math.floor(resources.gold)}</Text>
@@ -177,9 +218,20 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
             >
-              {narrativeLines.map((line, i) => (
-                <Text key={i} style={s.narrativeLine}>{line}</Text>
-              ))}
+              {narrativeLines.map((line, i) => {
+                const animDelay = getNarrativeAnimationDelay(narrativeLines, animateFromIdx, i);
+                return animDelay >= 0 ? (
+                  <TypewriterText
+                    key={i}
+                    text={line}
+                    style={s.narrativeLine}
+                    interval={NARRATIVE_TYPE_INTERVAL}
+                    delay={animDelay}
+                  />
+                ) : (
+                  <Text key={i} style={s.narrativeLine}>{line}</Text>
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -233,6 +285,13 @@ export function ShopScreen({ visible, onClose, onToast, merchantEntryNarrative }
         </ScrollView>
 
       </SafeAreaView>
+      <CompanionDialogueModal
+        visible={shopDialogueId !== null}
+        dialogue={shopDialogueId ? (require('@engine/DialogueEngine').getDialogue(shopDialogueId) ?? null) : null}
+        gameState={gameState}
+        onComplete={(_outcome: DialogueSessionOutcome) => setShopDialogueId(null)}
+        onClose={() => setShopDialogueId(null)}
+      />
     </Modal>
   );
 }
@@ -379,6 +438,18 @@ const s = StyleSheet.create({
     color:      C.goldLight,
     fontFamily: 'Cinzel_600SemiBold',
     fontSize:   20,
+  },
+  talkBtn: {
+    backgroundColor: C.parchDark,
+    borderRadius:    4,
+    paddingHorizontal: 10,
+    paddingVertical:   6,
+  },
+  talkBtnText: {
+    color:      C.ink,
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize:   10,
+    letterSpacing: 1.5,
   },
   closeBtn: {
     alignItems:      'center',

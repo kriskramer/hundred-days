@@ -441,6 +441,105 @@
         "dialogue",
         "story"
       ]
+    },
+    {
+      "id": "mc_wounded_refugee",
+      "type": "moral_choice",
+      "resolutionType": "interactive",
+      "name": "A Family on the Road",
+      "description": "A frightened family huddles beside a broken-down cart.",
+      "conditions": {
+        "probability": 1,
+        "minLocationId": 15,
+        "maxLocationId": 105
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": [
+        "dialogue",
+        "moral_choice",
+        "story"
+      ]
+    },
+    {
+      "id": "mc_burning_barn",
+      "type": "moral_choice",
+      "resolutionType": "interactive",
+      "name": "Smoke on the Horizon",
+      "description": "A barn near the road is engulfed in flame.",
+      "conditions": {
+        "probability": 1,
+        "minLocationId": 25,
+        "maxLocationId": 115
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": [
+        "dialogue",
+        "moral_choice",
+        "story",
+        "danger"
+      ]
+    },
+    {
+      "id": "npc_road_encounter_human",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Fellow Traveler",
+      "description": "Someone is walking the same road as you.",
+      "conditions": {
+        "probability": 0.06,
+        "locationTypes": [
+          "wilderness"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
+      ]
+    },
+    {
+      "id": "npc_road_encounter_outcast",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Solitary Figure",
+      "description": "Someone sits alone at the roadside, away from the path.",
+      "conditions": {
+        "probability": 0.05,
+        "locationTypes": [
+          "wilderness"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
+      ]
+    },
+    {
+      "id": "rumor_mill_town",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Tavern Talk",
+      "description": "Locals are talking about something up ahead.",
+      "conditions": {
+        "probability": 0.2,
+        "locationTypes": [
+          "town"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "town",
+        "rumor"
+      ]
     }
   ],
   "eventPoolsByType": {
@@ -451,13 +550,16 @@
       "forage_roadside",
       "food_spoils",
       "inspiring_vista",
-      "bad_dream"
+      "bad_dream",
+      "npc_road_encounter_human",
+      "npc_road_encounter_outcast"
     ],
     "town": [
       "pickpocket",
       "toll_road",
       "weather_storm_rolls_in",
-      "bad_dream"
+      "bad_dream",
+      "rumor_mill_town"
     ],
     "dungeon": [
       "bandit_ambush",

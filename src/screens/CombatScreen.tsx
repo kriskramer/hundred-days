@@ -20,7 +20,6 @@ import {
   GameEvent,
   CombatResult,
   EnemyBehavior,
-  ItemCategory,
   ItemDefinition,
   CompanionArchetype,
   MoraleTier,
@@ -48,6 +47,7 @@ import type { TurnEngine } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
 import { isBossLocation } from '@engine/bosses';
 import * as Haptics from 'expo-haptics';
+import { NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
 // ─────────────────────────────────────────
 // Props
@@ -67,6 +67,9 @@ interface Props {
 
 import { Colors as C } from '@theme';
 import { TypewriterText } from '@components';
+
+const LOG_TYPE_INTERVAL = 18;
+const LOG_LINE_GAP_MS   = 120;
 
 const BEHAVIOR_DESC: Record<EnemyBehavior, string> = {
   [EnemyBehavior.Aggressive]:  'Attacks every round without hesitation.',
@@ -92,9 +95,13 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
 
   const engineRef    = useRef<CombatEngine | null>(null);
   const logScrollRef = useRef<ScrollView>(null);
-  const enemyFlash   = useRef(new Animated.Value(1)).current;
   const playerFlash  = useRef(new Animated.Value(1)).current;
+  const playerShake  = useRef(new Animated.Value(0)).current;
   const prevPlayerHP = useRef<number>(0);
+  const prevEnemyHP  = useRef<Record<string, number>>({});
+  const prevCompanionHP = useRef<Record<string, number>>({});
+  const enemyShakeValues = useRef<Record<string, Animated.Value>>({});
+  const companionShakeValues = useRef<Record<string, Animated.Value>>({});
   const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -121,9 +128,27 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
         // Flash + haptic when player takes damage
         if (newState.player.currentHP < prevPlayerHP.current) {
           flashAnim(playerFlash);
+          shakeAnim(playerShake);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         }
         prevPlayerHP.current = newState.player.currentHP;
+
+        newState.enemies.forEach((enemy, index) => {
+          const key = getEnemyAnimKey(enemy, index);
+          const prevHP = prevEnemyHP.current[key];
+          if (prevHP !== undefined && enemy.currentHP < prevHP) {
+            shakeAnim(getCombatantShakeValue(enemyShakeValues.current, key));
+          }
+          prevEnemyHP.current[key] = enemy.currentHP;
+        });
+
+        newState.companions.forEach(companion => {
+          const prevHP = prevCompanionHP.current[companion.companionId];
+          if (prevHP !== undefined && companion.currentHP < prevHP) {
+            shakeAnim(getCombatantShakeValue(companionShakeValues.current, companion.companionId));
+          }
+          prevCompanionHP.current[companion.companionId] = companion.currentHP;
+        });
 
         setCombatState({ ...newState });
 
@@ -139,6 +164,12 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
     engineRef.current = combatEngine;
     const initial     = combatEngine.getState();
     prevPlayerHP.current = initial.player.currentHP;
+    prevEnemyHP.current = Object.fromEntries(
+      initial.enemies.map((enemy, index) => [getEnemyAnimKey(enemy, index), enemy.currentHP]),
+    );
+    prevCompanionHP.current = Object.fromEntries(
+      initial.companions.map(companion => [companion.companionId, companion.currentHP]),
+    );
     setCombatState(initial);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -154,13 +185,10 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const handleAction = useCallback((type: CombatAction['type'], targetIdx = 0, itemId?: string) => {
     if (!engineRef.current) return;
     if (combatState?.phase !== 'awaiting_input') return;
-    if (type === 'attack') {
-      flashAnim(enemyFlash);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    }
+    if (type === 'attack') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setAnimateFromIdx(combatState?.log.length ?? 0);
     engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId });
-  }, [combatState?.log.length, combatState?.phase, enemyFlash]);
+  }, [combatState?.log.length, combatState?.phase]);
 
   const handleContinue = useCallback(() => {
     if (!combatState?.result) return;
@@ -221,9 +249,13 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
         {/* Encounter text — persistent narrative header */}
         {encounterText ? (
           <View style={s.encounterBanner}>
-            <Text style={s.encounterText}>
-              {encounterText}
-            </Text>
+            <TypewriterText
+              key={encounterText}
+              text={encounterText}
+              style={s.encounterText}
+              interval={18}
+              delay={150}
+            />
           </View>
         ) : null}
 
@@ -232,7 +264,11 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
           {combatState.enemies.map((enemy, i) => (
             <Animated.View
               key={`${enemy.enemyId}_${i}`}
-              style={{ opacity: i === 0 ? enemyFlash : 1 }}
+              style={{
+                transform: [
+                  { translateX: getCombatantShakeValue(enemyShakeValues.current, getEnemyAnimKey(enemy, i)) },
+                ],
+              }}
             >
               <EnemyBlock
                 enemy={enemy}
@@ -258,7 +294,16 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
 
         {/* ── PARTY ── */}
         <View style={s.partyRow}>
-          <Animated.View style={[s.partyBlock, s.playerBlock, { opacity: playerFlash }]}>
+          <Animated.View
+            style={[
+              s.partyBlock,
+              s.playerBlock,
+              {
+                opacity: playerFlash,
+                transform: [{ translateX: playerShake }],
+              },
+            ]}
+          >
             <View style={s.partyHeader}>
               <Text style={s.playerName}>You</Text>
               {combatState.player.statusEffects.length > 0 && (
@@ -272,7 +317,19 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
           </Animated.View>
 
           {combatState.companions.map(c => (
-            <CompanionBlock key={c.companionId} companion={c} />
+            <Animated.View
+              key={c.companionId}
+              style={[
+                s.combatantAnimWrap,
+                {
+                  transform: [
+                    { translateX: getCombatantShakeValue(companionShakeValues.current, c.companionId) },
+                  ],
+                },
+              ]}
+            >
+              <CompanionBlock companion={c} />
+            </Animated.View>
           ))}
         </View>
 
@@ -288,7 +345,7 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
               entry={entry}
               companions={combatState.companions}
               enemies={combatState.enemies}
-              animDelay={i >= animateFromIdx ? (i - animateFromIdx) * 120 : -1}
+              animDelay={getCombatLogAnimationDelay(combatState.log, animateFromIdx, i)}
               onComplete={i === combatState.log.length - 1 ? handleLogFinished : undefined}
             />
           ))}
@@ -571,7 +628,7 @@ const LogLine = memo(function LogLine({
     entry.action.toLowerCase().includes('heal') ||
     entry.action.toLowerCase().includes('drain');
 
-  const text = `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
+  const text = getCombatLogLineText(entry);
 
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -598,7 +655,7 @@ const LogLine = memo(function LogLine({
       <TypewriterText
         text={text}
         style={textStyle}
-        interval={18}
+        interval={LOG_TYPE_INTERVAL}
         delay={animDelay}
         onComplete={onComplete}
       />
@@ -735,6 +792,26 @@ export function getDisplayedMoraleDelta(
   return projectedMorale - currentMorale;
 }
 
+export function getCombatLogLineText(entry: CombatLogEntry): string {
+  return `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
+}
+
+export function getCombatLogAnimationDelay(
+  log: CombatLogEntry[],
+  animateFromIdx: number,
+  entryIdx: number,
+): number {
+  if (entryIdx < animateFromIdx) return -1;
+
+  let delay = 0;
+  for (let i = animateFromIdx; i < entryIdx; i++) {
+    delay += getCombatLogLineText(log[i]).length * LOG_TYPE_INTERVAL;
+    delay += LOG_LINE_GAP_MS;
+  }
+
+  return delay;
+}
+
 function buildEnemiesFromContext(
   event: GameEvent | null,
   game: GameState,
@@ -812,10 +889,38 @@ function calcFleeChance(state: CombatState): number {
   return Math.round(chance * 100);
 }
 
+function getEnemyAnimKey(enemy: EnemyCombatant, index: number): string {
+  return `${enemy.enemyId}_${index}`;
+}
+
+function getCombatantShakeValue(
+  values: Record<string, Animated.Value>,
+  key: string,
+): Animated.Value {
+  if (!values[key]) {
+    values[key] = new Animated.Value(0);
+  }
+  return values[key];
+}
+
 function flashAnim(anim: Animated.Value) {
+  anim.stopAnimation();
+  anim.setValue(1);
   Animated.sequence([
-    Animated.timing(anim, { toValue: 0.35, duration: 80,  useNativeDriver: true }),
-    Animated.timing(anim, { toValue: 1,    duration: 220, useNativeDriver: true }),
+    Animated.timing(anim, { toValue: 0.35, duration: 80,  useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+    Animated.timing(anim, { toValue: 1,    duration: 220, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+  ]).start();
+}
+
+function shakeAnim(anim: Animated.Value) {
+  anim.stopAnimation();
+  anim.setValue(0);
+  Animated.sequence([
+    Animated.timing(anim, { toValue: -8, duration: 32, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+    Animated.timing(anim, { toValue: 8, duration: 48, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+    Animated.timing(anim, { toValue: -6, duration: 42, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+    Animated.timing(anim, { toValue: 4, duration: 36, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+    Animated.timing(anim, { toValue: 0, duration: 32, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
   ]).start();
 }
 
@@ -917,6 +1022,7 @@ const s = StyleSheet.create({
 
   // Party
   partyRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
+  combatantAnimWrap: { flex: 1 },
   partyBlock: {
     borderRadius: 2,
     borderWidth: 1,
@@ -1012,10 +1118,10 @@ const s = StyleSheet.create({
     borderRadius: 2,
     borderWidth: 1,
     marginBottom: 8,
-    minHeight: 80,
-    maxHeight: 220,
+    minHeight: 92,
+    maxHeight: 236,
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   logLine: {
     fontFamily: 'CrimsonText_400Regular_Italic',

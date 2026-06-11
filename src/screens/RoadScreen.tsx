@@ -1,20 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, Animated } from 'react-native';
-import { GameState, PlayerAction, WeatherType, CompanionArchetype } from '@engine/types';
+import { GameState, PlayerAction, WeatherType, CompanionArchetype, GameEvent } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
 import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
 import { isBossLocation } from '@engine/bosses';
 import { hasEligibleDialogue } from '@engine/EventSystem';
-import { canStealFromDialogue, findDialogueForLocation, getDialogueDisplayName, isNpcDialogue } from '@engine/DialogueEngine';
+import { canStealFromDialogue, findCompanionDialogue, findDialogueForLocation, getDialogue, getDialogueDisplayName } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
+import { CompanionDialogueModal } from '@components/CompanionDialogueModal';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
 import { getMerchantAtLocation, hasMerchantAtLocation } from '@engine/ItemSystem';
 import { getMerchantEntryNarrative } from '@utils/tradeJournal';
 import { getEnemyDefinition } from '@engine';
+import { saveEngine } from '@engine/SaveEngine';
+import { useGameStore } from '@store/gameStore';
 import * as Haptics from 'expo-haptics';
+import { createShadowStyle, NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
 interface JournalSegment {
   key:          string;
@@ -40,6 +44,7 @@ interface Props {
   textInterval?:   number;
   confirmActions?: boolean;
   shopCloseKey?:   number;
+  activeEvent?:    GameEvent | null;
 }
 
 function getForageLabel(huntYield: number | null): string | null {
@@ -92,13 +97,13 @@ function ShakingBadge({ children, style, delay = 150 }: ShakingBadgeProps) {
     shakeAnim.setValue(0);
     const timer = setTimeout(() => {
       Animated.sequence([
-        Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: -3, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: -3, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
       ]).start();
     }, delay);
 
@@ -125,12 +130,12 @@ function FlashingBadge({ children, style, delay = 150 }: FlashingBadgeProps) {
     opacityAnim.setValue(1);
     const timer = setTimeout(() => {
       Animated.sequence([
-        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(opacityAnim, { toValue: 0.1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: NATIVE_ANIMATED_DRIVER }),
       ]).start();
     }, delay);
 
@@ -163,6 +168,7 @@ export function RoadScreen({
   textInterval = 22,
   confirmActions = true,
   shopCloseKey,
+  activeEvent,
 }: Props) {
   const location       = getLocation(gameState.currentLocationId);
   const dialogueNearby = hasEligibleDialogue(gameState);
@@ -172,6 +178,8 @@ export function RoadScreen({
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
 
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null);
+  const [companionDialogueId, setCompanionDialogueId] = useState<string | null>(null);
+  const setGameState = useGameStore(s => s.setGameState);
   const [segments, setSegments]           = useState<JournalSegment[]>([]);
   const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set());
   const [forceComplete, setForceComplete] = useState(false);
@@ -184,11 +192,53 @@ export function RoadScreen({
   const currentNpcSlot = gameState.runLayout?.npcSlots.find(
     slot => slot.locationId === gameState.currentLocationId && !gameState.firedEventIds.has(slot.npcEventId)
   ) ?? null;
-  const currentNpcDialogueId = activeDialogue && isNpcDialogue(activeDialogue.id)
-    ? activeDialogue.id
-    : currentNpcSlot?.npcEventId ?? null;
-  const currentNpcName = currentNpcDialogueId ? getDialogueDisplayName(currentNpcDialogueId) : null;
-  const currentNpcCanSteal = currentNpcDialogueId ? canStealFromDialogue(currentNpcDialogueId) : false;
+
+  interface NpcItem {
+    dialogueId: string;
+    name: string;
+    canSteal: boolean;
+    isEvent: boolean;
+  }
+
+  const npcItems: NpcItem[] = [];
+  const seenDialogueIds = new Set<string>();
+
+  if (activeEvent?.interactiveHandlerId === 'dialogue_handler' && activeEvent.id) {
+    const id = activeEvent.id;
+    seenDialogueIds.add(id);
+    npcItems.push({
+      dialogueId: id,
+      name: getDialogueDisplayName(id),
+      canSteal: canStealFromDialogue(id),
+      isEvent: true,
+    });
+  }
+
+  if (activeDialogue) {
+    const id = activeDialogue.id;
+    if (!seenDialogueIds.has(id)) {
+      seenDialogueIds.add(id);
+      npcItems.push({
+        dialogueId: id,
+        name: getDialogueDisplayName(id),
+        canSteal: canStealFromDialogue(id),
+        isEvent: false,
+      });
+    }
+  }
+
+  if (currentNpcSlot) {
+    const id = currentNpcSlot.npcEventId;
+    if (!seenDialogueIds.has(id)) {
+      seenDialogueIds.add(id);
+      npcItems.push({
+        dialogueId: id,
+        name: getDialogueDisplayName(id),
+        canSteal: canStealFromDialogue(id),
+        isEvent: false,
+      });
+    }
+  }
 
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const baseLocationText = location.locationText || '';
@@ -371,11 +421,9 @@ export function RoadScreen({
           variant: 'primary' as const,
           onPress: () => appendCombatIntro(() => onOpenCombat?.()),
         },
-        ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => appendCombatIntro(() => onOpenCombat?.()) }] : []),
-        ...(((canTalk ?? (activeDialogue !== null)) && !currentNpcDialogueId) ? [{ label: 'Talk', sub: 'Start dialogue', variant: 'secondary' as const, onPress: () => onOpenDialogue?.() }] : []),
         { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }), isLucky },
         { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
         ...activeShortcuts.map(s => ({
@@ -405,15 +453,19 @@ export function RoadScreen({
         { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
         ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) }] : []),
       ]).map(btn => ({ ...btn, disabled: isTyping }));
-  const npcActionButtons = currentNpcDialogueId && currentNpcName
-    ? [{
-        label: currentNpcName,
-        sub: currentNpcCanSteal ? 'Talk · Steal' : 'Talk',
-        variant: 'npc' as const,
-        onPress: () => onOpenNpc?.(currentNpcDialogueId),
-        disabled: isTyping,
-      }]
-    : [];
+  const npcActionButtons = npcItems.map(item => ({
+    label: item.name,
+    sub: item.canSteal ? 'Talk · Steal' : 'Talk',
+    variant: 'npc' as const,
+    onPress: () => {
+      if (item.isEvent) {
+        onOpenDialogue?.();
+      } else {
+        onOpenNpc?.(item.dialogueId);
+      }
+    },
+    disabled: isTyping,
+  }));
 
   function renderDelta(val: number, label: string, icon: string) {
     if (Math.abs(val) < 0.1) return null;
@@ -473,11 +525,33 @@ export function RoadScreen({
   }
 
   const handleCompanionPress = (id: string) => {
+    const dialogue = findCompanionDialogue(id, gameState);
+    if (dialogue) {
+      setCompanionDialogueId(dialogue.id);
+      return;
+    }
     if (selectedCompanionId === id) {
       setSelectedCompanionId(null);
     } else {
       setSelectedCompanionId(id);
     }
+  };
+
+  const handleCompanionDialogueComplete = (_outcome: import('@engine/types').DialogueSessionOutcome) => {
+    const dialogueId = companionDialogueId;
+    setCompanionDialogueId(null);
+    if (!dialogueId) return;
+    // Record in each companion whose tag matches (finds the right one by tag)
+    const updated = {
+      ...gameState,
+      companions: gameState.companions.map(c => {
+        const had = c.conversationsHad ?? [];
+        if (had.includes(dialogueId)) return c;
+        return { ...c, conversationsHad: [...had, dialogueId] };
+      }),
+    };
+    setGameState(updated);
+    saveEngine.saveRun(updated).catch(console.error);
   };
 
   return (
@@ -652,6 +726,13 @@ export function RoadScreen({
         visible={selectedCompanionId !== null}
         companionId={selectedCompanionId}
         onClose={() => setSelectedCompanionId(null)}
+      />
+      <CompanionDialogueModal
+        visible={companionDialogueId !== null}
+        dialogue={companionDialogueId ? (getDialogue(companionDialogueId) ?? null) : null}
+        gameState={gameState}
+        onComplete={handleCompanionDialogueComplete}
+        onClose={() => setCompanionDialogueId(null)}
       />
     </View>
   );
@@ -921,11 +1002,16 @@ function ActionButton({ label, sub, variant, onPress, disabled, isLucky }: Actio
         alignItems: 'center',
         paddingVertical: 10,
         paddingHorizontal: 6,
-        shadowColor: isLucky && variant === 'move' ? '#B8860B' : '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: disabled ? 0 : 0.35,
-        shadowRadius: 3,
-        elevation: disabled ? 0 : 4,
+        ...(disabled
+          ? { elevation: 0 }
+          : createShadowStyle({
+              color: isLucky && variant === 'move' ? '#B8860B' : '#000',
+              offsetX: 0,
+              offsetY: 2,
+              opacity: 0.35,
+              radius: 3,
+              elevation: 4,
+            })),
         opacity: disabled ? 0.4 : 1,
       }}
     >

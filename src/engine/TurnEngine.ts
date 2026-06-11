@@ -10,6 +10,7 @@ import {
   EventType,
   WeatherType,
   MoraleTier,
+  ReputationTier,
   CombatResult,
   LevelUpChoice,
   Companion,
@@ -134,6 +135,7 @@ export class TurnEngine {
     if (bossLoc) {
       const loc = Number(bossLoc);
       this.bossResults.set(loc, result);
+      this.updateCompanionWitnessedEvents(`boss_fight_${eventId.replace(/^boss_/, '')}`);
       if (result.outcome === 'victory') {
         const newCleared = new Set(this.state.clearedCombatLocations);
         newCleared.add(loc);
@@ -338,6 +340,7 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private initTurn(action: PlayerAction): void {
+    this.clearStaleNarrativeFlags();
     const turn: TurnState = {
       phase:                  TurnPhase.AwaitingAction,
       action,
@@ -353,6 +356,44 @@ export class TurnEngine {
       log:                    [],
     };
     this.setState({ currentTurn: turn });
+  }
+
+  private clearStaleNarrativeFlags(): void {
+    const { storyFlags, turnHistory } = this.state;
+    if (!storyFlags.has('battle_won_recently') && !storyFlags.has('storm_recently')) return;
+
+    const newFlags = new Set(storyFlags);
+
+    if (newFlags.has('battle_won_recently')) {
+      const recent = turnHistory.slice(-3).some(t => t.eventOutcome?.result === 'victory');
+      if (!recent) newFlags.delete('battle_won_recently');
+    }
+
+    if (newFlags.has('storm_recently')) {
+      const recent = turnHistory.slice(-5).some(t =>
+        t.eventsTriggered.some(id => id.includes('storm')),
+      );
+      if (!recent) newFlags.delete('storm_recently');
+    }
+
+    if (newFlags.size !== storyFlags.size) {
+      this.setState({ storyFlags: newFlags });
+    }
+  }
+
+  private setNarrativeFlag(flag: string): void {
+    const newFlags = new Set(this.state.storyFlags);
+    newFlags.add(flag);
+    this.setState({ storyFlags: newFlags });
+  }
+
+  private updateCompanionWitnessedEvents(eventId: string): void {
+    if (this.state.companions.length === 0) return;
+    const updatedCompanions = this.state.companions.map(c => ({
+      ...c,
+      witnessedEvents: [...(c.witnessedEvents ?? []), eventId],
+    }));
+    this.setState({ companions: updatedCompanions });
   }
 
   // ─────────────────────────────────────────
@@ -883,6 +924,13 @@ export class TurnEngine {
 
       if (event.resolutionType === ResolutionType.Passive && event.passiveOutcome) {
         this.addDelta(passiveOutcomeToDelta(event, event.passiveOutcome));
+        if (event.passiveOutcome.statusEffectsAdded?.includes('in_storm')) {
+          this.setNarrativeFlag('storm_recently');
+          this.updateCompanionWitnessedEvents('survived_storm');
+        }
+        if (event.type === EventType.MoraleShift) {
+          this.updateCompanionWitnessedEvents(event.id);
+        }
       } else if (event.resolutionType === ResolutionType.Interactive) {
         // Replace the queue with only the events that come AFTER this one so
         // the next processEventQueue call (after combat/dialogue resolves)
@@ -938,10 +986,19 @@ export class TurnEngine {
       nextResources = resourcesToInventory(nextResources, inv);
     }
 
-    this.setState({ 
+    this.setState({
       resources: nextResources,
       ...(isCombat ? { consecutiveCombatDays: nextConsecutive } : {})
     });
+
+    if (isCombat) {
+      if (result.outcome === 'victory') {
+        this.setNarrativeFlag('battle_won_recently');
+        this.updateCompanionWitnessedEvents('combat_victory');
+      } else if (result.outcome === 'defeat') {
+        this.updateCompanionWitnessedEvents('combat_defeat');
+      }
+    }
   }
 
   // ─────────────────────────────────────────
@@ -1293,6 +1350,8 @@ export class TurnEngine {
       nextCombatDays = Math.max(0, nextCombatDays - 2);
     }
 
+    const nextLowMorale = morale.value < 30 ? (this.state.consecutiveLowMorale ?? 0) + 1 : 0;
+
     this.setState({
       resources,
       morale,
@@ -1300,8 +1359,35 @@ export class TurnEngine {
       player,
       companions,
       consecutiveCombatDays: nextCombatDays,
+      consecutiveLowMorale:  nextLowMorale,
       ...(weatherOverride ? { weather: weatherOverride } : {}),
     });
+
+    this.updateDerivedNarrativeFlags(reputation, nextLowMorale);
+  }
+
+  private updateDerivedNarrativeFlags(reputation: GameState['reputation'], lowMoraleStreak: number): void {
+    const newFlags = new Set(this.state.storyFlags);
+
+    if (lowMoraleStreak >= 3) {
+      newFlags.add('low_morale_streak');
+    } else {
+      newFlags.delete('low_morale_streak');
+    }
+
+    if (reputation.tier === ReputationTier.Honorable || reputation.tier === ReputationTier.LegendaryHero) {
+      newFlags.add('high_reputation');
+    } else {
+      newFlags.delete('high_reputation');
+    }
+
+    if (reputation.tier === ReputationTier.Disreputable || reputation.tier === ReputationTier.Infamous) {
+      newFlags.add('low_reputation');
+    } else {
+      newFlags.delete('low_reputation');
+    }
+
+    this.setState({ storyFlags: newFlags });
   }
 
   // ─────────────────────────────────────────

@@ -27,7 +27,7 @@ export function confirmAction(
     destructive = false,
   } = options;
 
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' || typeof document !== 'undefined') {
     const confirm = getWebConfirm();
     if (!confirm || confirm(`${title}\n\n${message}`)) {
       onConfirm();

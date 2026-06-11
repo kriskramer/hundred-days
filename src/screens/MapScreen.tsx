@@ -27,6 +27,7 @@ import {
 } from '@data/locations';
 import { getEnemyDefinition } from '@data/enemies';
 import { BOSS_LOCATION_IDS } from '@engine/bosses';
+import { createShadowStyle, NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
 // ─────────────────────────────────────────
 // Props
@@ -169,7 +170,7 @@ export function MapScreen({ gameState, onToast }: Props) {
     Animated.timing(detailSlide, {
       toValue:         0,
       duration:        240,
-      useNativeDriver: true,
+      useNativeDriver: NATIVE_ANIMATED_DRIVER,
     }).start();
   }, [detailSlide]);
 
@@ -177,7 +178,7 @@ export function MapScreen({ gameState, onToast }: Props) {
     Animated.timing(detailSlide, {
       toValue:         320,
       duration:        200,
-      useNativeDriver: true,
+      useNativeDriver: NATIVE_ANIMATED_DRIVER,
     }).start(() => setDetailVisible(false));
   }, [detailSlide]);
 
@@ -490,7 +491,9 @@ function LocationDetail({
                 let enemyName = m.enemyId;
                 try {
                   enemyName = getEnemyDefinition(m.enemyId).name;
-                } catch (e) {}
+                } catch {
+                  enemyName = m.enemyId;
+                }
                 return (
                   <DetailLine
                     key={m.enemyId}
@@ -710,11 +713,7 @@ const s = StyleSheet.create({
   },
   cardCurrent: {
     borderColor:     C.goldLight,
-    elevation:       6,
-    shadowColor:     C.goldLight,
-    shadowOffset:    { width: 0, height: 0 },
-    shadowOpacity:   0.45,
-    shadowRadius:    8,
+    ...createShadowStyle({ color: C.goldLight, offsetX: 0, offsetY: 0, opacity: 0.45, radius: 8, elevation: 6 }),
   },
   cardSelected: {
     borderColor:     'rgba(212,160,23,0.6)',
@@ -810,17 +809,13 @@ const s = StyleSheet.create({
     borderTopColor:  C.gold,
     borderTopWidth:  2,
     bottom:          0,
-    elevation:       20,
     left:            0,
     maxHeight:       '62%',
     paddingHorizontal: 20,
     paddingTop:      16,
     position:        'absolute',
     right:           0,
-    shadowColor:     '#000',
-    shadowOffset:    { width: 0, height: -4 },
-    shadowOpacity:   0.6,
-    shadowRadius:    12,
+    ...createShadowStyle({ color: '#000', offsetX: 0, offsetY: -4, opacity: 0.6, radius: 12, elevation: 20 }),
   },
   detailClose: {
     padding:   4,

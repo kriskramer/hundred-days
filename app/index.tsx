@@ -7,6 +7,16 @@ import { useGameStore } from '@store/gameStore';
 import { createNewGameState } from '@engine/GameState';
 import type { SaveFile, RunHistoryEntry } from '@engine/types';
 import { SettingsModal } from '@components';
+import { createShadowStyle } from '@utils/platformStyles';
+
+const titleButtonShadow = createShadowStyle({
+  color: '#000',
+  offsetX: 0,
+  offsetY: 2,
+  opacity: 0.4,
+  radius: 4,
+  elevation: 5,
+});
 
 export default function TitleScreen() {
   const [loading, setLoading]           = useState(true);
@@ -87,11 +97,7 @@ export default function TitleScreen() {
                 alignItems: 'center',
                 paddingVertical: 16,
                 paddingHorizontal: 24,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.4,
-                shadowRadius: 4,
-                elevation: 5,
+                ...titleButtonShadow,
               }}
             >
               <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
@@ -115,11 +121,7 @@ export default function TitleScreen() {
               alignItems: 'center',
               paddingVertical: 16,
               paddingHorizontal: 24,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.4,
-              shadowRadius: 4,
-              elevation: 5,
+              ...titleButtonShadow,
             }}
           >
             <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
@@ -144,11 +146,7 @@ export default function TitleScreen() {
               alignItems: 'center',
               paddingVertical: 16,
               paddingHorizontal: 24,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.4,
-              shadowRadius: 4,
-              elevation: 5,
+              ...titleButtonShadow,
             }}
           >
             <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
@@ -168,11 +166,7 @@ export default function TitleScreen() {
               alignItems: 'center',
               paddingVertical: 16,
               paddingHorizontal: 24,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.4,
-              shadowRadius: 4,
-              elevation: 5,
+              ...titleButtonShadow,
             }}
           >
             <Text style={{ fontFamily: 'Cinzel_600SemiBold', color: '#F5EAD6', fontSize: 14, letterSpacing: 1.5 }}>
