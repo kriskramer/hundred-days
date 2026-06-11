@@ -136,6 +136,10 @@ export class DialogueEngine {
     if (outcome.resourceDelta?.food) sessionOutcome.resourceDeltas.food += outcome.resourceDelta.food;
     if (outcome.resourceDelta?.gold) sessionOutcome.resourceDeltas.gold += outcome.resourceDelta.gold;
     if (outcome.resourceDelta?.health) sessionOutcome.resourceDeltas.health += outcome.resourceDelta.health;
+    if (outcome.resourceDelta?.daysSpent) {
+      if (!sessionOutcome.resourceDeltas.daysSpent) sessionOutcome.resourceDeltas.daysSpent = 0;
+      sessionOutcome.resourceDeltas.daysSpent += outcome.resourceDelta.daysSpent;
+    }
     if (outcome.companionEffect) sessionOutcome.companionEffects.push(outcome.companionEffect);
     if (outcome.eventTrigger) sessionOutcome.eventTriggers.push(outcome.eventTrigger);
     if (outcome.flagsSet) sessionOutcome.flagsSet.push(...outcome.flagsSet);
@@ -148,7 +152,7 @@ function emptyOutcome(dialogueId = ''): DialogueSessionOutcome {
     reputationDelta: 0,
     moraleDelta: 0,
     xpGained: 0,
-    resourceDeltas: { food: 0, gold: 0, health: 0 },
+    resourceDeltas: { food: 0, gold: 0, health: 0, daysSpent: 0 },
     companionEffects: [],
     eventTriggers: [],
     flagsSet: [],

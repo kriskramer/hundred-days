@@ -27,11 +27,17 @@
         "choices": [
           {
             "id": "rex_take",
-            "text": "\"Alright. Come on then.\"",
+            "text": "\"Alright. Come on then.\" (Lose 2 Food)",
             "tone": "heroic",
+            "conditions": {
+              "minFood": 2
+            },
             "outcome": {
               "nextNodeId": "rex_joins",
               "moraleDelta": 5,
+              "resourceDelta": {
+                "food": -2
+              },
               "companionEffect": {
                 "type": "recruit",
                 "companionId": "rex_the_dog"
@@ -83,7 +89,7 @@
       "rex_joins": {
         "id": "rex_joins",
         "speakerName": "Narrator",
-        "text": "Rex leaps forward and falls into step beside you, tail still going. He immediately finds something dead to sniff.",
+        "text": "Rex eagerly devours the food you offer, leaps forward and falls into step beside you, tail still going. He immediately finds something dead to sniff.",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -139,12 +145,13 @@
         "choices": [
           {
             "id": "stranger_help",
-            "text": "Help them. Share food and water.",
+            "text": "Help them to the next town. (Lose 2 Food, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "stranger_helped",
               "resourceDelta": {
-                "food": -2
+                "food": -2,
+                "daysSpent": 1
               },
               "reputationDelta": 8,
               "moraleDelta": 5,
@@ -192,12 +199,13 @@
         "choices": [
           {
             "id": "stranger_help_after",
-            "text": "Give them water and food.",
+            "text": "Help them to the next town. (Lose 2 Food, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "stranger_helped",
               "resourceDelta": {
-                "food": -2
+                "food": -2,
+                "daysSpent": 1
               },
               "reputationDelta": 8,
               "moraleDelta": 5,
@@ -220,7 +228,7 @@
       "stranger_helped": {
         "id": "stranger_helped",
         "speakerName": "Merchant",
-        "text": "\"Bless you.\" He sits up straighter, colour returning. \"I've nothing to give but this — there's a cave near Sapphire Lake, south side. Travelers have hidden supplies there. Most don't know about it.\"",
+        "text": "\"Bless you.\" After a full day of resting and sharing your rations, he sits up straighter, colour returning. \"I've nothing to give but this — there's a cave near Sapphire Lake, south side. Travelers have hidden supplies there. Most don't know about it.\"",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -1021,12 +1029,13 @@
         "choices": [
           {
             "id": "refugee_help",
-            "text": "Help repair the cart and share your supplies.",
+            "text": "Help repair the cart and share supplies. (Lose 4 Food, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "refugee_helped",
               "resourceDelta": {
-                "food": -3
+                "food": -4,
+                "daysSpent": 1
               },
               "reputationDelta": 10,
               "moraleDelta": 6,
@@ -1074,12 +1083,13 @@
         "choices": [
           {
             "id": "refugee_help_after",
-            "text": "Give them food and help with the wheel.",
+            "text": "Help repair the cart and share supplies. (Lose 4 Food, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "refugee_helped",
               "resourceDelta": {
-                "food": -3
+                "food": -4,
+                "daysSpent": 1
               },
               "reputationDelta": 10,
               "moraleDelta": 6,
@@ -1100,7 +1110,7 @@
       "refugee_helped": {
         "id": "refugee_helped",
         "speakerName": "Refugee Father",
-        "text": "Between the two of you, the wheel is back on its axle within the hour. The woman presses a small bundle of dried herbs into your hands — \"It isn't much, but it's all we have to give.\" The children watch you go with wide, grateful eyes.",
+        "text": "Between the two of you, the wheel is repaired, but it takes two full days of work and sharing your supplies to get them safely on their way. The woman presses a small bundle of dried herbs into your hands — \"It isn't much, but it's all we have to give.\" The children watch you go with wide, grateful eyes.",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -1141,12 +1151,13 @@
         "choices": [
           {
             "id": "barn_rescue_person",
-            "text": "Rush in and pull the person out.",
+            "text": "Rush in and rescue them. (Lose 8 Health, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "barn_rescued",
               "resourceDelta": {
-                "health": -8
+                "health": -8,
+                "daysSpent": 1
               },
               "reputationDelta": 12,
               "moraleDelta": 8,
@@ -1194,12 +1205,13 @@
         "choices": [
           {
             "id": "barn_search_go",
-            "text": "Go in. There's no one else.",
+            "text": "Go in. There's no one else. (Lose 8 Health, 1 Day)",
             "tone": "heroic",
             "outcome": {
               "nextNodeId": "barn_rescued",
               "resourceDelta": {
-                "health": -8
+                "health": -8,
+                "daysSpent": 1
               },
               "reputationDelta": 12,
               "moraleDelta": 8,
@@ -1221,7 +1233,7 @@
       "barn_rescued": {
         "id": "barn_rescued",
         "speakerName": "Narrator",
-        "text": "You wade through smoke and heat, dragging a coughing farmer out through the door moments before a beam crashes down behind you. He sags against you in the dirt, alive. \"My family — I have to— thank you, thank you—\" Word of what you did here will travel.",
+        "text": "You wade through smoke and heat, dragging a coughing farmer out through the door moments before a beam crashes down behind you. You spend a full day recovering from burns and smoke inhalation. He sags against you in the dirt, alive. \"My family — I have to— thank you, thank you—\" Word of what you did here will travel.",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null

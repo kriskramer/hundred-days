@@ -188,6 +188,7 @@ export class TurnEngine {
   syncExternalState(nextState: GameState): void {
     this.state = {
       ...this.state,
+      dayNumber: nextState.dayNumber,
       player: nextState.player,
       resources: nextState.resources,
       morale: nextState.morale,
@@ -972,6 +973,7 @@ export class TurnEngine {
       reputation:result.reputationDelta,
       statusEffectsAdded: result.injuriesGained,
       narrative: this.buildCombatResultNarrative(result),
+      daysSpent: result.daysSpent,
     });
 
     let nextResources = this.applyConsumedItems(this.state.resources, result.itemsConsumed);
@@ -1257,13 +1259,20 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private async cleanup(): Promise<void> {
+    let extraDays = 0;
+    for (const d of this.state.currentTurn?.pendingDeltas ?? []) {
+      if (d.daysSpent !== undefined) {
+        extraDays += d.daysSpent;
+      }
+    }
+
     this.applyAllDeltas();
     this.combatOccurredThisTurn = false;
 
     const record = this.buildTurnRecord();
 
     this.setState({
-      dayNumber:   this.state.dayNumber + 1,
+      dayNumber:   this.state.dayNumber + 1 + extraDays,
       turnHistory: [...this.state.turnHistory, record],
       currentTurn: null,
     });
@@ -1277,10 +1286,16 @@ export class TurnEngine {
   }
 
   private async skipToCleanup(): Promise<void> {
+    let extraDays = 0;
+    for (const d of this.state.currentTurn?.pendingDeltas ?? []) {
+      if (d.daysSpent !== undefined) {
+        extraDays += d.daysSpent;
+      }
+    }
     this.applyAllDeltas();
     this.combatOccurredThisTurn = false;
     this.setState({
-      dayNumber:   this.state.dayNumber + 1,
+      dayNumber:   this.state.dayNumber + 1 + extraDays,
       currentTurn: null,
     });
     await saveEngine.saveRun(this.state);

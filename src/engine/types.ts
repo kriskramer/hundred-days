@@ -481,6 +481,7 @@ export interface ChoiceOutcome {
     food?: number;
     gold?: number;
     health?: number;
+    daysSpent?: number;
   };
   reputationDelta?: number;
   moraleDelta?: number;
@@ -541,6 +542,7 @@ export interface DialogueSessionOutcome {
     food:   number;
     gold:   number;
     health: number;
+    daysSpent?: number;
   };
   companionEffects: ChoiceOutcome['companionEffect'][];
   eventTriggers:    ChoiceOutcome['eventTrigger'][];
@@ -601,6 +603,7 @@ export interface StatDelta {
   statusEffectsRemoved?:string[];
   weatherOverride?:     WeatherType;
   narrative?:           string;
+  daysSpent?:           number;
 }
 
 export interface TurnRecord {
@@ -690,6 +693,7 @@ export interface CombatResult {
   companionInjuries: Record<string, string[]>;
   itemsConsumed?:     string[];
   lootedItems?:       string[];
+  daysSpent?:         number;
 }
 
 // ─────────────────────────────────────────

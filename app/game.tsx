@@ -230,6 +230,7 @@ export default function GameScreen() {
       reputationDelta:   outcome.reputationDelta,
       injuriesGained:    [],
       companionInjuries: {},
+      daysSpent:         outcome.resourceDeltas.daysSpent ?? 0,
     };
     if (activeEvent) {
       await engineRef.current?.resolveInteractiveEvent(result, {
@@ -272,6 +273,7 @@ export default function GameScreen() {
 
     let nextState: GameState = {
       ...gameState,
+      dayNumber: gameState.dayNumber + (outcome.resourceDeltas.daysSpent ?? 0),
       player: applyXP({
         ...gameState.player,
         health: clamp(

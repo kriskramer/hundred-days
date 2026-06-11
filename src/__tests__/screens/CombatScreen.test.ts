@@ -1,6 +1,10 @@
 import type { CombatLogEntry } from '@engine/CombatEngine';
 import type { CombatResult } from '@engine/types';
-import { getCombatLogAnimationDelay, getDisplayedMoraleDelta } from '@screens/CombatScreen';
+import {
+  getCombatLogAnimationDelay,
+  getDisplayedMoraleDelta,
+  shouldAutoResolveCombatResult,
+} from '@screens/CombatScreen';
 
 function makeResult(overrides: Partial<CombatResult> = {}): CombatResult {
   return {
@@ -52,5 +56,17 @@ describe('getCombatLogAnimationDelay', () => {
       + ('Wolf: Bites back'.length * 18)
       + 120,
     );
+  });
+});
+
+describe('shouldAutoResolveCombatResult', () => {
+  it('auto-resolves defeats immediately', () => {
+    expect(shouldAutoResolveCombatResult(makeResult({ outcome: 'defeat' }))).toBe(true);
+  });
+
+  it('keeps non-terminal combat outcomes on the result overlay', () => {
+    expect(shouldAutoResolveCombatResult(makeResult({ outcome: 'victory' }))).toBe(false);
+    expect(shouldAutoResolveCombatResult(makeResult({ outcome: 'fled' }))).toBe(false);
+    expect(shouldAutoResolveCombatResult(makeResult({ outcome: 'negotiated' }))).toBe(false);
   });
 });

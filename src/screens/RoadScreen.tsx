@@ -186,6 +186,7 @@ export function RoadScreen({
   const [pendingShopNarrative, setPendingShopNarrative] = useState('');
   const journalScrollRef = useRef<ScrollView>(null);
   const prevShopCloseKeyRef = useRef(shopCloseKey ?? 0);
+  const queuedActionRef = useRef<(() => void) | null>(null);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
@@ -356,6 +357,27 @@ export function RoadScreen({
   const typingKey = isTyping ? segments[firstTypingIdx].key : null;
   const showAlertBadges = dangerNearby || dialogueNearby || bossNearby;
 
+  function finishJournalTyping() {
+    setCompletedKeys(prev => {
+      const next = new Set(prev);
+      for (const segment of segments) {
+        if (!segment.instant) next.add(segment.key);
+      }
+      return next;
+    });
+    setForceComplete(false);
+  }
+
+  function runWhenJournalReady(action: () => void) {
+    if (!isTyping) {
+      action();
+      return;
+    }
+
+    queuedActionRef.current = action;
+    finishJournalTyping();
+  }
+
   useEffect(() => {
     if (dangerNearby || bossNearby) return;
 
@@ -364,6 +386,14 @@ export function RoadScreen({
       return next.length === prev.length ? prev : next;
     });
   }, [bossNearby, dangerNearby]);
+
+  useEffect(() => {
+    if (isTyping || !queuedActionRef.current) return;
+
+    const queuedAction = queuedActionRef.current;
+    queuedActionRef.current = null;
+    queuedAction();
+  }, [isTyping]);
 
   let netFood = 0;
   let netGold = 0;
@@ -419,24 +449,24 @@ export function RoadScreen({
           label: 'Fight Boss',
           sub: 'Begin combat',
           variant: 'primary' as const,
-          onPress: () => appendCombatIntro(() => onOpenCombat?.()),
+          onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())),
         },
       ]
     : [
-        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => appendCombatIntro(() => onOpenCombat?.()) }] : []),
-        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false }), isLucky },
-        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => submit({ action: PlayerAction.Move, forcedMarch: true  }) },
+        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())) }] : []),
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false })), isLucky },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: true  })) },
         ...activeShortcuts.map(s => ({
           label: s.label,
           sub: `To loc ${s.to} · 2 food`,
           variant: 'primary' as const,
-          onPress: () => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to })
+          onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to }))
         })),
         ...(hasMerchant ? [{
           label: 'Trade',
           sub: 'Buy · Sell',
           variant: 'secondary' as const,
-          onPress: () => {
+          onPress: () => runWhenJournalReady(() => {
             const flavorText = getMerchantEntryNarrative(merchantName);
             setPendingShopNarrative(flavorText);
             setSegments(prev => [...prev, {
@@ -446,25 +476,24 @@ export function RoadScreen({
               instant: false,
             }]);
             // onOpenShop fires from the segment's onComplete callback
-          }
+          })
         }] : []),
-        ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => submit({ action: PlayerAction.Rest, atInn: true }) }] : []),
-        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Hunt, method: 'forage'   }) }] : []),
-        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Rally                                          }) },
-        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => submit({ action: PlayerAction.Camp }) }] : []),
-      ]).map(btn => ({ ...btn, disabled: isTyping }));
+        ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Rest, atInn: true })) }] : []),
+        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'forage'   })) }] : []),
+        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Rally                                          })) },
+        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Camp })) }] : []),
+      ]);
   const npcActionButtons = npcItems.map(item => ({
     label: item.name,
     sub: item.canSteal ? 'Talk · Steal' : 'Talk',
     variant: 'npc' as const,
-    onPress: () => {
+    onPress: () => runWhenJournalReady(() => {
       if (item.isEvent) {
         onOpenDialogue?.();
       } else {
         onOpenNpc?.(item.dialogueId);
       }
-    },
-    disabled: isTyping,
+    }),
   }));
 
   function renderDelta(val: number, label: string, icon: string) {
@@ -712,16 +741,6 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
-      {isTyping && !forceComplete && (
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            setForceComplete(true);
-          }}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-        />
-      )}
       <CompanionDetailModal
         visible={selectedCompanionId !== null}
         companionId={selectedCompanionId}

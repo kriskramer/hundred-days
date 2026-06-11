@@ -54,7 +54,7 @@ describe('RoadScreen', () => {
       );
 
       expect(button).toBeDefined();
-      expect(button?.props.disabled).toBe(false);
+      expect(button?.props.disabled).toBeFalsy();
       return button!;
     });
 
@@ -66,6 +66,46 @@ describe('RoadScreen', () => {
     expect(onToast).toHaveBeenCalledWith(
       'Marching hungry — health and morale penalties will keep worsening until you find food.'
     );
+  });
+
+  it('submits inn rest even while journal text is still typing at Zilam', async () => {
+    const onToast = jest.fn();
+    const gameState = makeGameState({
+      currentLocationId: 19,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      turnHistory: [],
+    });
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+    const submitAction = jest.spyOn(engine, 'submitAction').mockResolvedValue(undefined);
+
+    const { UNSAFE_getAllByType } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        textInterval={1000}
+      />
+    );
+
+    const restButton = await waitFor(() => {
+      const button = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
+        candidate.findAllByType(Text).some((textNode: { props: { children: unknown } }) => {
+          const children = textNode.props.children;
+          return children === 'Rest at Inn'
+            || (Array.isArray(children) && children.includes('Rest at Inn'));
+        })
+      );
+
+      expect(button).toBeDefined();
+      expect(button?.props.disabled).toBeFalsy();
+      return button!;
+    });
+
+    fireEvent.press(restButton);
+
+    await waitFor(() => {
+      expect(submitAction).toHaveBeenCalledWith({ action: PlayerAction.Rest, atInn: true });
+    });
   });
 
   it('shows previous day entry and alert badges when arriving at a new location', async () => {
@@ -207,7 +247,7 @@ describe('RoadScreen', () => {
       );
 
       expect(button).toBeDefined();
-      expect(button?.props.disabled).toBe(false);
+      expect(button?.props.disabled).toBeFalsy();
       return button!;
     });
 

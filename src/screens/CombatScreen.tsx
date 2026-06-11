@@ -103,6 +103,7 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const enemyShakeValues = useRef<Record<string, Animated.Value>>({});
   const companionShakeValues = useRef<Record<string, Animated.Value>>({});
   const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionHandledRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -190,29 +191,43 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
     engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId });
   }, [combatState?.log.length, combatState?.phase]);
 
-  const handleContinue = useCallback(() => {
-    if (!combatState?.result) return;
+  const completeCombat = useCallback(() => {
+    if (completionHandledRef.current || !combatState?.result) return;
+    completionHandledRef.current = true;
     setShowResult(false);
     onComplete(combatState.result);
   }, [combatState?.result, onComplete]);
 
+  const handleContinue = useCallback(() => {
+    if (!combatState?.result) return;
+    completeCombat();
+  }, [combatState?.result, completeCombat]);
+
+  const scheduleResultResolution = useCallback(() => {
+    if (!combatState?.result || completionHandledRef.current) return;
+    if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = setTimeout(() => {
+      if (shouldAutoResolveCombatResult(combatState.result)) {
+        completeCombat();
+        return;
+      }
+      setShowResult(true);
+    }, 500);
+  }, [combatState?.result, completeCombat]);
+
   const handleLogFinished = useCallback(() => {
     if (combatState?.phase === 'post_combat' && combatState.result && !showResult) {
-      if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
-      resultTimeoutRef.current = setTimeout(() => {
-        setShowResult(true);
-      }, 500);
+      scheduleResultResolution();
     }
-  }, [combatState?.phase, combatState?.result, showResult]);
+  }, [combatState?.phase, combatState?.result, scheduleResultResolution, showResult]);
 
   // Safety net: if phase enters post_combat but no log line calls handleLogFinished
   // (e.g. empty enemy array), trigger result display directly.
   useEffect(() => {
     if (combatState?.phase === 'post_combat' && combatState?.result && !showResult) {
-      if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
-      resultTimeoutRef.current = setTimeout(() => setShowResult(true), 500);
+      scheduleResultResolution();
     }
-  }, [combatState?.phase, combatState?.result, showResult]);
+  }, [combatState?.phase, combatState?.result, scheduleResultResolution, showResult]);
 
   // ─────────────────────────────────────────
   // Render
@@ -790,6 +805,12 @@ export function getDisplayedMoraleDelta(
   const projectedMorale = clamp(currentMorale + result.moraleDelta + fatiguePenalty, 0, 100);
 
   return projectedMorale - currentMorale;
+}
+
+export function shouldAutoResolveCombatResult(
+  result: CombatResult | null | undefined,
+): boolean {
+  return result?.outcome === 'defeat';
 }
 
 export function getCombatLogLineText(entry: CombatLogEntry): string {
