@@ -746,7 +746,8 @@
             "text": "\"I need nothing. Farewell.\"",
             "tone": "pragmatic",
             "outcome": {
-              "nextNodeId": null
+              "nextNodeId": null,
+              "flagsSet": ["coron_priest_stage_1_done"]
             }
           }
         ]
@@ -11474,5 +11475,415 @@
     },
     "displayName": "Road Bard",
     "canSteal": true
+  },
+  {
+    "id": "coron_priest_2",
+    "title": "Coron Returns",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "requiredFlag": "coron_priest_stage_1_done"
+    },
+    "rootNodeId": "coron2_01",
+    "repeatable": false,
+    "tags": ["story", "priest"],
+    "nodes": {
+      "coron2_01": {
+        "id": "coron2_01",
+        "speakerName": "Coron",
+        "speakerPortraitId": "portrait_coron",
+        "text": "Coron finds you again at the roadside, robes darker with road-dust. \"Traveler — I have walked far since we last spoke. There is a reliquary stolen from my order, carried east by bandits. Will you help me recover it before it reaches Vorishy?\"",
+        "choices": [
+          {
+            "id": "coron2_help",
+            "text": "\"We will find it together.\"",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "coron2_done",
+              "moraleDelta": 8,
+              "flagsSet": ["coron_priest_stage_2_done", "coron_arc_complete"]
+            }
+          },
+          {
+            "id": "coron2_refuse",
+            "text": "\"I cannot spare the time.\"",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null,
+              "flagsSet": ["coron_priest_stage_2_done"]
+            }
+          }
+        ]
+      },
+      "coron2_done": {
+        "id": "coron2_done",
+        "speakerName": "Coron",
+        "text": "\"Then let us pray we are not too late.\" He presses a small charm into your palm. \"For the road ahead.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Coron",
+    "canSteal": false
+  },
+  {
+    "id": "detour_refugee_trail",
+    "title": "Refugee Trail",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "dt_ref_01",
+    "repeatable": false,
+    "tags": ["detour", "story"],
+    "nodes": {
+      "dt_ref_01": {
+        "id": "dt_ref_01",
+        "speakerName": "Refugee Elder",
+        "text": "The side path leads through a camp of displaced families. An elder blocks the way gently. \"Share what you can, and we will show you a ford the soldiers don't watch.\"",
+        "choices": [
+          {
+            "id": "dt_ref_help",
+            "text": "Share rations and pass through.",
+            "tone": "heroic",
+            "outcome": { "nextNodeId": null, "foodDelta": -1, "moraleDelta": 5, "flagsSet": ["detour_refugee_trail"] }
+          },
+          {
+            "id": "dt_ref_pass",
+            "text": "Slip through without stopping.",
+            "tone": "pragmatic",
+            "outcome": { "nextNodeId": null, "moraleDelta": -3, "flagsSet": ["detour_refugee_trail"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Refugee Elder",
+    "canSteal": false
+  },
+  {
+    "id": "detour_marsh_abbey",
+    "title": "Abbey Ruins",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "dt_abbey_01",
+    "repeatable": false,
+    "tags": ["detour", "story"],
+    "nodes": {
+      "dt_abbey_01": {
+        "id": "dt_abbey_01",
+        "speakerName": "Narrator",
+        "text": "Abbey stones rise from the marsh like broken teeth. Among the ruins you find a pilgrim's journal — pages still dry. The detour cost time, but the words steadied your purpose.",
+        "choices": [
+          {
+            "id": "dt_abbey_take",
+            "text": "Read the journal and move on.",
+            "tone": "curious",
+            "outcome": { "nextNodeId": null, "moraleDelta": 8, "flagsSet": ["detour_marsh_abbey"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Abbey Ruins",
+    "canSteal": false
+  },
+  {
+    "id": "detour_smuggler_debt",
+    "title": "Smuggler's Cut",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "dt_smug_01",
+    "repeatable": false,
+    "tags": ["detour", "story"],
+    "nodes": {
+      "dt_smug_01": {
+        "id": "dt_smug_01",
+        "speakerName": "Smuggler",
+        "text": "A smuggler materializes from the brush. \"Toll for the cut — food or blood. Your choice, traveler.\"",
+        "choices": [
+          {
+            "id": "dt_smug_pay",
+            "text": "Pay with rations.",
+            "tone": "pragmatic",
+            "outcome": { "nextNodeId": null, "foodDelta": -2, "flagsSet": ["detour_smuggler_debt"] }
+          },
+          {
+            "id": "dt_smug_fight",
+            "text": "Refuse and push through.",
+            "tone": "heroic",
+            "outcome": { "nextNodeId": null, "healthDelta": -8, "moraleDelta": 3, "flagsSet": ["detour_smuggler_debt"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Smuggler",
+    "canSteal": false
+  },
+  {
+    "id": "detour_haunted_ford",
+    "title": "Haunted Ford",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "dt_ford_01",
+    "repeatable": false,
+    "tags": ["detour", "story"],
+    "nodes": {
+      "dt_ford_01": {
+        "id": "dt_ford_01",
+        "speakerName": "Narrator",
+        "text": "Mist clings to the ford. Something moves beneath the water — or perhaps it is only your reflection, distorted. You cross quickly, hearts pounding.",
+        "choices": [
+          {
+            "id": "dt_ford_cross",
+            "text": "Cross the ford.",
+            "tone": "pragmatic",
+            "outcome": { "nextNodeId": null, "moraleDelta": -5, "flagsSet": ["detour_haunted_ford"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Haunted Ford",
+    "canSteal": false
+  },
+  {
+    "id": "dain_quest_deserter_1",
+    "title": "The Deserter's Trail",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "dain" },
+    "rootNodeId": "dq_d1_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "dain"],
+    "nodes": {
+      "dq_d1_01": {
+        "id": "dq_d1_01",
+        "speakerName": "Dain",
+        "speakerPortraitId": "portrait_dain",
+        "text": "Dain crouches over muddy tracks. \"He passed through here two days ago — deserter from my company. I need your help before the trail goes cold.\"",
+        "choices": [
+          {
+            "id": "dq_d1_agree",
+            "text": "\"We'll find him.\"",
+            "tone": "heroic",
+            "outcome": { "nextNodeId": null, "flagsSet": ["dain_quest_step_0"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Dain",
+    "canSteal": false
+  },
+  {
+    "id": "dain_quest_deserter_2",
+    "title": "Confrontation",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "dain" },
+    "rootNodeId": "dq_d2_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "dain"],
+    "nodes": {
+      "dq_d2_01": {
+        "id": "dq_d2_01",
+        "speakerName": "Dain",
+        "speakerPortraitId": "portrait_dain",
+        "text": "You corner the deserter at a ruined waystation. Dain speaks quietly; the man drops his blade. \"Justice can wait for Roachak,\" Dain says. \"Today, he walks back with us.\"",
+        "choices": [
+          {
+            "id": "dq_d2_done",
+            "text": "Continue east.",
+            "tone": "heroic",
+            "outcome": { "nextNodeId": null, "flagsSet": ["dain_quest_complete"] }
+          }
+        ]
+      }
+    },
+    "displayName": "Dain",
+    "canSteal": false
+  },
+  {
+    "id": "dain_quest_heirloom_found",
+    "title": "Heirloom Found",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "dain" },
+    "rootNodeId": "dq_h_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "dain"],
+    "nodes": {
+      "dq_h_01": {
+        "id": "dq_h_01",
+        "speakerName": "Dain",
+        "text": "Beneath a collapsed wagon wheel, Dain finds his father's blade — nicked but intact. He does not speak for a long moment.",
+        "choices": [{ "id": "dq_h_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Dain",
+    "canSteal": false
+  },
+  {
+    "id": "emmy_quest_herb_found",
+    "title": "Marsh Herb",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "emmy" },
+    "rootNodeId": "eq_h_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "emmy"],
+    "nodes": {
+      "eq_h_01": {
+        "id": "eq_h_01",
+        "speakerName": "Emmy",
+        "text": "Emmy harvests the pale marsh-root with practiced hands. \"This will keep fevers down for a week. Thank you for stopping.\"",
+        "choices": [{ "id": "eq_h_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Emmy",
+    "canSteal": false
+  },
+  {
+    "id": "lefty_quest_partner_1",
+    "title": "An Old Debt",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "lefty_the_crook" },
+    "rootNodeId": "lq_p1_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "lefty"],
+    "nodes": {
+      "lq_p1_01": {
+        "id": "lq_p1_01",
+        "speakerName": "Lefty",
+        "text": "Lefty's jaw tightens. \"Old partner. Owes me more than gold — owes me the truth about who burned our crew. He's close.\"",
+        "choices": [{ "id": "lq_p1_go", "text": "\"Let's finish this.\"", "tone": "cunning", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Lefty",
+    "canSteal": false
+  },
+  {
+    "id": "lefty_quest_partner_2",
+    "title": "Settled Debt",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "lefty_the_crook" },
+    "rootNodeId": "lq_p2_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "lefty"],
+    "nodes": {
+      "lq_p2_01": {
+        "id": "lq_p2_01",
+        "speakerName": "Lefty",
+        "text": "Words are exchanged. Coin changes hands — or blood, depending on the telling. Lefty spits and grins without warmth. \"Done. For now.\"",
+        "choices": [{ "id": "lq_p2_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Lefty",
+    "canSteal": false
+  },
+  {
+    "id": "saga_courier_1",
+    "title": "The Missing Courier",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "sg_c1_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_c1_01": {
+        "id": "sg_c1_01",
+        "speakerName": "Merchant",
+        "text": "A merchant wrings his hands. \"My courier never arrived — satchel full of sealed letters for Vorishy. If you find anything on the road...\"",
+        "choices": [{ "id": "sg_c1_note", "text": "Note the description.", "tone": "curious", "outcome": { "nextNodeId": null, "flagsSet": ["saga_courier_1_done"] } }]
+      }
+    },
+    "displayName": "Merchant",
+    "canSteal": false
+  },
+  {
+    "id": "saga_courier_2",
+    "title": "Courier Found",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "saga_courier_1_done" },
+    "rootNodeId": "sg_c2_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_c2_01": {
+        "id": "sg_c2_01",
+        "speakerName": "Narrator",
+        "text": "You find the courier's satchel wedged in a ditch — letters intact, rider nowhere to be seen. You carry it to the next town and leave it with the innkeeper.",
+        "choices": [{ "id": "sg_c2_done", "text": "Continue east.", "tone": "heroic", "outcome": { "nextNodeId": null, "moraleDelta": 5, "flagsSet": ["saga_courier_complete"] } }]
+      }
+    },
+    "displayName": "Courier Satchel",
+    "canSteal": false
+  },
+  {
+    "id": "saga_lights_1",
+    "title": "Strange Lights",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "sg_l1_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_l1_01": {
+        "id": "sg_l1_01",
+        "speakerName": "Companion",
+        "text": "Pale lights drift above the marsh tonight — too steady for will-o-wisps, too low for stars. The party watches in uneasy silence.",
+        "choices": [{ "id": "sg_l1_note", "text": "Keep watch and move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "flagsSet": ["saga_lights_1_done"] } }]
+      }
+    },
+    "displayName": "Marsh Lights",
+    "canSteal": false
+  },
+  {
+    "id": "saga_lights_2",
+    "title": "Lights Again",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "saga_lights_1_done" },
+    "rootNodeId": "sg_l2_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_l2_01": {
+        "id": "sg_l2_01",
+        "speakerName": "Narrator",
+        "text": "The lights return — closer this time. They fade when you speak the name of the road-god Coron taught you. Superstition, perhaps. But you sleep easier.",
+        "choices": [{ "id": "sg_l2_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "moraleDelta": 3, "flagsSet": ["saga_lights_complete"] } }]
+      }
+    },
+    "displayName": "Marsh Lights",
+    "canSteal": false
+  },
+  {
+    "id": "saga_bell_1",
+    "title": "Broken Bell",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "sg_b1_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_b1_01": {
+        "id": "sg_b1_01",
+        "speakerName": "Narrator",
+        "text": "A cracked bell hangs from a dead tree, rung by wind alone. You note the crest etched into the metal.",
+        "choices": [{ "id": "sg_b1_note", "text": "Remember the crest.", "tone": "curious", "outcome": { "nextNodeId": null, "flagsSet": ["saga_bell_1_done"] } }]
+      }
+    },
+    "displayName": "Broken Bell",
+    "canSteal": false
+  },
+  {
+    "id": "saga_bell_2",
+    "title": "Bell's Origin",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "saga_bell_1_done" },
+    "rootNodeId": "sg_b2_01",
+    "repeatable": false,
+    "tags": ["saga", "story"],
+    "nodes": {
+      "sg_b2_01": {
+        "id": "sg_b2_01",
+        "speakerName": "Old Soldier",
+        "text": "\"That crest — Vorishy garrison, pre-war. Someone carried that bell a long way.\" He spits. \"Bad luck, that.\"",
+        "choices": [{ "id": "sg_b2_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "flagsSet": ["saga_bell_complete"] } }]
+      }
+    },
+    "displayName": "Old Soldier",
+    "canSteal": false
   }
 ]

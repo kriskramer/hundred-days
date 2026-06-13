@@ -640,6 +640,63 @@ export interface TurnState {
 }
 
 // ─────────────────────────────────────────
+// Narrative — companion quests, premise
+// ─────────────────────────────────────────
+
+export type QuestStakesLevel = 'low' | 'medium' | 'high';
+export type CompanionQuestStatus = 'active' | 'completed' | 'failed' | 'abandoned';
+export type CompanionQuestFailureReason = 'step_failed' | 'window_missed' | 'player_refused' | 'miniboss_defeat';
+
+export type QuestFailureOutcome =
+  | { type: 'loyalty_loss'; amount: number; narrative: string }
+  | { type: 'loyalty_crash'; amount: number; narrative: string }
+  | { type: 'companion_departure'; departureNarrative: string; epilogueFlag: string };
+
+export interface QuestStakesProfile {
+  level: QuestStakesLevel;
+  onComplete: { loyalty?: number; morale?: number; flags?: string[] };
+  onStepFail: { loyalty?: number; morale?: number; flags?: string[] };
+  onQuestFail: QuestFailureOutcome;
+}
+
+export type CompanionQuestStep =
+  | { type: 'dialogue'; dialogueId: string; locationId: number; maxLocationId?: number }
+  | { type: 'search'; locationId: number; maxLocationId?: number; label: string; successDialogueId: string; failDialogueId?: string }
+  | { type: 'visit'; locationId: number; maxLocationId?: number; dialogueId: string }
+  | { type: 'miniboss'; locationId: number; maxLocationId?: number; enemyId: string; eventId: string; victoryDialogueId: string; defeatDialogueId?: string };
+
+export interface CompanionQuestVariant {
+  id: string;
+  companionId: string;
+  title: string;
+  recruitHint?: string;
+  stakes: QuestStakesProfile;
+  steps: CompanionQuestStep[];
+  completionFlags: string[];
+  epilogueComplete?: string;
+  epilogueFailedDeparted?: string;
+}
+
+export interface ActiveCompanionQuest {
+  companionId: string;
+  variantId: string;
+  title: string;
+  currentStepIndex: number;
+  status: CompanionQuestStatus;
+  pinnedLocationId?: number;
+  stepDeadlineLocationId?: number;
+  stepFlags: string[];
+  failureReason?: CompanionQuestFailureReason;
+  stepRetriesUsed?: number;
+}
+
+export interface RunPremise {
+  id: string;
+  text: string;
+  journalIntro: string;
+}
+
+// ─────────────────────────────────────────
 // Game state (master)
 // ─────────────────────────────────────────
 
@@ -673,6 +730,11 @@ export interface GameState {
   consecutiveStormDays:     number;
   consecutiveCombatDays:    number;
   consecutiveLowMorale:     number;
+
+  runPremiseId?:           string;
+  companionQuests?:        ActiveCompanionQuest[];
+  usedShortcutKeys?:       string[];
+  revealedRumorIds?:       string[];
 }
 
 // ─────────────────────────────────────────

@@ -32,6 +32,7 @@ describe('RoadScreen', () => {
         engine={engine}
         onToast={onToast}
         textInterval={0}
+        confirmActions={false}
       />
     );
 
@@ -59,31 +60,32 @@ describe('RoadScreen', () => {
     );
   });
 
-  it('submits inn rest even while journal text is still typing at Zilam', async () => {
+  it('opens the inn screen from Visit Inn even while journal text is still typing at Zilam', async () => {
     const onToast = jest.fn();
+    const onOpenInn = jest.fn();
     const gameState = makeGameState({
       currentLocationId: 19,
       resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
       turnHistory: [],
     });
     const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
-    const submitAction = jest.spyOn(engine, 'submitAction').mockResolvedValue(undefined);
 
     const { UNSAFE_getAllByType } = render(
       <RoadScreen
         gameState={gameState}
         engine={engine}
         onToast={onToast}
+        onOpenInn={onOpenInn}
         textInterval={1000}
       />
     );
 
-    const restButton = await waitFor(() => {
+    const innButton = await waitFor(() => {
       const button = UNSAFE_getAllByType(TouchableOpacity).find(candidate =>
         candidate.findAllByType(Text).some((textNode: { props: { children: unknown } }) => {
           const children = textNode.props.children;
-          return children === 'Rest at Inn'
-            || (Array.isArray(children) && children.includes('Rest at Inn'));
+          return children === 'Visit Inn'
+            || (Array.isArray(children) && children.includes('Visit Inn'));
         })
       );
 
@@ -92,10 +94,10 @@ describe('RoadScreen', () => {
       return button!;
     });
 
-    fireEvent.press(restButton);
+    fireEvent.press(innButton);
 
     await waitFor(() => {
-      expect(submitAction).toHaveBeenCalledWith({ action: PlayerAction.Rest, atInn: true });
+      expect(onOpenInn).toHaveBeenCalled();
     });
   });
 
@@ -166,7 +168,7 @@ describe('RoadScreen', () => {
     const gameState = makeGameState({
       currentLocationId: 1,
       resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
-      runLayout: { npcSlots: [], roamingMerchants: [], activeShortcuts: [], eliteSpawns: [] },
+      runLayout: { npcSlots: [], roamingMerchants: [], activeShortcuts: [], eliteSpawns: [], activeDetours: [], sagaThreads: [] },
     });
     const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
 
@@ -478,7 +480,7 @@ describe('RoadScreen', () => {
 
     expect(queryByText('Forage')).toBeNull();
     expect(queryByText('Make Camp')).toBeNull();
-    expect(queryByText('Rest at Inn')).toBeTruthy();
+    expect(queryByText('Visit Inn')).toBeTruthy();
 
     // Test case 2: In a wilderness location (location 3 - Osiran Fields)
     const wildGameState = makeGameState({
@@ -498,13 +500,12 @@ describe('RoadScreen', () => {
 
     expect(queryByText('Forage')).toBeTruthy();
     expect(queryByText('Make Camp')).toBeTruthy();
-    expect(queryByText('Rest at Inn')).toBeNull();
+    expect(queryByText('Visit Inn')).toBeNull();
   });
 
   it('renders individual NPC buttons instead of a generic Talk button', async () => {
     const onToast = jest.fn();
     const onOpenNpc = jest.fn();
-    const onOpenDialogue = jest.fn();
     
     const gameState = makeGameState({
       currentLocationId: 2,
@@ -518,7 +519,6 @@ describe('RoadScreen', () => {
         engine={engine}
         onToast={onToast}
         onOpenNpc={onOpenNpc}
-        onOpenDialogue={onOpenDialogue}
         textInterval={0}
       />
     );
@@ -531,7 +531,7 @@ describe('RoadScreen', () => {
 
   it('shows event-driven town dialogue as an NPC button instead of auto-opening', async () => {
     const onToast = jest.fn();
-    const onOpenDialogue = jest.fn();
+    const onOpenNpc = jest.fn();
     const gameState = makeGameState({
       currentLocationId: 4,
       resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
@@ -554,7 +554,7 @@ describe('RoadScreen', () => {
         gameState={gameState}
         engine={engine}
         onToast={onToast}
-        onOpenDialogue={onOpenDialogue}
+        onOpenNpc={onOpenNpc}
         activeEvent={activeEvent}
         textInterval={0}
       />
@@ -564,6 +564,6 @@ describe('RoadScreen', () => {
       expect(queryByText('Tavern Talk')).toBeTruthy();
       expect(queryByText('◇ STRANGER NEARBY')).toBeTruthy();
     });
-    expect(onOpenDialogue).not.toHaveBeenCalled();
+    expect(onOpenNpc).not.toHaveBeenCalled();
   });
 });

@@ -16,6 +16,7 @@ import {
   Companion,
   StatusEffect,
   PlayerStats,
+  DialogueSessionOutcome,
 } from './types';
 import { BOSS_EVENT_MAP } from './bosses';
 import { isCombatEvent, isOptionalDialogueEvent } from '@utils/isCombatEvent';
@@ -62,6 +63,7 @@ import {
 } from './ItemSystem';
 
 import { getLocation, getRegion } from '@data/locations';
+import { getCompanion } from '@data/companions';
 import { nextMulberry32, normalizeRngState } from './Random';
 import {
   calculateFoodCostForMove,
@@ -69,14 +71,32 @@ import {
   rollLucky3rdLocation,
   findBossCheckpoint,
 } from './helpers/TravelCalculator';
+import {
+  buildShortcutScenarioDeltas,
+  getShortcutKey,
+  pickTownRumor,
+  sampleSagaEventId,
+} from './NarrativeSystem';
+import {
+  onCompanionRecruited,
+  checkQuestDeadlinesAfterMove,
+  applyQuestNeglectLoyalty,
+  resolveQuestSearch,
+  advanceCompanionQuest,
+  findQuestForDialogue,
+  getQuestAtLocation,
+  getQuestActionLabel,
+  getActiveQuestForCompanion,
+  getQuestStep,
+} from './CompanionQuestSystem';
 
 // ─────────────────────────────────────────
 // Action param types
 // ─────────────────────────────────────────
 
 export type ActionParams =
-  | { action: PlayerAction.Move;  forcedMarch: boolean; shortcutTo?: number }
-  | { action: PlayerAction.Hunt;  method: 'forage' | 'hunt' }
+  | { action: PlayerAction.Move;  forcedMarch: boolean; shortcutTo?: number; detourThreadId?: string }
+  | { action: PlayerAction.Hunt;  method: 'forage' | 'hunt'; questCompanionId?: string }
   | { action: PlayerAction.Trade; purchases: { itemId: string; cost: number }[] }
   | { action: PlayerAction.Rest;  atInn: boolean }
   | { action: PlayerAction.Rally; targetCompanionId?: string }
@@ -238,6 +258,9 @@ export class TurnEngine {
       companions: nextState.companions,
       firedEventIds: nextState.firedEventIds,
       storyFlags: nextState.storyFlags,
+      companionQuests: nextState.companionQuests,
+      usedShortcutKeys: nextState.usedShortcutKeys,
+      revealedRumorIds: nextState.revealedRumorIds,
     };
   }
 
@@ -255,7 +278,11 @@ export class TurnEngine {
   /** Add a companion to the party (called when dialogue recruits one). */
   addCompanion(companion: Companion): void {
     if (this.state.companions.some(c => c.id === companion.id)) return;
-    this.setState({ companions: [...this.state.companions, companion] });
+    const withCompanion = {
+      ...this.state,
+      companions: [...this.state.companions, companion],
+    };
+    this.setState(onCompanionRecruited(withCompanion, companion.id));
   }
 
   /** Mark a location_enter dialogue as seen at the given location. */
@@ -263,6 +290,101 @@ export class TurnEngine {
     const newFired = new Set(this.state.firedEventIds);
     newFired.add(`${dialogueId}_loc${locationId}`);
     this.setState({ firedEventIds: newFired });
+  }
+
+  /** Dismiss optional road dialogue the player chose to ignore. */
+  async dismissOptionalDialogue(): Promise<void> {
+    const event = this.state.currentTurn?.activeInteractiveEvent;
+    if (
+      this.state.currentTurn?.phase === TurnPhase.AwaitingPlayer
+      && event
+      && isOptionalDialogueEvent(event)
+    ) {
+      await this.dismissOptionalDialogueAndFinishTurn();
+      return;
+    }
+    this.onAwaitInput(null);
+  }
+
+  /**
+   * Apply rewards from a location-initiated NPC dialogue (not tied to a turn event).
+   * Returns level-up choices when XP crosses a threshold.
+   */
+  applyLocationDialogueOutcome(
+    outcome: DialogueSessionOutcome,
+    dialogueId: string,
+  ): LevelUpChoice[] | null {
+    const companionIds = new Set(this.state.companions.map(companion => companion.id));
+    const updatedCompanions = [...this.state.companions];
+    for (const effect of outcome.companionEffects) {
+      if (effect?.type !== 'recruit' || companionIds.has(effect.companionId)) continue;
+      const companion = getCompanion(effect.companionId);
+      if (!companion) continue;
+      companionIds.add(effect.companionId);
+      updatedCompanions.push(companion);
+    }
+
+    const storyFlags = new Set(this.state.storyFlags);
+    outcome.flagsSet.forEach(flag => storyFlags.add(flag));
+
+    const firedEventIds = new Set(this.state.firedEventIds);
+    firedEventIds.add(dialogueId);
+
+    let nextState: GameState = {
+      ...this.state,
+      dayNumber: this.state.dayNumber + (outcome.resourceDeltas.daysSpent ?? 0),
+      player: applyXP({
+        ...this.state.player,
+        health: clamp(
+          this.state.player.health + outcome.resourceDeltas.health,
+          0,
+          this.state.player.stats.maxHealth,
+        ),
+      }, outcome.xpGained),
+      resources: {
+        ...this.state.resources,
+        food: Math.max(0, this.state.resources.food + outcome.resourceDeltas.food),
+        gold: Math.max(0, this.state.resources.gold + outcome.resourceDeltas.gold),
+      },
+      morale: applyMoraleDelta(this.state.morale, outcome.moraleDelta),
+      reputation: applyReputationDelta(this.state.reputation, outcome.reputationDelta),
+      companions: updatedCompanions,
+      firedEventIds,
+      storyFlags,
+    };
+
+    for (const effect of outcome.companionEffects) {
+      if (effect?.type === 'recruit') {
+        nextState = onCompanionRecruited(nextState, effect.companionId);
+      }
+    }
+
+    const questMatch = findQuestForDialogue(nextState, dialogueId);
+    if (questMatch) {
+      nextState = advanceCompanionQuest(nextState, questMatch.companionId);
+    }
+
+    this.setState(nextState);
+
+    const nextThreshold = XP_THRESHOLDS[this.state.player.level];
+    if (nextThreshold && this.state.player.xp >= nextThreshold && this.state.player.level < 10) {
+      this.setState({
+        player: {
+          ...this.state.player,
+          level: this.state.player.level + 1,
+          stats: {
+            ...this.state.player.stats,
+            maxHealth: this.state.player.stats.maxHealth + 8,
+            attack: this.state.player.stats.attack + 1,
+          },
+        },
+        companions: tickCompanionXPState(this.state.companions, 5),
+      });
+      return getRandomLevelUpChoicesWithRng(3, () => this.nextRandom());
+    }
+
+    void saveEngine.saveRun(this.state);
+    return null;
   }
 
   /**
@@ -495,8 +617,8 @@ export class TurnEngine {
       });
     }
     switch (params.action) {
-      case PlayerAction.Move:  this.resolveMove(params.forcedMarch, params.shortcutTo); break;
-      case PlayerAction.Hunt:  this.resolveHunt(params.method);      break;
+      case PlayerAction.Move:  this.resolveMove(params.forcedMarch, params.shortcutTo, params.detourThreadId); break;
+      case PlayerAction.Hunt:  this.resolveHunt(params.method, params.questCompanionId);      break;
       case PlayerAction.Rest:  this.resolveRest(params.atInn);       break;
       case PlayerAction.Rally: this.resolveRally(params.targetCompanionId); break;
       case PlayerAction.Camp:  this.resolveCamp();                   break;
@@ -505,7 +627,7 @@ export class TurnEngine {
     }
   }
 
-  private resolveMove(forcedMarch: boolean, shortcutTo?: number): void {
+  private resolveMove(forcedMarch: boolean, shortcutTo?: number, detourThreadId?: string): void {
     const { weather, resources } = this.state;
     const currentLoc = this.state.currentLocationId;
     if (BOSS_EVENT_MAP[currentLoc] && !this.state.clearedCombatLocations.has(currentLoc)) {
@@ -515,13 +637,31 @@ export class TurnEngine {
 
     let locations = 1;
 
-    // ── Item passive bonuses ─────────────────────────────────
     const itemBonuses = computeEquippedBonuses(inventoryFromResources(resources));
 
-    // Warm Cloak: downgrade Severe → Poor so luck rolls remain possible
     const effectiveWeather = itemBonuses.weatherProtection && weather === WeatherType.Severe
       ? WeatherType.Poor
       : weather;
+
+    let detourNarrative = '';
+    let detourTargetLoc: number | undefined;
+
+    if (detourThreadId) {
+      const detour = this.state.runLayout?.activeDetours.find(d => d.threadId === detourThreadId);
+      if (detour && detour.forkAt === currentLoc) {
+        detourTargetLoc = detour.rejoinAt;
+        detourNarrative = `You leave the main road for ${detour.label}. `;
+        const storyFlags = new Set(this.state.storyFlags);
+        storyFlags.add(detour.storyFlag);
+        this.setState({ storyFlags });
+        if (detour.moraleDelta) {
+          this.addDelta({ source: 'detour', morale: detour.moraleDelta });
+        }
+        if (detour.foodDelta) {
+          this.addDelta({ source: 'detour', food: detour.foodDelta });
+        }
+      }
+    }
 
     if (shortcutTo) {
       locations = 1;
@@ -576,18 +716,33 @@ export class TurnEngine {
       });
     }
 
-    const rawNewLoc = shortcutTo ?? Math.min(currentLoc + locations, 125);
+    const rawNewLoc = detourTargetLoc ?? shortcutTo ?? Math.min(currentLoc + locations, 125);
     const bossCheckpoint = findBossCheckpoint(currentLoc, rawNewLoc, this.state.clearedCombatLocations);
     const newLoc = bossCheckpoint ?? rawNewLoc;
 
-    let narrative = '';
+    let narrative = detourNarrative;
     const luckyThird = (locations === 3);
     if (shortcutTo) {
       const activeShortcut = this.state.runLayout?.activeShortcuts.find(s => s.from === currentLoc && s.to === shortcutTo);
       const suffix = newLoc < shortcutTo ? ` (stopped at Location ${newLoc} by a powerful boss)` : '';
-      narrative = `You took a shortcut: "${activeShortcut?.label ?? 'The hidden path'}" directly to Location ${newLoc}${suffix}.`;
-    } else {
+      narrative += `You took a shortcut: "${activeShortcut?.label ?? 'The hidden path'}" directly to Location ${newLoc}${suffix}.`;
+
+      if (activeShortcut) {
+        const shortcutKey = getShortcutKey(activeShortcut);
+        const usedKeys = new Set(this.state.usedShortcutKeys ?? []);
+        const isFirstUse = !usedKeys.has(shortcutKey);
+        if (isFirstUse) {
+          usedKeys.add(shortcutKey);
+          for (const delta of buildShortcutScenarioDeltas(activeShortcut, true)) {
+            this.addDelta(delta);
+          }
+          this.setState({ usedShortcutKeys: [...usedKeys] });
+        }
+      }
+    } else if (!detourNarrative) {
       narrative = this.buildMoveNarrative(locations, effectiveWeather, luckyThird, forcedMarch);
+    } else {
+      narrative += `You rejoin the main road at Location ${newLoc}.`;
     }
 
     // Determine if forced march was actually executed:
@@ -657,9 +812,32 @@ export class TurnEngine {
     if (travelDialogue) {
       this.updateTurn({ travelDialogue });
     }
+
+    const deadlineResult = checkQuestDeadlinesAfterMove(this.state, currentLoc, newLoc);
+    if (deadlineResult.state !== this.state) {
+      this.setState(deadlineResult.state);
+    }
+    for (const msg of deadlineResult.narratives) {
+      this.addLog(msg);
+    }
   }
 
-  private resolveHunt(method: 'forage' | 'hunt'): void {
+  private resolveHunt(method: 'forage' | 'hunt', questCompanionId?: string): void {
+    if (questCompanionId) {
+      const quest = getActiveQuestForCompanion(this.state, questCompanionId);
+      const step = quest ? getQuestStep(quest) : undefined;
+      if (step?.type === 'search' && step.locationId === this.state.currentLocationId) {
+        const result = resolveQuestSearch(this.state, questCompanionId, this.nextRandom());
+        this.setState(result.state);
+        this.addDelta({
+          source: 'quest_search',
+          food: -0.5,
+          narrative: result.narrative,
+        });
+        return;
+      }
+    }
+
     const { morale, companions, resources } = this.state;
 
     // ── Item passive bonuses ─────────────────────────────────
@@ -796,6 +974,18 @@ export class TurnEngine {
         : 'Camp is cold but rest is rest. You wake somewhat refreshed.',
     });
 
+    if (atInn) {
+      const rumor = pickTownRumor(this.state, this.nextRandom());
+      if (rumor) {
+        const revealed = new Set(this.state.revealedRumorIds ?? []);
+        if (!revealed.has(rumor.id)) {
+          revealed.add(rumor.id);
+          this.setState({ revealedRumorIds: [...revealed] });
+          this.addLog(rumor.text);
+        }
+      }
+    }
+
     this.maybeTriggerAmbush(PlayerAction.Rest);
   }
 
@@ -884,7 +1074,20 @@ export class TurnEngine {
     }
 
     const events = sampleEventsForTurn(this.state, () => this.nextRandom());
-    this.updateTurn({ eventsQueue: [...current, ...events] });
+
+    const sagaEventId = sampleSagaEventId(this.state, this.nextRandom());
+    const sagaQueue: GameEvent[] = [];
+    if (sagaEventId) {
+      const sagaEvent = EVENT_DEFINITIONS.find(e => e.id === sagaEventId);
+      if (sagaEvent) {
+        sagaQueue.push(sagaEvent);
+        const fired = new Set(this.state.firedEventIds);
+        fired.add(`saga_fired_${sagaEventId}`);
+        this.setState({ firedEventIds: fired });
+      }
+    }
+
+    this.updateTurn({ eventsQueue: [...current, ...sagaQueue, ...events] });
   }
 
   private maybeInjectDangerCombat(params: ActionParams): void {
@@ -1081,6 +1284,11 @@ export class TurnEngine {
   // ─────────────────────────────────────────
 
   private updateStats(): void {
+    const withNeglect = applyQuestNeglectLoyalty(this.state);
+    if (withNeglect.companions !== this.state.companions) {
+      this.setState({ companions: withNeglect.companions });
+    }
+
     const { companions, morale, resources } = this.state;
     const blocksMoraleRecovery = this.state.currentTurn?.executedForcedMarch ?? false;
 

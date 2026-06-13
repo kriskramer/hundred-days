@@ -6,6 +6,18 @@ import { getLocation } from '@data/locations';
 import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
 import { isBossLocation } from '@engine/bosses';
 import { canStealFromDialogue, findCompanionDialogue, findDialogueForLocation, getDialogue, getDialogueDisplayName } from '@engine/DialogueEngine';
+import {
+  canShowNpcSlot,
+  getNpcSlotDialogueId,
+  getRunPremise,
+} from '@engine/NarrativeSystem';
+import {
+  getQuestAtLocation,
+  getQuestActionLabel,
+  getQuestDialogueId,
+  getQuestStep,
+} from '@engine/CompanionQuestSystem';
+import { findDetourAtLocation } from '@engine/RunLayout';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
@@ -37,13 +49,13 @@ interface Props {
   onToast:         (msg: string) => void;
   onOpenShop?:     (shopName: string, entryNarrative: string) => void;
   onOpenCombat?:   () => void;
-  onOpenDialogue?: () => void;
-  onOpenNpc?:      (dialogueId: string) => void;
-  canTalk?:        boolean;
+  onOpenNpc?:      (dialogueId: string, event?: GameEvent | null) => void;
+  onOpenInn?:      () => void;
   textInterval?:   number;
   confirmActions?: boolean;
-  shopCloseKey?:   number;
+  merchantCloseKey?: number;
   activeEvent?:    GameEvent | null;
+  actionsLocked?:  boolean;
 }
 
 function getForageLabel(huntYield: number | null): string | null {
@@ -161,13 +173,13 @@ export function RoadScreen({
   onToast,
   onOpenShop,
   onOpenCombat,
-  onOpenDialogue,
   onOpenNpc,
-  canTalk,
+  onOpenInn,
   textInterval = 22,
   confirmActions = true,
-  shopCloseKey,
+  merchantCloseKey,
   activeEvent,
+  actionsLocked = false,
 }: Props) {
   const location       = getLocation(gameState.currentLocationId);
   const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
@@ -183,13 +195,14 @@ export function RoadScreen({
   const [forceComplete, setForceComplete] = useState(false);
   const [pendingShopNarrative, setPendingShopNarrative] = useState('');
   const journalScrollRef = useRef<ScrollView>(null);
-  const prevShopCloseKeyRef = useRef(shopCloseKey ?? 0);
+  const prevMerchantCloseKeyRef = useRef(merchantCloseKey ?? 0);
   const queuedActionRef = useRef<(() => void) | null>(null);
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
   const currentNpcSlot = gameState.runLayout?.npcSlots.find(
-    slot => slot.locationId === gameState.currentLocationId && !gameState.firedEventIds.has(slot.npcEventId)
+    slot => slot.locationId === gameState.currentLocationId
+      && canShowNpcSlot(slot, gameState.storyFlags, gameState.firedEventIds),
   ) ?? null;
 
   interface NpcItem {
@@ -227,7 +240,7 @@ export function RoadScreen({
   }
 
   if (currentNpcSlot) {
-    const id = currentNpcSlot.npcEventId;
+    const id = getNpcSlotDialogueId(currentNpcSlot.npcEventId, currentNpcSlot.arcStage);
     if (!seenDialogueIds.has(id)) {
       seenDialogueIds.add(id);
       npcItems.push({
@@ -237,6 +250,18 @@ export function RoadScreen({
         isEvent: false,
       });
     }
+  }
+
+  const activeQuest = getQuestAtLocation(gameState, gameState.currentLocationId);
+  const questDialogueId = activeQuest ? getQuestDialogueId(gameState, activeQuest) : null;
+  if (questDialogueId && !seenDialogueIds.has(questDialogueId)) {
+    seenDialogueIds.add(questDialogueId);
+    npcItems.push({
+      dialogueId: questDialogueId,
+      name: getDialogueDisplayName(questDialogueId),
+      canSteal: false,
+      isEvent: false,
+    });
   }
 
   const dialogueNearby = npcItems.length > 0;
@@ -278,6 +303,8 @@ export function RoadScreen({
 
     if (baseLocationText)
       segs.push({ key: `loc-${gameState.currentLocationId}`, type: 'loc_desc',    text: baseLocationText, instant: false });
+    if (gameState.dayNumber === 1 && runPremise)
+      segs.push({ key: 'run-premise', type: 'random_text', text: runPremise.journalIntro, instant: false });
     if (randomText)
       segs.push({ key: `rnd-${gameState.currentLocationId}`, type: 'random_text', text: randomText,        instant: false });
     if (travelDialogueText)
@@ -334,18 +361,18 @@ export function RoadScreen({
     }
   }, [segments]);
 
-  // Effect D — append exit text when shop closes
+  // Effect D — append exit text when merchant closes
   useEffect(() => {
-    if (shopCloseKey === undefined) return;
-    if (shopCloseKey === prevShopCloseKeyRef.current) return;
-    prevShopCloseKeyRef.current = shopCloseKey;
+    if (merchantCloseKey === undefined) return;
+    if (merchantCloseKey === prevMerchantCloseKeyRef.current) return;
+    prevMerchantCloseKeyRef.current = merchantCloseKey;
     setSegments(prev => [...prev, {
-      key:     `shop-exit-${shopCloseKey}`,
+      key:     `merchant-exit-${merchantCloseKey}`,
       type:    'action_result',
       text:    'You step back out onto the road.',
       instant: false,
     }]);
-  }, [shopCloseKey]);
+  }, [merchantCloseKey]);
 
   const firstTypingIdx = segments.findIndex(
     (s, i) =>
@@ -415,6 +442,9 @@ export function RoadScreen({
     s => s.from === gameState.currentLocationId && (gameState.player.stats.perception ?? 0) >= s.perceptionThreshold
   ) ?? [];
 
+  const activeDetour = findDetourAtLocation(gameState.runLayout, gameState.currentLocationId);
+  const runPremise = getRunPremise(gameState.runPremiseId);
+
   const itemBonuses = computeEquippedBonuses(inventoryFromResources(gameState.resources));
   const luckThreshold = getLuckThreshold(gameState.morale)
     + ((gameState.player.stats.luck ?? 0) / 100)
@@ -449,23 +479,46 @@ export function RoadScreen({
           label: 'Fight Boss',
           sub: 'Begin combat',
           variant: 'primary' as const,
+          disabled: actionsLocked,
           onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())),
         },
       ]
     : [
-        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())) }] : []),
-        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false })), isLucky },
-        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: true  })) },
+        ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())) }] : []),
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: false }, 'Move', '1 location · 1 food')), isLucky },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: true  }, 'Force March', '2 locations · 1.5 food')) },
         ...activeShortcuts.map(s => ({
           label: s.label,
           sub: `To loc ${s.to} · 2 food`,
           variant: 'primary' as const,
-          onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to }))
+          disabled: actionsLocked,
+          onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to }, s.label, `Shortcut to location ${s.to} · 2 food`))
         })),
+        ...(activeDetour ? [{
+          label: activeDetour.label,
+          sub: `Detour to loc ${activeDetour.rejoinAt}`,
+          variant: 'primary' as const,
+          disabled: actionsLocked,
+          onPress: () => runWhenJournalReady(() => submitWithConfirm(
+            { action: PlayerAction.Move, forcedMarch: false, detourThreadId: activeDetour.threadId },
+            activeDetour.label,
+            `Side path rejoining at location ${activeDetour.rejoinAt}`,
+          )),
+        }] : []),
+        ...(activeQuest && getQuestStep(activeQuest)?.type === 'search' ? [{
+          label: getQuestActionLabel(activeQuest) ?? 'Search',
+          sub: activeQuest.stepDeadlineLocationId
+            ? `Before loc ${activeQuest.stepDeadlineLocationId}`
+            : activeQuest.title,
+          variant: 'primary' as const,
+          disabled: actionsLocked,
+          onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'forage', questCompanionId: activeQuest.companionId })),
+        }] : []),
         ...(hasMerchant ? [{
           label: 'Trade',
           sub: 'Buy · Sell',
           variant: 'secondary' as const,
+          disabled: actionsLocked,
           onPress: () => runWhenJournalReady(() => {
             const flavorText = getMerchantEntryNarrative(merchantName);
             setPendingShopNarrative(flavorText);
@@ -475,24 +528,20 @@ export function RoadScreen({
               text:    flavorText,
               instant: false,
             }]);
-            // onOpenShop fires from the segment's onComplete callback
           })
         }] : []),
-        ...(location.isTown  ? [{ label: 'Rest at Inn', sub: '+25 HP · 10g', variant: 'default'   as const, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Rest, atInn: true })) }] : []),
-        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'forage'   })) }] : []),
-        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Rally                                          })) },
-        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const,   onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Camp })) }] : []),
+        ...(location.isTown  ? [{ label: 'Visit Inn', sub: 'Rest · rumors', variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => onOpenInn?.()) }] : []),
+        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Hunt, method: 'forage' }, 'Forage', 'Search for food')) }] : []),
+        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Rally }, 'Rally', 'Boost party morale')) },
+        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Camp }, 'Make Camp', 'Rest and recover')) }] : []),
       ]);
   const npcActionButtons = npcItems.map(item => ({
     label: item.name,
     sub: item.canSteal ? 'Talk · Steal' : 'Talk',
     variant: 'npc' as const,
+    disabled: actionsLocked,
     onPress: () => runWhenJournalReady(() => {
-      if (item.isEvent) {
-        onOpenDialogue?.();
-      } else {
-        onOpenNpc?.(item.dialogueId);
-      }
+      onOpenNpc?.(item.dialogueId, item.isEvent ? activeEvent ?? null : null);
     }),
   }));
 
@@ -545,6 +594,7 @@ export function RoadScreen({
   }
 
   function submitWithConfirm(params: ActionParams, label: string, costDesc: string) {
+    if (actionsLocked) return;
     if (!confirmActions) {
       submit(params);
       return;

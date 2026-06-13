@@ -6,6 +6,39 @@ export interface PathShortcut {
   to: number;
   label: string;
   perceptionThreshold: number;
+  scenarioId?: string;
+}
+
+export interface NpcSlot {
+  locationId: number;
+  npcEventId: string;
+  arcStage: number;
+}
+
+export interface DetourDefinition {
+  forkAt: number;
+  rejoinAt: number;
+  threadId: string;
+  label: string;
+  rumor?: string;
+  dialogueId: string;
+  storyFlag: string;
+  moraleDelta?: number;
+  foodDelta?: number;
+}
+
+export interface SagaThreadBeat {
+  minLoc: number;
+  maxLoc: number;
+  eventId: string;
+  requiredFlag?: string;
+  forbiddenFlag?: string;
+}
+
+export interface SagaThread {
+  threadId: string;
+  label: string;
+  beats: SagaThreadBeat[];
 }
 
 export type RoamingMerchantArchetypeId =
@@ -23,18 +56,22 @@ export interface RoamingMerchant {
 }
 
 export interface RunLayout {
-  npcSlots: Array<{ locationId: number; npcEventId: string }>;
+  npcSlots: NpcSlot[];
   roamingMerchants: RoamingMerchant[];
-  activeShortcuts: Array<PathShortcut>;
+  activeShortcuts: PathShortcut[];
   eliteSpawns: Array<{ locationId: number; enemyType: string }>;
+  activeDetours: DetourDefinition[];
+  sagaThreads: SagaThread[];
 }
 
 export interface LegacyRunLayout {
-  npcSlots: Array<{ locationId: number; npcEventId: string }>;
+  npcSlots: Array<{ locationId: number; npcEventId: string; arcStage?: number }>;
   merchantLocations?: number[];
   roamingMerchants?: RoamingMerchant[];
-  activeShortcuts: Array<PathShortcut>;
+  activeShortcuts: PathShortcut[];
   eliteSpawns: Array<{ locationId: number; enemyType: string }>;
+  activeDetours?: DetourDefinition[];
+  sagaThreads?: SagaThread[];
 }
 
 interface RoamingMerchantArchetype {
@@ -96,6 +133,78 @@ const ROAMING_MERCHANT_NAMES = [
 
 const PERMANENT_SHOP_IDS = new Set(getAllShops().map(shop => shop.locationId));
 
+const DETOUR_CANDIDATES: DetourDefinition[] = [
+  {
+    forkAt: 22,
+    rejoinAt: 25,
+    threadId: 'refugee_trail',
+    label: 'Refugee Trail',
+    rumor: 'They say a side path near location 22 leads through a refugee camp — slower, but safer.',
+    dialogueId: 'detour_refugee_trail',
+    storyFlag: 'detour_refugee_trail',
+    moraleDelta: 5,
+    foodDelta: -1,
+  },
+  {
+    forkAt: 45,
+    rejoinAt: 48,
+    threadId: 'marsh_abbey',
+    label: 'Abbey Ruins',
+    rumor: 'Pilgrims speak of abbey ruins off the road near location 45.',
+    dialogueId: 'detour_marsh_abbey',
+    storyFlag: 'detour_marsh_abbey',
+    moraleDelta: 8,
+  },
+  {
+    forkAt: 72,
+    rejoinAt: 75,
+    threadId: 'smuggler_debt',
+    label: 'Smuggler\'s Cut',
+    rumor: 'A smuggler\'s cut bypasses the ridge near location 72 — if you dare.',
+    dialogueId: 'detour_smuggler_debt',
+    storyFlag: 'detour_smuggler_debt',
+    moraleDelta: -3,
+    foodDelta: 1,
+  },
+  {
+    forkAt: 88,
+    rejoinAt: 91,
+    threadId: 'haunted_ford',
+    label: 'Haunted Ford',
+    rumor: 'Locals avoid the ford near location 88. Some travelers swear by it.',
+    dialogueId: 'detour_haunted_ford',
+    storyFlag: 'detour_haunted_ford',
+    moraleDelta: -5,
+  },
+];
+
+const SAGA_THREAD_CANDIDATES: SagaThread[] = [
+  {
+    threadId: 'missing_courier',
+    label: 'The Missing Courier',
+    beats: [
+      { minLoc: 12, maxLoc: 28, eventId: 'saga_courier_1' },
+      { minLoc: 35, maxLoc: 55, eventId: 'saga_courier_2', requiredFlag: 'saga_courier_1_done' },
+    ],
+  },
+  {
+    threadId: 'strange_lights',
+    label: 'Strange Lights',
+    beats: [
+      { minLoc: 50, maxLoc: 70, eventId: 'saga_lights_1' },
+      { minLoc: 75, maxLoc: 95, eventId: 'saga_lights_2', requiredFlag: 'saga_lights_1_done' },
+    ],
+  },
+  {
+    threadId: 'broken_bell',
+    label: 'The Broken Bell',
+    beats: [
+      { minLoc: 20, maxLoc: 40, eventId: 'saga_bell_1' },
+      { minLoc: 60, maxLoc: 80, eventId: 'saga_bell_2', requiredFlag: 'saga_bell_1_done' },
+    ],
+  },
+];
+
 function cloneStock(stock: ShopStockEntry[]): ShopStockEntry[] {
   return stock.map(entry => ({ ...entry }));
 }
@@ -144,6 +253,27 @@ export function findRoamingMerchant(
   return runLayout?.roamingMerchants.find(merchant => merchant.locationId === locationId);
 }
 
+function assignArcStages(
+  slots: Array<{ locationId: number; npcEventId: string }>,
+): NpcSlot[] {
+  const byNpc = new Map<string, Array<{ locationId: number; npcEventId: string }>>();
+  for (const slot of slots) {
+    const group = byNpc.get(slot.npcEventId) ?? [];
+    group.push(slot);
+    byNpc.set(slot.npcEventId, group);
+  }
+
+  const result: NpcSlot[] = [];
+  for (const [, group] of byNpc) {
+    group.sort((a, b) => a.locationId - b.locationId);
+    group.forEach((slot, index) => {
+      result.push({ ...slot, arcStage: index + 1 });
+    });
+  }
+
+  return result.sort((a, b) => a.locationId - b.locationId);
+}
+
 export function normalizeRunLayout(layout: LegacyRunLayout, seed: number): RunLayout {
   const roamingMerchants = Array.isArray(layout.roamingMerchants)
     ? [...layout.roamingMerchants]
@@ -154,11 +284,19 @@ export function normalizeRunLayout(layout: LegacyRunLayout, seed: number): RunLa
       }))
     : buildRoamingMerchants(layout.merchantLocations ?? [], seed);
 
+  const npcSlots: NpcSlot[] = layout.npcSlots.map(slot => ({
+    locationId: slot.locationId,
+    npcEventId: slot.npcEventId,
+    arcStage: slot.arcStage ?? 1,
+  }));
+
   return {
-    npcSlots: layout.npcSlots,
+    npcSlots,
     roamingMerchants,
     activeShortcuts: layout.activeShortcuts,
     eliteSpawns: layout.eliteSpawns,
+    activeDetours: layout.activeDetours ?? [],
+    sagaThreads: layout.sagaThreads ?? [],
   };
 }
 
@@ -170,29 +308,22 @@ export function generateRunLayout(seed: number): RunLayout {
     return res.value;
   }
 
-  // 1. NPC Slots (18 candidates pointing to 6 distinct NPC event dialogues)
   const npcCandidates = [
-    // Coron, the Wandering Priest
     { minLoc: 15, maxLoc: 30, npcEventId: 'coron_priest' },
     { minLoc: 40, maxLoc: 55, npcEventId: 'coron_priest' },
     { minLoc: 75, maxLoc: 90, npcEventId: 'coron_priest' },
-    // Finn, the Quick-Fingered Kid
     { minLoc: 35, maxLoc: 50, npcEventId: 'finn_pickpocket' },
     { minLoc: 55, maxLoc: 70, npcEventId: 'finn_pickpocket' },
     { minLoc: 80, maxLoc: 95, npcEventId: 'finn_pickpocket' },
-    // Sylas, the Shady Collector
     { minLoc: 45, maxLoc: 60, npcEventId: 'sylas_collector' },
     { minLoc: 65, maxLoc: 80, npcEventId: 'sylas_collector' },
     { minLoc: 95, maxLoc: 110, npcEventId: 'sylas_collector' },
-    // Griselda, the Herbalist
     { minLoc: 70, maxLoc: 85, npcEventId: 'griselda_herbalist' },
     { minLoc: 85, maxLoc: 100, npcEventId: 'griselda_herbalist' },
     { minLoc: 100, maxLoc: 115, npcEventId: 'griselda_herbalist' },
-    // Rex the Dog
     { minLoc: 2, maxLoc: 10, npcEventId: 'rex_the_dog' },
     { minLoc: 10, maxLoc: 20, npcEventId: 'rex_the_dog' },
     { minLoc: 20, maxLoc: 30, npcEventId: 'rex_the_dog' },
-    // Wounded Stranger
     { minLoc: 10, maxLoc: 25, npcEventId: 'wounded_stranger' },
     { minLoc: 30, maxLoc: 45, npcEventId: 'wounded_stranger' },
     { minLoc: 50, maxLoc: 65, npcEventId: 'wounded_stranger' },
@@ -210,7 +341,7 @@ export function generateRunLayout(seed: number): RunLayout {
   const selectedNpc = shuffledNpc.slice(0, numNpcSlots);
 
   const chosenLocs = new Set<number>();
-  const npcSlots = selectedNpc.map(candidate => {
+  const rawNpcSlots = selectedNpc.map(candidate => {
     let locationId = candidate.minLoc + Math.floor(rng() * (candidate.maxLoc - candidate.minLoc + 1));
     for (let attempts = 0; attempts < 10; attempts++) {
       if (!chosenLocs.has(locationId)) break;
@@ -219,8 +350,8 @@ export function generateRunLayout(seed: number): RunLayout {
     chosenLocs.add(locationId);
     return { locationId, npcEventId: candidate.npcEventId };
   });
+  const npcSlots = assignArcStages(rawNpcSlots);
 
-  // 2. Roaming merchants
   const candidateMerchantLocs: number[] = [];
   for (let loc = 10; loc <= 120; loc++) {
     if (!PERMANENT_SHOP_IDS.has(loc)) {
@@ -240,20 +371,19 @@ export function generateRunLayout(seed: number): RunLayout {
   const roamingMerchants = buildRoamingMerchants(merchantLocations, seed);
   const roamingMerchantLocationIds = new Set(roamingMerchants.map(merchant => merchant.locationId));
 
-  // 3. Path Shortcuts
   const shortcutCandidates: PathShortcut[] = [
-    { from: 12, to: 16, label: 'The Hidden Forest Path', perceptionThreshold: 4 },
-    { from: 28, to: 34, label: "The Old Smuggler's Pass", perceptionThreshold: 5 },
-    { from: 40, to: 46, label: 'The Rocky Ravine Bypass', perceptionThreshold: 6 },
-    { from: 48, to: 54, label: 'The Abandoned Mine Shaft', perceptionThreshold: 5 },
-    { from: 60, to: 64, label: 'The River Forging Shallows', perceptionThreshold: 4 },
-    { from: 68, to: 74, label: 'The Overgrown Deer Trail', perceptionThreshold: 6 },
-    { from: 80, to: 86, label: 'The Forgotten Mountain Pass', perceptionThreshold: 7 },
-    { from: 88, to: 92, label: 'The Whispering Woods Cut', perceptionThreshold: 5 },
-    { from: 96, to: 102, label: 'The Shadowy Caves Shortcut', perceptionThreshold: 7 },
-    { from: 104, to: 110, label: 'The Castle Moat Tunnel', perceptionThreshold: 8 },
-    { from: 18, to: 24, label: 'The Sunken Meadow Shortcut', perceptionThreshold: 4 },
-    { from: 76, to: 82, label: 'The High Cliff Ledge', perceptionThreshold: 6 },
+    { from: 12, to: 16, label: 'The Hidden Forest Path', perceptionThreshold: 4, scenarioId: '12_16' },
+    { from: 28, to: 34, label: "The Old Smuggler's Pass", perceptionThreshold: 5, scenarioId: 'smugglers_pass' },
+    { from: 40, to: 46, label: 'The Rocky Ravine Bypass', perceptionThreshold: 6, scenarioId: '40_46' },
+    { from: 48, to: 54, label: 'The Abandoned Mine Shaft', perceptionThreshold: 5, scenarioId: '48_54' },
+    { from: 60, to: 64, label: 'The River Forging Shallows', perceptionThreshold: 4, scenarioId: '60_64' },
+    { from: 68, to: 74, label: 'The Overgrown Deer Trail', perceptionThreshold: 6, scenarioId: '68_74' },
+    { from: 80, to: 86, label: 'The Forgotten Mountain Pass', perceptionThreshold: 7, scenarioId: '80_86' },
+    { from: 88, to: 92, label: 'The Whispering Woods Cut', perceptionThreshold: 5, scenarioId: '88_92' },
+    { from: 96, to: 102, label: 'The Shadowy Caves Shortcut', perceptionThreshold: 7, scenarioId: 'shadowy_caves' },
+    { from: 104, to: 110, label: 'The Castle Moat Tunnel', perceptionThreshold: 8, scenarioId: 'castle_moat_tunnel' },
+    { from: 18, to: 24, label: 'The Sunken Meadow Shortcut', perceptionThreshold: 4, scenarioId: '18_24' },
+    { from: 76, to: 82, label: 'The High Cliff Ledge', perceptionThreshold: 6, scenarioId: '76_82' },
   ];
 
   const shuffledShortcuts = [...shortcutCandidates];
@@ -265,7 +395,24 @@ export function generateRunLayout(seed: number): RunLayout {
   }
   const activeShortcuts = shuffledShortcuts.slice(0, 3);
 
-  // 4. Roaming Elite Mobs
+  const shuffledDetours = [...DETOUR_CANDIDATES];
+  for (let i = shuffledDetours.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const temp = shuffledDetours[i];
+    shuffledDetours[i] = shuffledDetours[j];
+    shuffledDetours[j] = temp;
+  }
+  const activeDetours = shuffledDetours.slice(0, 2 + Math.floor(rng() * 2));
+
+  const shuffledSaga = [...SAGA_THREAD_CANDIDATES];
+  for (let i = shuffledSaga.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const temp = shuffledSaga[i];
+    shuffledSaga[i] = shuffledSaga[j];
+    shuffledSaga[j] = temp;
+  }
+  const sagaThreads = shuffledSaga.slice(0, 2);
+
   const bossLocs = [32, 65, 93, 125];
   const candidateEliteLocs: number[] = [];
   for (let loc = 15; loc <= 110; loc++) {
@@ -308,5 +455,14 @@ export function generateRunLayout(seed: number): RunLayout {
     roamingMerchants,
     activeShortcuts,
     eliteSpawns,
+    activeDetours,
+    sagaThreads,
   };
+}
+
+export function findDetourAtLocation(
+  runLayout: RunLayout | null | undefined,
+  locationId: number,
+): DetourDefinition | undefined {
+  return runLayout?.activeDetours?.find(d => d.forkAt === locationId);
 }

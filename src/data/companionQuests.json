@@ -1,0 +1,89 @@
+[
+  {
+    "id": "dain_hunt_deserter",
+    "companionId": "dain",
+    "title": "The Deserter's Trail",
+    "recruitHint": "Dain asks for your help hunting a deserter from his unit. Refusing may cost you his trust.",
+    "stakes": {
+      "level": "high",
+      "onComplete": { "loyalty": 15, "morale": 5, "flags": ["dain_quest_complete"] },
+      "onStepFail": { "loyalty": 10 },
+      "onQuestFail": {
+        "type": "companion_departure",
+        "departureNarrative": "Dain stops in the road. \"You had your road. I have mine. That deserter won't wait for Roachak's deadline.\" He turns east without looking back.",
+        "epilogueFlag": "dain_quest_failed_departed"
+      }
+    },
+    "steps": [
+      { "type": "dialogue", "dialogueId": "dain_quest_deserter_1", "locationId": 35, "maxLocationId": 45 },
+      { "type": "visit", "dialogueId": "dain_quest_deserter_2", "locationId": 40, "maxLocationId": 45 }
+    ],
+    "completionFlags": ["dain_quest_complete"],
+    "epilogueComplete": "Dain finally caught his deserter — and chose to stand with you at the end.",
+    "epilogueFailedDeparted": "You later heard Dain caught the deserter near Vorishy, but he never rejoined your march."
+  },
+  {
+    "id": "dain_heirloom",
+    "companionId": "dain",
+    "title": "The Missing Heirloom",
+    "recruitHint": "Dain seeks a family heirloom lost on the road. He will remember whether you help.",
+    "stakes": {
+      "level": "medium",
+      "onComplete": { "loyalty": 10, "flags": ["dain_heirloom_complete"] },
+      "onStepFail": { "loyalty": 5 },
+      "onQuestFail": {
+        "type": "loyalty_crash",
+        "amount": 20,
+        "narrative": "Dain stops speaking to you for days. The heirloom is gone — and so, it seems, is his faith in you."
+      }
+    },
+    "steps": [
+      { "type": "search", "locationId": 38, "maxLocationId": 48, "label": "Search the roadside camps", "successDialogueId": "dain_quest_heirloom_found", "failDialogueId": "dain_quest_heirloom_fail" }
+    ],
+    "completionFlags": ["dain_heirloom_complete"],
+    "epilogueComplete": "Dain recovered his heirloom — a blade his father carried east."
+  },
+  {
+    "id": "emmy_rare_herb",
+    "companionId": "emmy",
+    "title": "The Marsh Herb",
+    "recruitHint": "Emmy needs a rare herb from the wetlands. A small favour, she says.",
+    "stakes": {
+      "level": "low",
+      "onComplete": { "loyalty": 8, "morale": 3, "flags": ["emmy_quest_complete"] },
+      "onStepFail": { "loyalty": 3 },
+      "onQuestFail": {
+        "type": "loyalty_loss",
+        "amount": 8,
+        "narrative": "Emmy pockets her empty satchel without comment. The herb will have to wait."
+      }
+    },
+    "steps": [
+      { "type": "search", "locationId": 42, "maxLocationId": 52, "label": "Search the marsh edge", "successDialogueId": "emmy_quest_herb_found" }
+    ],
+    "completionFlags": ["emmy_quest_complete"],
+    "epilogueComplete": "Emmy's marsh herb saved three lives at a roadside camp."
+  },
+  {
+    "id": "lefty_old_partner",
+    "companionId": "lefty_the_crook",
+    "title": "An Old Debt",
+    "recruitHint": "Lefty owes someone on the road a conversation. It may turn ugly.",
+    "stakes": {
+      "level": "high",
+      "onComplete": { "loyalty": 12, "flags": ["lefty_quest_complete"] },
+      "onStepFail": { "loyalty": 8 },
+      "onQuestFail": {
+        "type": "companion_departure",
+        "departureNarrative": "Lefty spits in the dust. \"I can't leave this unfinished. Don't wait for me.\" He vanishes into the treeline.",
+        "epilogueFlag": "lefty_quest_failed_departed"
+      }
+    },
+    "steps": [
+      { "type": "dialogue", "dialogueId": "lefty_quest_partner_1", "locationId": 50, "maxLocationId": 58 },
+      { "type": "visit", "dialogueId": "lefty_quest_partner_2", "locationId": 54, "maxLocationId": 58 }
+    ],
+    "completionFlags": ["lefty_quest_complete"],
+    "epilogueComplete": "Lefty settled his debt — and stayed with you through Roachak's gate."
+  }
+]

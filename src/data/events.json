@@ -702,6 +702,72 @@
         "npc_encounter",
         "flavor"
       ]
+    },
+    {
+      "id": "saga_courier_1",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Missing Courier",
+      "description": "A merchant speaks of a courier who never arrived.",
+      "conditions": { "probability": 1, "minLocationId": 12, "maxLocationId": 28 },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
+    },
+    {
+      "id": "saga_courier_2",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Courier's Satchel",
+      "description": "Something glints in a roadside ditch.",
+      "conditions": { "probability": 1, "minLocationId": 35, "maxLocationId": 55, "requiredFlag": "saga_courier_1_done" },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
+    },
+    {
+      "id": "saga_lights_1",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Strange Lights",
+      "description": "Pale lights drift above the marsh.",
+      "conditions": { "probability": 1, "minLocationId": 50, "maxLocationId": 70 },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
+    },
+    {
+      "id": "saga_lights_2",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Lights Return",
+      "description": "The marsh lights appear again — closer.",
+      "conditions": { "probability": 1, "minLocationId": 75, "maxLocationId": 95, "requiredFlag": "saga_lights_1_done" },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
+    },
+    {
+      "id": "saga_bell_1",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Broken Bell",
+      "description": "A cracked bell hangs from a dead tree.",
+      "conditions": { "probability": 1, "minLocationId": 20, "maxLocationId": 40 },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
+    },
+    {
+      "id": "saga_bell_2",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Bell's Origin",
+      "description": "An old soldier recognizes the bell's crest.",
+      "conditions": { "probability": 1, "minLocationId": 60, "maxLocationId": 80, "requiredFlag": "saga_bell_1_done" },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": false,
+      "tags": ["dialogue", "saga"]
     }
   ],
   "eventPoolsByType": {

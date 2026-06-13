@@ -6,7 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import type { GameState } from '@engine/types';
+import type { GameState, GameEvent } from '@engine/types';
 import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
 import { DialogueScreen } from '@screens/DialogueScreen';
 import { canStealFromDialogue, getDialogueDisplayName } from '@engine/DialogueEngine';
@@ -14,6 +14,7 @@ import { canStealFromDialogue, getDialogueDisplayName } from '@engine/DialogueEn
 interface Props {
   gameState:      GameState;
   dialogueId:     string;
+  event?:         GameEvent | null;
   onComplete:     (outcome: DialogueSessionOutcome) => void;
   onToast:        (msg: string) => void;
   onSteal:        () => void;
@@ -23,13 +24,15 @@ interface Props {
 export function NpcInteractionScreen({
   gameState,
   dialogueId,
+  event = null,
   onComplete,
   onToast,
   onSteal,
   onBackToRoad,
 }: Props) {
-  const npcName = getDialogueDisplayName(dialogueId);
-  const canSteal = canStealFromDialogue(dialogueId);
+  const resolvedDialogueId = dialogueId || event?.id || '';
+  const npcName = getDialogueDisplayName(resolvedDialogueId);
+  const canSteal = canStealFromDialogue(resolvedDialogueId) && !event;
 
   return (
     <View style={s.root}>
@@ -50,8 +53,8 @@ export function NpcInteractionScreen({
       <View style={s.dialogueShell}>
         <DialogueScreen
           gameState={gameState}
-          event={null}
-          dialogueId={dialogueId}
+          event={event}
+          dialogueId={resolvedDialogueId}
           onComplete={onComplete}
           onToast={onToast}
           onBackToRoad={onBackToRoad}

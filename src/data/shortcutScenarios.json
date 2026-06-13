@@ -1,0 +1,40 @@
+[
+  {
+    "id": "smugglers_pass",
+    "narrative": "The smuggler's pass is narrow and reeking of old smoke. Someone left a cache of rations hidden in a crevice — payment for silence, perhaps.",
+    "foodDelta": 1,
+    "moraleDelta": -2
+  },
+  {
+    "id": "shadowy_caves",
+    "narrative": "The caves swallow sound. Halfway through, you stumble on a shrine to a forgotten road-god. You leave an offering and feel oddly steadier.",
+    "moraleDelta": 8
+  },
+  {
+    "id": "castle_moat_tunnel",
+    "narrative": "The moat tunnel drips with cold water. Bandits had the same idea — you slip past their sleeping sentry with your heart in your throat.",
+    "moraleDelta": -5,
+    "healthDelta": -5
+  },
+  {
+    "id": "12_16",
+    "narrative": "The hidden forest path is overgrown but passable. Birds scatter as you pass — a good omen, your companions say.",
+    "moraleDelta": 3
+  },
+  {
+    "id": "28_34",
+    "narrative": "The smuggler's pass lives up to its name. Fresh wagon tracks suggest you are not the only ones in a hurry.",
+    "moraleDelta": -2
+  },
+  {
+    "id": "96_102",
+    "narrative": "The shadowy caves echo with distant dripping. Something glints in the mud — a lucky coin, dropped by a prior traveler.",
+    "goldDelta": 5,
+    "moraleDelta": 4
+  },
+  {
+    "id": "104_110",
+    "narrative": "The castle moat tunnel smells of rust and rot. You emerge shaken but unscathed.",
+    "moraleDelta": -3
+  }
+]

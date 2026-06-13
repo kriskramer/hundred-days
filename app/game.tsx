@@ -1,21 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useGameStore } from '@store/gameStore';
-import { TurnEngine } from '@engine/TurnEngine';
 import { saveEngine } from '@engine/SaveEngine';
 
-// Screens
 import { RoadScreen }      from '@screens/RoadScreen';
 import { CombatScreen }    from '@screens/CombatScreen';
-import { DialogueScreen }  from '@screens/DialogueScreen';
 import { InventoryScreen } from '@screens/InventoryScreen';
 import { MapScreen }       from '@screens/MapScreen';
 import { NpcInteractionScreen } from '@screens/NpcInteractionScreen';
-import { ShopScreen }      from '@screens/ShopScreen';
+import { MerchantScreen }  from '@screens/MerchantScreen';
+import { InnScreen }       from '@screens/InnScreen';
 
-// Components
 import {
   StatusBar,
   JourneyBar,
@@ -26,29 +23,13 @@ import {
   CombatAlertModal,
 } from '@components';
 
-import type { GameEvent, LevelUpChoice, CombatResult, AppSettings, GameState } from '@engine/types';
-import { PlayerAction, TurnPhase } from '@engine/types';
-import { findDialogueForLocation } from '@engine/DialogueEngine';
-import type { DialogueSessionOutcome } from '@engine/DialogueEngine';
-import { getCompanion } from '@data/companions';
-import { getLocation }  from '@data/locations';
+import type { AppSettings } from '@engine/types';
+import { getLocation } from '@data/locations';
 import {
-  applyLevelUpChoice,
-  applyMoraleDelta,
-  applyReputationDelta,
-  applyXP,
-  clamp,
-  getRandomLevelUpChoicesWithRng,
-  LEVEL_UP_CHOICES,
-  XP_THRESHOLDS,
-  tickCompanionXP,
-  buildLevelUpChoicePreviews,
-} from '@engine/GameState';
-import { isCombatEvent } from '@utils/isCombatEvent';
-import { createTradeJournalRecord } from '@utils/tradeJournal';
-
-type Tab = 'road' | 'combat' | 'dialogue' | 'npc' | 'inventory' | 'map';
-type NavItemId = Tab | 'journal' | 'settings';
+  useGameNavigation,
+  type HubTab,
+  type NavItemId,
+} from '@hooks/useGameNavigation';
 
 const TABS: { id: NavItemId; label: string; icon: string }[] = [
   { id: 'road',      label: 'Road',     icon: '◆' },
@@ -59,73 +40,20 @@ const TABS: { id: NavItemId; label: string; icon: string }[] = [
 ];
 
 export default function GameScreen() {
-  const insets                                = useSafeAreaInsets();
-  const [activeTab, setActiveTab]             = useState<Tab>('road');
-  const [activeEvent, setActiveEvent]         = useState<GameEvent | null>(null);
-  const [activeNpcDialogueId, setActiveNpcDialogueId] = useState<string | null>(null);
-  const [levelUpChoices, setLevelUpChoices]   = useState<LevelUpChoice[] | null>(null);
-  const [toastMsg, setToastMsg]               = useState('');
-  const [shopOpen, setShopOpen]               = useState(false);
-  const [shopEntryNarrative, setShopEntryNarrative] = useState('');
-  const [shopCloseKey, setShopCloseKey]       = useState(0);
-  const [journalOpen, setJournalOpen]         = useState(false);
-  const [settingsOpen, setSettingsOpen]       = useState(false);
-  const [settings, setSettings]               = useState<AppSettings | null>(null);
-  const [combatAlertVisible, setCombatAlertVisible] = useState(false);
-  const [pendingCombatEvent, setPendingCombatEvent] = useState<GameEvent | null>(null);
-  const [isManualCombat, setIsManualCombat]         = useState(false);
-  const engineRef                             = useRef<TurnEngine | null>(null);
-  const lastEngineSnapshotRef                 = useRef<GameState | null>(null);
+  const insets = useSafeAreaInsets();
+  const [toastMsg, setToastMsg] = useState('');
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
 
-  const gameState  = useGameStore(s => s.gameState);
-  const setGame    = useGameStore(s => s.setGameState);
-  const clearGame  = useGameStore(s => s.clearGame);
+  const gameState = useGameStore(s => s.gameState);
+  const setGame = useGameStore(s => s.setGameState);
+  const clearGame = useGameStore(s => s.clearGame);
 
-  // Guard: redirect to title if no state
+  const nav = useGameNavigation({ gameState, setGame });
+
   useEffect(() => {
     if (!gameState) { router.replace('/'); }
-  }, [gameState]);
-
-  // Initialise engine once on mount
-  useEffect(() => {
-    if (!gameState) return;
-
-    engineRef.current = new TurnEngine(
-      gameState,
-      // onStateChange
-      (newState) => {
-        lastEngineSnapshotRef.current = newState;
-        setGame(newState);
-        // Auto-save handled inside TurnEngine.cleanup()
-      },
-      // onAwaitInput (interactive event — combat or dialogue)
-      (event: GameEvent | null) => {
-        if (!event) {
-          setActiveEvent(null);
-          return;
-        }
-        setActiveEvent(event);
-        if (isCombatEvent(event)) {
-          setPendingCombatEvent(event);
-          setIsManualCombat(false);
-          setCombatAlertVisible(true);
-        }
-        // Dialogue events stay on the road screen — player chooses when to talk,
-        // same as location_enter NPCs and moral-choice encounters.
-      },
-      // onLevelUp
-      (choices: LevelUpChoice[]) => {
-        setLevelUpChoices(choices);
-      },
-    );
-    lastEngineSnapshotRef.current = gameState;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once — engine holds its own state reference
-
-  useEffect(() => {
-    if (!gameState || !engineRef.current) return;
-    if (gameState === lastEngineSnapshotRef.current) return;
-    engineRef.current.syncExternalState(gameState);
   }, [gameState]);
 
   useEffect(() => {
@@ -135,243 +63,6 @@ export default function GameScreen() {
   function showToast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 2500);
-  }
-
-  function syncExternalGameState(nextState: GameState) {
-    lastEngineSnapshotRef.current = nextState;
-    setGame(nextState);
-    engineRef.current?.syncExternalState(nextState);
-    saveEngine.saveRun(nextState).catch(console.error);
-  }
-
-
-
-  async function handleInteractiveEventComplete(result: CombatResult) {
-    const engine = engineRef.current;
-    if (!engine) return;
-
-    const engineState = engine.getState();
-    const awaitingInteractive =
-      engineState.currentTurn?.phase === TurnPhase.AwaitingPlayer
-      && !!engineState.currentTurn?.activeInteractiveEvent;
-
-    if (awaitingInteractive) {
-      await engine.resolveInteractiveEvent(result).catch(console.error);
-    } else {
-      // Location combat, or combat finished after the turn already advanced
-      await engine.resolveLocationCombat(engineState.currentLocationId, result).catch(console.error);
-    }
-
-    const after = engine.getState();
-    if (!after.currentTurn?.activeInteractiveEvent) {
-      setActiveEvent(null);
-      if (!after.isComplete) {
-        setActiveTab('road');
-      }
-    }
-  }
-
-  function handleConfirmCombat() {
-    setCombatAlertVisible(false);
-    setPendingCombatEvent(null);
-    setActiveTab('combat');
-  }
-
-  function handleOpenCombat() {
-    if (!combatAvailable) return;
-
-    if (!activeEvent) {
-      setPendingCombatEvent(null);
-      setIsManualCombat(true);
-      setCombatAlertVisible(true);
-      return;
-    }
-
-    handleConfirmCombat();
-  }
-
-  const handleOpenShop = useCallback((shopName: string, entryNarrative: string) => {
-    if (!gameState) return;
-
-    const nextState: GameState = {
-      ...gameState,
-      turnHistory: [...gameState.turnHistory, createTradeJournalRecord(gameState, shopName)],
-    };
-
-    syncExternalGameState(nextState);
-    setShopEntryNarrative(entryNarrative);
-    setShopOpen(true);
-  }, [gameState]);
-
-  function handleOpenDialogue() {
-    if (!dialogueAvailable) return;
-    setActiveTab('dialogue');
-  }
-
-  function handleOpenNpc(dialogueId: string) {
-    setActiveNpcDialogueId(dialogueId);
-    setActiveTab('npc');
-  }
-
-  async function handleDialogueComplete(outcome: DialogueSessionOutcome) {
-    const completedEventId = activeEvent?.id ?? outcome.dialogueId;
-
-    // Mark the dialogue as seen at this location so it won't re-trigger here
-    if (outcome.dialogueId && gameState) {
-      engineRef.current?.markDialogueSeen(outcome.dialogueId, gameState.currentLocationId);
-    }
-
-    // Recruit any companions before the turn engine continues
-    for (const effect of outcome.companionEffects) {
-      if (effect && effect.type === 'recruit') {
-        const companion = getCompanion(effect.companionId);
-        if (companion) engineRef.current?.addCompanion(companion);
-      }
-    }
-
-    // Convert to CombatResult and resume the turn
-    const result: CombatResult = {
-      outcome:           'negotiated',
-      roundsFought:      0,
-      xpGained:          outcome.xpGained,
-      goldGained:        outcome.resourceDeltas.gold,
-      foodGained:        outcome.resourceDeltas.food,
-      healthLost:        -(outcome.resourceDeltas.health ?? 0),
-      healthDelta:       outcome.resourceDeltas.health ?? 0,
-      moraleDelta:       outcome.moraleDelta,
-      reputationDelta:   outcome.reputationDelta,
-      injuriesGained:    [],
-      companionInjuries: {},
-      daysSpent:         outcome.resourceDeltas.daysSpent ?? 0,
-    };
-    if (activeEvent) {
-      const awaitingPlayer = engineRef.current?.getState().currentTurn?.phase === TurnPhase.AwaitingPlayer;
-      if (awaitingPlayer) {
-        await engineRef.current?.resolveInteractiveEvent(result, {
-          eventId: completedEventId,
-          result: 'dialogue_complete',
-          summary: 'Dialogue completed.',
-        }).catch(console.error);
-        const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
-        if (!nextInteractiveEvent) {
-          setActiveEvent(null);
-          setActiveTab('road');
-        }
-      } else {
-        await engineRef.current?.applyStandaloneDialogueResult(result).catch(console.error);
-        setActiveEvent(null);
-        setActiveTab('road');
-      }
-      return;
-    }
-
-    await handleInteractiveEventComplete(result);
-  }
-
-  async function handleNpcDialogueComplete(outcome: DialogueSessionOutcome) {
-    if (!gameState) return;
-
-    const companionIds = new Set(gameState.companions.map(companion => companion.id));
-    const updatedCompanions = [...gameState.companions];
-    for (const effect of outcome.companionEffects) {
-      if (effect?.type !== 'recruit' || companionIds.has(effect.companionId)) continue;
-      const companion = getCompanion(effect.companionId);
-      if (!companion) continue;
-      companionIds.add(effect.companionId);
-      updatedCompanions.push(companion);
-    }
-
-    const storyFlags = new Set(gameState.storyFlags);
-    outcome.flagsSet.forEach(flag => storyFlags.add(flag));
-
-    const firedEventIds = new Set(gameState.firedEventIds);
-    const dialogueId = activeNpcDialogueId ?? outcome.dialogueId;
-    if (dialogueId) {
-      firedEventIds.add(dialogueId);
-    }
-
-    let nextState: GameState = {
-      ...gameState,
-      dayNumber: gameState.dayNumber + (outcome.resourceDeltas.daysSpent ?? 0),
-      player: applyXP({
-        ...gameState.player,
-        health: clamp(
-          gameState.player.health + outcome.resourceDeltas.health,
-          0,
-          gameState.player.stats.maxHealth
-        ),
-      }, outcome.xpGained),
-      resources: {
-        ...gameState.resources,
-        food: Math.max(0, gameState.resources.food + outcome.resourceDeltas.food),
-        gold: Math.max(0, gameState.resources.gold + outcome.resourceDeltas.gold),
-      },
-      morale: applyMoraleDelta(gameState.morale, outcome.moraleDelta),
-      reputation: applyReputationDelta(gameState.reputation, outcome.reputationDelta),
-      companions: updatedCompanions,
-      firedEventIds,
-      storyFlags,
-    };
-
-    const nextThreshold = XP_THRESHOLDS[nextState.player.level];
-    if (nextThreshold && nextState.player.xp >= nextThreshold && nextState.player.level < 10) {
-      nextState = {
-        ...nextState,
-        player: {
-          ...nextState.player,
-          level: nextState.player.level + 1,
-          stats: {
-            ...nextState.player.stats,
-            maxHealth: nextState.player.stats.maxHealth + 8,
-            attack: nextState.player.stats.attack + 1,
-          },
-        },
-        companions: tickCompanionXP(nextState.companions, 5),
-      };
-      const rawChoices = getRandomLevelUpChoicesWithRng(3, () => engineRef.current?.nextRandom() ?? Math.random());
-      setLevelUpChoices(buildLevelUpChoicePreviews(rawChoices, nextState.player.stats));
-    }
-
-    syncExternalGameState(nextState);
-    setActiveNpcDialogueId(null);
-    setActiveTab('road');
-  }
-
-  function handleLevelUpChoice(choiceId: string) {
-    if (engineRef.current?.getState().currentTurn?.phase === TurnPhase.AwaitingLevelUp) {
-      engineRef.current.submitLevelUpChoice(choiceId);
-      setLevelUpChoices(null);
-      showToast('Level up applied!');
-      return;
-    }
-
-    if (!gameState) return;
-
-    const choice = LEVEL_UP_CHOICES.find(levelUpChoice => levelUpChoice.id === choiceId);
-    if (!choice) return;
-
-    const nextState: GameState = {
-      ...gameState,
-      player: {
-        ...gameState.player,
-        stats: applyLevelUpChoice(gameState.player.stats, choice),
-      },
-    };
-
-    syncExternalGameState(nextState);
-    setLevelUpChoices(null);
-    showToast('Level up applied!');
-  }
-
-  function handleNpcSteal() {
-    if (!engineRef.current) {
-      showToast('Engine not ready');
-      return;
-    }
-
-    setActiveNpcDialogueId(null);
-    setActiveTab('road');
-    engineRef.current.submitAction({ action: PlayerAction.Steal }).catch(console.error);
   }
 
   async function handleRestart() {
@@ -391,7 +82,6 @@ export default function GameScreen() {
     );
   }
 
-  // Check for run completion
   useEffect(() => {
     if (gameState?.isComplete) { handleRunComplete(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -399,45 +89,44 @@ export default function GameScreen() {
 
   if (!gameState) return null;
 
-  const engine = engineRef.current;
-
-  // Combat tab is accessible only when an event demands it, or the location has
-  // uncleared dangerous mobs.
-  const currentLocation  = getLocation(gameState.currentLocationId);
-  const locationHasMobs  = currentLocation.mobs.some(m => m.aggroPct > 0 && !m.isCompanion);
-  const combatAvailable  =
-    isCombatEvent(activeEvent) ||
-    (locationHasMobs && !gameState.clearedCombatLocations.has(gameState.currentLocationId));
-  const dialogueAvailable =
-    (activeEvent?.interactiveHandlerId === 'dialogue_handler' && !!activeEvent.id) ||
-    findDialogueForLocation(gameState.currentLocationId, gameState) !== null;
+  const engine = nav.engineRef.current;
+  const currentLocation = getLocation(gameState.currentLocationId);
   const bottomNavInset = 66 + insets.bottom;
+  const blocking = nav.isBlockingInteraction();
+
+  function handleNavPress(tab: NavItemId) {
+    if (tab === 'journal') {
+      setJournalOpen(true);
+      return;
+    }
+    if (tab === 'settings') {
+      setSettingsOpen(true);
+      return;
+    }
+    nav.handleHubTabPress(tab as HubTab);
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5EAD6' }} edges={['top']}>
-
-      {/* Fixed top chrome */}
       <View>
         <StatusBar />
         <JourneyBar />
       </View>
 
-      {/* Toast */}
       <Toast message={toastMsg} />
 
-      {/* Screen area */}
       <View style={{ flex: 1, paddingBottom: bottomNavInset }}>
-        <View style={{ flex: 1, display: activeTab === 'road' ? 'flex' : 'none' }}>
+        <View style={{ flex: 1, display: nav.roadVisible ? 'flex' : 'none' }}>
           <RoadScreen
             gameState={gameState}
             engine={engine}
             onToast={showToast}
-            onOpenShop={handleOpenShop}
-            onOpenCombat={handleOpenCombat}
-            onOpenDialogue={handleOpenDialogue}
-            onOpenNpc={handleOpenNpc}
-            canTalk={dialogueAvailable}
-            activeEvent={activeEvent}
+            onOpenShop={nav.handleOpenShop}
+            onOpenCombat={nav.handleOpenCombat}
+            onOpenNpc={nav.handleOpenNpc}
+            onOpenInn={nav.handleOpenInn}
+            activeEvent={nav.activeEvent}
+            actionsLocked={nav.actionsLocked}
             textInterval={settings?.textSpeed === 'slow'
               ? 45
               : settings?.textSpeed === 'fast'
@@ -446,47 +135,60 @@ export default function GameScreen() {
                   ? 0
                   : 22}
             confirmActions={settings?.confirmActions ?? true}
-            shopCloseKey={shopCloseKey}
+            merchantCloseKey={nav.merchantCloseKey}
           />
         </View>
-        {activeTab === 'combat'    && (
+
+        {nav.interaction.kind === 'combat' && (
           <CombatScreen
             gameState={gameState}
             engine={engine}
-            event={activeEvent}
-            onComplete={handleInteractiveEventComplete}
+            event={nav.interaction.event}
+            onComplete={nav.handleInteractiveEventComplete}
             onToast={showToast}
           />
         )}
-        {activeTab === 'dialogue'  && (
-          <DialogueScreen
-            gameState={gameState}
-            event={activeEvent}
-            onComplete={handleDialogueComplete}
-            onToast={showToast}
-            onBackToRoad={() => setActiveTab('road')}
-          />
-        )}
-        {activeTab === 'npc' && activeNpcDialogueId && (
+
+        {nav.interaction.kind === 'npc' && (
           <NpcInteractionScreen
             gameState={gameState}
-            dialogueId={activeNpcDialogueId}
-            onComplete={handleNpcDialogueComplete}
+            dialogueId={nav.interaction.dialogueId}
+            event={nav.interaction.event}
+            onComplete={nav.handleNpcInteractionComplete}
             onToast={showToast}
-            onSteal={handleNpcSteal}
-            onBackToRoad={() => {
-              setActiveNpcDialogueId(null);
-              setActiveTab('road');
-            }}
+            onSteal={nav.handleNpcSteal}
+            onBackToRoad={nav.handleNpcBackToRoad}
           />
         )}
-        {activeTab === 'inventory' && (
+
+        {nav.interaction.kind === 'merchant' && (
+          <MerchantScreen
+            onBackToRoad={nav.handleMerchantClose}
+            onToast={showToast}
+            merchantEntryNarrative={nav.interaction.entryNarrative}
+          />
+        )}
+
+        {nav.interaction.kind === 'inn' && (
+          <InnScreen
+            gameState={gameState}
+            engine={engine}
+            activeEvent={nav.activeEvent}
+            onBackToRoad={nav.returnToRoad}
+            onRestComplete={nav.returnToRoad}
+            onTavernComplete={nav.handleNpcInteractionComplete}
+            onToast={showToast}
+          />
+        )}
+
+        {nav.hubTab === 'inventory' && nav.interaction.kind === 'none' && (
           <InventoryScreen
             gameState={gameState}
             onToast={showToast}
           />
         )}
-        {activeTab === 'map'       && (
+
+        {nav.hubTab === 'map' && nav.interaction.kind === 'none' && (
           <MapScreen
             gameState={gameState}
             onToast={showToast}
@@ -494,31 +196,22 @@ export default function GameScreen() {
         )}
       </View>
 
-      {/* Bottom navigation */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#1A1208', borderTopWidth: 2, borderTopColor: '#B8860B', flexDirection: 'row', paddingBottom: insets.bottom }}>
         {TABS.map(tab => {
-          const active    = tab.id === 'road' || tab.id === 'inventory' || tab.id === 'map'
-            ? activeTab === tab.id
+          const isHubTab = tab.id === 'road' || tab.id === 'inventory' || tab.id === 'map';
+          const active = isHubTab
+            ? (tab.id === 'road' ? nav.roadVisible : nav.hubTab === tab.id && nav.interaction.kind === 'none')
             : false;
-          const textColor = active ? '#D4A017' : '#A0B8AA';
+          const disabled = blocking && isHubTab && tab.id !== 'road';
+          const textColor = active ? '#D4A017' : disabled ? '#5A6A62' : '#A0B8AA';
+
           return (
             <TouchableOpacity
               key={tab.id}
-              onPress={() => {
-                if (tab.id === 'journal') {
-                  setJournalOpen(true);
-                  return;
-                }
-
-                if (tab.id === 'settings') {
-                  setSettingsOpen(true);
-                  return;
-                }
-
-                setActiveTab(tab.id);
-              }}
+              onPress={() => handleNavPress(tab.id)}
+              disabled={disabled}
               activeOpacity={0.7}
-              style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 12, opacity: disabled ? 0.5 : 1 }}
             >
               <Text style={{ fontSize: 18, color: textColor }}>
                 {tab.icon}
@@ -537,31 +230,20 @@ export default function GameScreen() {
         })}
       </View>
 
-      {/* Shop modal */}
-      <ShopScreen
-        visible={shopOpen}
-        onClose={() => {
-          setShopOpen(false);
-          setShopCloseKey(k => k + 1);
-        }}
-        onToast={showToast}
-        merchantEntryNarrative={shopEntryNarrative}
-      />
-
-      {/* Level-up modal */}
       <LevelUpModal
-        visible={!!levelUpChoices}
-        choices={levelUpChoices ?? []}
-        onChoose={handleLevelUpChoice}
+        visible={!!nav.levelUpChoices}
+        choices={nav.levelUpChoices ?? []}
+        onChoose={(choiceId) => {
+          nav.handleLevelUpChoice(choiceId);
+          showToast('Level up applied!');
+        }}
       />
 
-      {/* Journal modal */}
       <JournalModal
         visible={journalOpen}
         onClose={() => setJournalOpen(false)}
       />
 
-      {/* Settings modal */}
       <SettingsModal
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -569,15 +251,13 @@ export default function GameScreen() {
         onSettingsChanged={setSettings}
       />
 
-      {/* Combat Alert popup */}
       <CombatAlertModal
-        visible={combatAlertVisible}
-        event={pendingCombatEvent}
+        visible={nav.combatAlertVisible}
+        event={nav.pendingCombatEvent}
         locationName={currentLocation.name}
-        isManualCombat={isManualCombat}
-        onConfirm={handleConfirmCombat}
+        isManualCombat={nav.isManualCombat}
+        onConfirm={nav.handleConfirmCombat}
       />
-
     </SafeAreaView>
   );
 }

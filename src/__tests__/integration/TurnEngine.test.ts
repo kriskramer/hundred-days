@@ -1130,6 +1130,7 @@ describe('TurnEngine — Weather consequences', () => {
       .mockReturnValueOnce(0.99) // luck roll
       .mockReturnValueOnce(0.99) // travel dialogue gate
       .mockReturnValueOnce(0.99) // travel dialogue selection
+      .mockReturnValueOnce(0.99) // saga sample (skip)
       .mockReturnValueOnce(0.05) // weather check
       .mockReturnValue(0.99);    // general fallback
 

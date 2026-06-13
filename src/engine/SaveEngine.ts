@@ -9,7 +9,7 @@ import {
 } from './types';
 import { SCHEMA_VERSION } from './GameState';
 import { generateRunLayout, normalizeRunLayout } from './RunLayout';
-import { getRegion } from '@data/locations';
+import { buildRunSummary } from './NarrativeSystem';
 
 // ─────────────────────────────────────────
 // Storage keys
@@ -365,6 +365,31 @@ class SaveEngine {
       current = { ...current, schemaVersion: 13 };
     }
 
+    // v13 → v14: narrative systems (premise, companion quests, detours, saga)
+    if (current.schemaVersion === 13) {
+      const state = current.gameState as unknown as Record<string, unknown>;
+      const seed = typeof state['seed'] === 'number' ? state['seed'] : 0;
+      if (state['runPremiseId'] === undefined) {
+        state['runPremiseId'] = null;
+      }
+      if (!Array.isArray(state['companionQuests'])) {
+        state['companionQuests'] = [];
+      }
+      if (!Array.isArray(state['usedShortcutKeys'])) {
+        state['usedShortcutKeys'] = [];
+      }
+      if (!Array.isArray(state['revealedRumorIds'])) {
+        state['revealedRumorIds'] = [];
+      }
+      if (state['runLayout'] && typeof state['runLayout'] === 'object') {
+        state['runLayout'] = normalizeRunLayout(
+          state['runLayout'] as Parameters<typeof normalizeRunLayout>[0],
+          seed,
+        );
+      }
+      current = { ...current, schemaVersion: 14 };
+    }
+
     if (current.schemaVersion !== SCHEMA_VERSION) return null;
     return current;
   }
@@ -398,21 +423,7 @@ class SaveEngine {
   }
 
   private buildSummary(state: GameState): string {
-    const region     = getRegion(state.currentLocationId).name;
-    const companions = state.companions.length;
-
-    switch (state.outcome) {
-      case 'victory':
-        return `Defeated the Dread Sovereign on day ${state.dayNumber}. `
-             + `Level ${state.player.level}, ${companions} companion${companions !== 1 ? 's' : ''}.`;
-      case 'defeat':
-        return `Fell in ${region} on day ${state.dayNumber} at level ${state.player.level}.`;
-      case 'timeout':
-        return `Ran out of days at location ${state.currentLocationId}. `
-             + `${125 - state.currentLocationId} locations short.`;
-      default:
-        return `Abandoned at ${region}, day ${state.dayNumber}.`;
-    }
+    return buildRunSummary(state);
   }
 
   // ── Settings ───────────────────────────────────────────────

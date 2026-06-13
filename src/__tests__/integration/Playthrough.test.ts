@@ -504,11 +504,13 @@ describe('Playthrough — combat encounter resolution', () => {
       const post = harness.engine.getState();
 
       if (
-        resolved.length === 1
-        && isCombatEvent(resolved[0].event)
+        resolved.length >= 1
         && post.turnHistory.length === pre.turnHistory.length + 1
       ) {
-        found = { pre, post, event: resolved[0].event, result: resolved[0].result };
+        const combatResolved = resolved.find(r => isCombatEvent(r.event));
+        if (combatResolved) {
+          found = { pre, post, event: combatResolved.event, result: combatResolved.result };
+        }
       }
     }
 

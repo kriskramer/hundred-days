@@ -246,3 +246,14 @@ export function findShopDialogue(locationId: number, gameState: GameState): Dial
   }
   return null;
 }
+
+export function findInnDialogue(locationId: number, gameState: GameState): Dialogue | null {
+  const checkState = { ...gameState, currentLocationId: locationId };
+  for (const dialogue of DIALOGUES) {
+    if (dialogue.triggerType !== 'player_initiated' && dialogue.triggerType !== 'event_fired') continue;
+    if (!dialogue.tags.includes('rumor') && !dialogue.tags.includes('town')) continue;
+    if (!evalConditions(dialogue.triggerConditions, checkState, { dialogueId: dialogue.id })) continue;
+    return dialogue;
+  }
+  return null;
+}

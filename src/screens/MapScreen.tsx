@@ -143,6 +143,19 @@ export function MapScreen({ gameState, onToast }: Props) {
 
   const selectedLocation = getLocation(selectedId);
   const currentId        = gameState.currentLocationId;
+  const perception       = gameState.player.stats.perception ?? 0;
+
+  const knownShortcuts = new Map<number, string>();
+  for (const shortcut of gameState.runLayout.activeShortcuts) {
+    if (perception >= shortcut.perceptionThreshold) {
+      knownShortcuts.set(shortcut.from, shortcut.label);
+    }
+  }
+
+  const knownDetours = new Map<number, string>();
+  for (const detour of gameState.runLayout.activeDetours ?? []) {
+    knownDetours.set(detour.forkAt, detour.label);
+  }
 
   const visibleItems = getVisibleMapItems(
     ITEMS,
@@ -216,6 +229,8 @@ export function MapScreen({ gameState, onToast }: Props) {
             );
           }
           const { loc, side } = item;
+          const shortcutLabel = knownShortcuts.get(loc.id);
+          const detourLabel = knownDetours.get(loc.id);
           return (
             <LocationRow
               key={loc.id}
@@ -225,6 +240,8 @@ export function MapScreen({ gameState, onToast }: Props) {
               isVisited={gameState.visitedLocationIds.has(loc.id)}
               isSelected={loc.id === selectedId}
               onPress={openDetail}
+              shortcutLabel={shortcutLabel}
+              detourLabel={detourLabel}
             />
           );
         })}
@@ -300,14 +317,16 @@ function RegionBanner({ region }: { region: RegionDefinition }) {
 // ─────────────────────────────────────────
 
 const LocationRow = memo(function LocationRow({
-  loc, side, isCurrent, isVisited, isSelected, onPress,
+  loc, side, isCurrent, isVisited, isSelected, onPress, shortcutLabel, detourLabel,
 }: {
-  loc:        Location;
-  side:       'left' | 'right';
-  isCurrent:  boolean;
-  isVisited:  boolean;
-  isSelected: boolean;
-  onPress:    (id: number) => void;
+  loc:            Location;
+  side:           'left' | 'right';
+  isCurrent:      boolean;
+  isVisited:      boolean;
+  isSelected:     boolean;
+  onPress:        (id: number) => void;
+  shortcutLabel?: string;
+  detourLabel?:   string;
 }) {
   const isShop = SHOP_LOCATION_IDS.includes(loc.id);
   const isBoss = BOSS_LOCATION_IDS.includes(loc.id);
@@ -338,6 +357,8 @@ const LocationRow = memo(function LocationRow({
         {loc.isTown && !isShop && <Badge label="Town"   color={C.greenLight} bg="rgba(58,92,42,0.5)"   border="rgba(58,92,42,0.8)"   />}
         {isShop              && <Badge label="Shop"   color={C.blueLight}  bg="rgba(26,58,92,0.5)"   border="rgba(26,58,92,0.9)"   />}
         {isBoss              && <Badge label="Boss"   color="#FF8080"      bg="rgba(139,26,26,0.5)"  border="rgba(139,26,26,0.9)"  />}
+        {shortcutLabel       && <Badge label="Path"   color={C.goldLight}  bg="rgba(184,134,11,0.2)" border="rgba(184,134,11,0.5)" />}
+        {detourLabel         && <Badge label="Fork"   color={C.purpleLight} bg="rgba(80,32,80,0.4)" border="rgba(128,64,128,0.7)" />}
       </View>
 
       {/* Mob summary */}
