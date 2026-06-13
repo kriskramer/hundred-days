@@ -84,10 +84,9 @@ import {
   resolveQuestSearch,
   advanceCompanionQuest,
   findQuestForDialogue,
-  getQuestAtLocation,
-  getQuestActionLabel,
   getActiveQuestForCompanion,
   getQuestStep,
+  resolveCompanionQuestFailure,
 } from './CompanionQuestSystem';
 
 // ─────────────────────────────────────────
@@ -96,7 +95,7 @@ import {
 
 export type ActionParams =
   | { action: PlayerAction.Move;  forcedMarch: boolean; shortcutTo?: number; detourThreadId?: string }
-  | { action: PlayerAction.Hunt;  method: 'forage' | 'hunt'; questCompanionId?: string }
+  | { action: PlayerAction.Hunt;  method: 'forage' | 'hunt'; questCompanionId?: string; questFight?: boolean }
   | { action: PlayerAction.Trade; purchases: { itemId: string; cost: number }[] }
   | { action: PlayerAction.Rest;  atInn: boolean }
   | { action: PlayerAction.Rally; targetCompanionId?: string }
@@ -251,6 +250,7 @@ export class TurnEngine {
     this.state = {
       ...this.state,
       dayNumber: nextState.dayNumber,
+      currentLocationId: nextState.currentLocationId,
       player: nextState.player,
       resources: nextState.resources,
       morale: nextState.morale,
@@ -431,7 +431,8 @@ export class TurnEngine {
     }
 
     const newCleared = new Set(this.state.clearedCombatLocations);
-    if (result.outcome === 'victory') {
+    const questCombat = this.state.pendingQuestCombat;
+    if (result.outcome === 'victory' && !questCombat) {
       newCleared.add(locationId);
     }
 
@@ -440,7 +441,7 @@ export class TurnEngine {
       ? new Set([...this.state.firedEventIds, bossEventId])
       : this.state.firedEventIds;
 
-    this.setState({
+    let nextState: Partial<GameState> = {
       player:                 newPlayer,
       morale:                 applyMoraleDelta(morale, result.moraleDelta + fatiguePenalty),
       reputation:             applyReputationDelta(reputation, result.reputationDelta),
@@ -448,7 +449,27 @@ export class TurnEngine {
       clearedCombatLocations: newCleared,
       firedEventIds:          newFired,
       consecutiveCombatDays:  nextConsecutive,
-    });
+    };
+
+    if (questCombat) {
+      if (result.outcome === 'victory') {
+        this.setState(advanceCompanionQuest(
+          { ...this.state, ...nextState, pendingQuestCombat: undefined },
+          questCombat.companionId,
+        ));
+      } else if (result.outcome === 'defeat') {
+        const fail = resolveCompanionQuestFailure(
+          { ...this.state, ...nextState, pendingQuestCombat: undefined },
+          questCombat.companionId,
+          'miniboss_defeat',
+        );
+        this.setState({ ...fail.state, ...nextState, pendingQuestCombat: undefined });
+      } else {
+        this.setState({ ...this.state, ...nextState, pendingQuestCombat: undefined });
+      }
+    } else {
+      this.setState(nextState as GameState);
+    }
 
     const defeatNarrative = this.getCombatDefeatNarrative(result, newPlayer.health, locationId);
     if (defeatNarrative) {
@@ -618,7 +639,7 @@ export class TurnEngine {
     }
     switch (params.action) {
       case PlayerAction.Move:  this.resolveMove(params.forcedMarch, params.shortcutTo, params.detourThreadId); break;
-      case PlayerAction.Hunt:  this.resolveHunt(params.method, params.questCompanionId);      break;
+      case PlayerAction.Hunt:  this.resolveHunt(params.method, params.questCompanionId, params.questFight);      break;
       case PlayerAction.Rest:  this.resolveRest(params.atInn);       break;
       case PlayerAction.Rally: this.resolveRally(params.targetCompanionId); break;
       case PlayerAction.Camp:  this.resolveCamp();                   break;
@@ -822,7 +843,40 @@ export class TurnEngine {
     }
   }
 
-  private resolveHunt(method: 'forage' | 'hunt', questCompanionId?: string): void {
+  private resolveHunt(method: 'forage' | 'hunt', questCompanionId?: string, questFight?: boolean): void {
+    if (questCompanionId && questFight) {
+      const quest = getActiveQuestForCompanion(this.state, questCompanionId);
+      const step = quest ? getQuestStep(quest) : undefined;
+      if (step?.type === 'miniboss' && step.locationId === this.state.currentLocationId) {
+        const companion = this.state.companions.find(c => c.id === questCompanionId);
+        this.setState({
+          pendingQuestCombat: {
+            companionId: questCompanionId,
+            enemyId: step.enemyId,
+          },
+        });
+        this.addDelta({
+          source: 'quest_fight',
+          food: -0.5,
+          narrative: `${companion?.name ?? 'Your companion'} moves to intercept the target.`,
+        });
+        const questCombat: GameEvent = {
+          id: step.eventId,
+          type: EventType.Combat,
+          resolutionType: ResolutionType.Interactive,
+          name: 'Companion Quest',
+          description: 'A personal fight — your companion\'s story hangs in the balance.',
+          conditions: { probability: 1.0 },
+          interactiveHandlerId: 'combat_handler',
+          repeatable: false,
+          tags: ['combat', 'companion_quest_boss'],
+        };
+        const current = this.state.currentTurn?.eventsQueue ?? [];
+        this.updateTurn({ eventsQueue: [questCombat, ...current] });
+        return;
+      }
+    }
+
     if (questCompanionId) {
       const quest = getActiveQuestForCompanion(this.state, questCompanionId);
       const step = quest ? getQuestStep(quest) : undefined;
@@ -1275,6 +1329,25 @@ export class TurnEngine {
         this.updateCompanionWitnessedEvents('combat_victory');
       } else if (result.outcome === 'defeat') {
         this.updateCompanionWitnessedEvents('combat_defeat');
+      }
+    }
+
+    const questCombat = this.state.pendingQuestCombat;
+    if (questCombat && isCombat) {
+      if (result.outcome === 'victory') {
+        this.setState(advanceCompanionQuest(
+          { ...this.state, pendingQuestCombat: undefined },
+          questCombat.companionId,
+        ));
+      } else if (result.outcome === 'defeat') {
+        const fail = resolveCompanionQuestFailure(
+          { ...this.state, pendingQuestCombat: undefined },
+          questCombat.companionId,
+          'miniboss_defeat',
+        );
+        this.setState({ ...fail.state, pendingQuestCombat: undefined });
+      } else {
+        this.setState({ pendingQuestCombat: undefined });
       }
     }
   }

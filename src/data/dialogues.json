@@ -43,7 +43,8 @@
                 "companionId": "rex_the_dog"
               },
               "flagsSet": [
-                "rex_recruited"
+                "rex_recruited",
+                "rex_the_dog_stage_1_done"
               ]
             }
           },
@@ -57,7 +58,8 @@
                 "food": -1
               },
               "flagsSet": [
-                "rex_fed_stayed"
+                "rex_fed_stayed",
+                "rex_the_dog_stage_1_done"
               ]
             }
           },
@@ -68,7 +70,8 @@
             "outcome": {
               "nextNodeId": "rex_dismissed",
               "flagsSet": [
-                "rex_dismissed_early"
+                "rex_dismissed_early",
+                "rex_the_dog_stage_1_done"
               ]
             }
           },
@@ -80,7 +83,8 @@
               "nextNodeId": "rex_abused",
               "reputationDelta": -8,
               "flagsSet": [
-                "rex_abused_early"
+                "rex_abused_early",
+                "rex_the_dog_stage_1_done"
               ]
             }
           }
@@ -155,7 +159,8 @@
               },
               "reputationDelta": 8,
               "moraleDelta": 5,
-              "xpGained": 8
+              "xpGained": 8,
+              "flagsSet": ["helped_wounded_stranger", "wounded_stranger_stage_1_done"]
             }
           },
           {
@@ -177,7 +182,8 @@
                 "gold": 12
               },
               "reputationDelta": -10,
-              "moraleDelta": -8
+              "moraleDelta": -8,
+              "flagsSet": ["wounded_stranger_stage_1_done", "wounded_stranger_robbed"]
             }
           },
           {
@@ -186,7 +192,8 @@
             "tone": "pragmatic",
             "outcome": {
               "nextNodeId": null,
-              "reputationDelta": -3
+              "reputationDelta": -3,
+              "flagsSet": ["wounded_stranger_stage_1_done", "wounded_stranger_ignored"]
             }
           }
         ]
@@ -209,7 +216,8 @@
               },
               "reputationDelta": 8,
               "moraleDelta": 5,
-              "xpGained": 8
+              "xpGained": 8,
+              "flagsSet": ["helped_wounded_stranger", "wounded_stranger_stage_1_done"]
             }
           },
           {
@@ -219,7 +227,8 @@
             "outcome": {
               "nextNodeId": null,
               "flagsSet": [
-                "knows_archers_bend_bandits"
+                "knows_archers_bend_bandits",
+                "wounded_stranger_stage_1_done"
               ]
             }
           }
@@ -715,7 +724,8 @@
                 "gold": -10,
                 "health": 30
               },
-              "moraleDelta": 5
+              "moraleDelta": 5,
+              "flagsSet": ["coron_priest_stage_1_done"]
             }
           },
           {
@@ -727,7 +737,8 @@
             },
             "outcome": {
               "nextNodeId": "coron_blessed",
-              "moraleDelta": 15
+              "moraleDelta": 15,
+              "flagsSet": ["coron_priest_stage_1_done"]
             }
           },
           {
@@ -738,7 +749,8 @@
               "maxReputation": 59
             },
             "outcome": {
-              "nextNodeId": "coron_refuse_blessing"
+              "nextNodeId": "coron_refuse_blessing",
+              "flagsSet": ["coron_priest_stage_1_done"]
             }
           },
           {
@@ -813,7 +825,8 @@
                 "gold": -15
               },
               "moraleDelta": 5,
-              "reputationDelta": -2
+              "reputationDelta": -2,
+              "flagsSet": ["sylas_collector_stage_1_done"]
             }
           },
           {
@@ -824,7 +837,8 @@
               "nextNodeId": "sylas_sold",
               "resourceDelta": {
                 "gold": 12
-              }
+              },
+              "flagsSet": ["sylas_collector_stage_1_done"]
             }
           },
           {
@@ -832,7 +846,8 @@
             "text": "\"I must keep moving.\"",
             "tone": "pragmatic",
             "outcome": {
-              "nextNodeId": null
+              "nextNodeId": null,
+              "flagsSet": ["sylas_collector_stage_1_done"]
             }
           }
         ]
@@ -890,7 +905,8 @@
                 "food": -1
               },
               "reputationDelta": 8,
-              "moraleDelta": 10
+              "moraleDelta": 10,
+              "flagsSet": ["griselda_herbalist_stage_1_done"]
             }
           },
           {
@@ -904,7 +920,8 @@
               "nextNodeId": "griselda_sold",
               "resourceDelta": {
                 "gold": -10
-              }
+              },
+              "flagsSet": ["griselda_herbalist_stage_1_done"]
             }
           },
           {
@@ -912,7 +929,8 @@
             "text": "Nod politely and continue walking.",
             "tone": "pragmatic",
             "outcome": {
-              "nextNodeId": null
+              "nextNodeId": null,
+              "flagsSet": ["griselda_herbalist_stage_1_done"]
             }
           }
         ]
@@ -961,7 +979,8 @@
             "text": "Confront him about your coin purse.",
             "tone": "intimidating",
             "outcome": {
-              "nextNodeId": "finn_caught"
+              "nextNodeId": "finn_caught",
+              "flagsSet": ["finn_pickpocket_stage_1_done"]
             }
           },
           {
@@ -973,15 +992,14 @@
               "resourceDelta": {
                 "gold": 10
               },
-              "reputationDelta": -2
+              "reputationDelta": -2,
+              "flagsSet": ["finn_pickpocket_stage_1_done"]
             }
           },
           {
-            "id": "finn_ignore",
-            "text": "Ignore it and keep moving.",
-            "tone": "pragmatic",
             "outcome": {
-              "nextNodeId": null
+              "nextNodeId": null,
+              "flagsSet": ["finn_pickpocket_stage_1_done"]
             }
           }
         ]
@@ -4868,10 +4886,13 @@
     "title": "After the Fight",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "requiredFlag": "battle_won_recently"
+      "requiredFlag": "battle_won_recently",
+      "requiredCompanionId": "emmy",
+      "requiredConversationId": "cd_emmy_region"
     },
     "rootNodeId": "emmy_b_01",
     "repeatable": false,
+    "chapterOrder": 2,
     "tags": [
       "companion",
       "emmy",
@@ -5011,10 +5032,14 @@
     "title": "A Quiet Worry",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "maxMorale": 35
+      "maxMorale": 35,
+      "requiredCompanionId": "emmy",
+      "requiredConversationId": "cd_emmy_battle",
+      "minCompanionLoyalty": 20
     },
     "rootNodeId": "emmy_d_01",
     "repeatable": false,
+    "chapterOrder": 3,
     "tags": [
       "companion",
       "emmy",
@@ -5091,10 +5116,12 @@
     "triggerType": "player_initiated",
     "triggerConditions": {
       "minLocationId": 5,
-      "maxLocationId": 15
+      "maxLocationId": 15,
+      "requiredCompanionId": "emmy"
     },
     "rootNodeId": "emmy_r_01",
     "repeatable": false,
+    "chapterOrder": 1,
     "tags": [
       "companion",
       "emmy",
@@ -5240,10 +5267,13 @@
     "title": "After the Steel",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "requiredFlag": "battle_won_recently"
+      "requiredFlag": "battle_won_recently",
+      "requiredCompanionId": "dain",
+      "requiredConversationId": "cd_dain_region"
     },
     "rootNodeId": "dain_b_01",
     "repeatable": false,
+    "chapterOrder": 2,
     "tags": [
       "companion",
       "dain",
@@ -5395,10 +5425,14 @@
     "title": "The Weight of It",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "maxMorale": 35
+      "maxMorale": 35,
+      "requiredCompanionId": "dain",
+      "requiredConversationId": "cd_dain_battle",
+      "minCompanionLoyalty": 20
     },
     "rootNodeId": "dain_d_01",
     "repeatable": false,
+    "chapterOrder": 3,
     "tags": [
       "companion",
       "dain",
@@ -5475,10 +5509,12 @@
     "triggerType": "player_initiated",
     "triggerConditions": {
       "minLocationId": 15,
-      "maxLocationId": 25
+      "maxLocationId": 25,
+      "requiredCompanionId": "dain"
     },
     "rootNodeId": "dain_r_01",
     "repeatable": false,
+    "chapterOrder": 1,
     "tags": [
       "companion",
       "dain",
@@ -5624,10 +5660,13 @@
     "title": "Reading the Fight",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "requiredFlag": "battle_won_recently"
+      "requiredFlag": "battle_won_recently",
+      "requiredCompanionId": "joe",
+      "requiredConversationId": "cd_joe_region"
     },
     "rootNodeId": "joe_b_01",
     "repeatable": false,
+    "chapterOrder": 2,
     "tags": [
       "companion",
       "joe",
@@ -5776,10 +5815,14 @@
     "title": "Forced Cheer",
     "triggerType": "player_initiated",
     "triggerConditions": {
-      "maxMorale": 35
+      "maxMorale": 35,
+      "requiredCompanionId": "joe",
+      "requiredConversationId": "cd_joe_battle",
+      "minCompanionLoyalty": 20
     },
     "rootNodeId": "joe_d_01",
     "repeatable": false,
+    "chapterOrder": 3,
     "tags": [
       "companion",
       "joe",
@@ -5856,10 +5899,12 @@
     "triggerType": "player_initiated",
     "triggerConditions": {
       "minLocationId": 30,
-      "maxLocationId": 40
+      "maxLocationId": 40,
+      "requiredCompanionId": "joe"
     },
     "rootNodeId": "joe_r_01",
     "repeatable": false,
+    "chapterOrder": 1,
     "tags": [
       "companion",
       "joe",
@@ -11903,6 +11948,236 @@
       }
     },
     "displayName": "Old Soldier",
+    "canSteal": false
+  },
+  {
+    "id": "finn_pickpocket_2",
+    "title": "Finn Returns",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "finn_pickpocket_stage_1_done" },
+    "rootNodeId": "finn2_01",
+    "repeatable": false,
+    "tags": ["story", "pickpocket"],
+    "nodes": {
+      "finn2_01": {
+        "id": "finn2_01",
+        "speakerName": "Finn",
+        "speakerPortraitId": "portrait_finn",
+        "text": "The same quick-fingered kid blocks your path — bolder this time. \"Remember me? I know who robbed the granary near Lahonis. Information for food.\"",
+        "choices": [
+          { "id": "finn2_food", "text": "Share rations for the story.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "resourceDelta": { "food": -1 }, "moraleDelta": 3, "flagsSet": ["finn_pickpocket_stage_2_done", "finn_granary_tip"] } },
+          { "id": "finn2_refuse", "text": "Walk past him.", "tone": "intimidating", "outcome": { "nextNodeId": null, "flagsSet": ["finn_pickpocket_stage_2_done"] } }
+        ]
+      }
+    },
+    "displayName": "Finn",
+    "canSteal": true
+  },
+  {
+    "id": "sylas_collector_2",
+    "title": "Sylas's Proposition",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "sylas_collector_stage_1_done" },
+    "rootNodeId": "sylas2_01",
+    "repeatable": false,
+    "tags": ["story", "collector"],
+    "nodes": {
+      "sylas2_01": {
+        "id": "sylas2_01",
+        "speakerName": "Sylas",
+        "speakerPortraitId": "portrait_sylas",
+        "text": "Sylas greets you like an old partner. \"I have buyers for relics from the eastern garrison. Split the profit — or I sell to someone else by week's end.\"",
+        "choices": [
+          { "id": "sylas2_deal", "text": "Agree to the partnership.", "tone": "cunning", "outcome": { "nextNodeId": null, "reputationDelta": -5, "resourceDelta": { "gold": 10 }, "flagsSet": ["sylas_collector_stage_2_done", "sylas_partner"] } },
+          { "id": "sylas2_refuse", "text": "Refuse.", "tone": "heroic", "outcome": { "nextNodeId": null, "flagsSet": ["sylas_collector_stage_2_done"] } }
+        ]
+      }
+    },
+    "displayName": "Sylas",
+    "canSteal": true
+  },
+  {
+    "id": "griselda_herbalist_2",
+    "title": "Griselda's Warning",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "griselda_herbalist_stage_1_done" },
+    "rootNodeId": "gris2_01",
+    "repeatable": false,
+    "tags": ["story", "herbalist"],
+    "nodes": {
+      "gris2_01": {
+        "id": "gris2_01",
+        "speakerName": "Griselda",
+        "speakerPortraitId": "portrait_griselda",
+        "text": "Griselda presses a wilted leaf into your hand. \"Poison in the wells ahead — deliberate, not sickness. Boil your water east of here.\"",
+        "choices": [
+          { "id": "gris2_thanks", "text": "Thank her and heed the warning.", "tone": "heroic", "outcome": { "nextNodeId": null, "moraleDelta": 5, "flagsSet": ["griselda_herbalist_stage_2_done", "griselda_well_warning"] } },
+          { "id": "gris2_doubt", "text": "Dismiss it as superstition.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "flagsSet": ["griselda_herbalist_stage_2_done"] } }
+        ]
+      }
+    },
+    "displayName": "Griselda",
+    "canSteal": true
+  },
+  {
+    "id": "wounded_stranger_2",
+    "title": "The Stranger's Message",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "wounded_stranger_stage_1_done" },
+    "rootNodeId": "ws2_01",
+    "repeatable": false,
+    "tags": ["story", "reputation"],
+    "nodes": {
+      "ws2_01": {
+        "id": "ws2_01",
+        "speakerName": "Merchant",
+        "speakerPortraitId": "portrait_merchant_wounded",
+        "text": "The merchant you met on the road catches up at a crossroads — walking now, pack mended. \"I owe you. Word reached the next town about Roachak's scouts. Take this — and watch the ridge at location fifty.\"",
+        "choices": [
+          { "id": "ws2_gift", "text": "Accept his gift.", "tone": "heroic", "outcome": { "nextNodeId": null, "resourceDelta": { "gold": 8 }, "moraleDelta": 4, "flagsSet": ["wounded_stranger_stage_2_done", "stranger_ridge_tip"] } },
+          { "id": "ws2_refuse", "text": "\"Keep your coin. Travel safe.\"", "tone": "pragmatic", "outcome": { "nextNodeId": null, "flagsSet": ["wounded_stranger_stage_2_done"] } }
+        ]
+      }
+    },
+    "displayName": "Merchant",
+    "canSteal": true
+  },
+  {
+    "id": "wounded_stranger_3",
+    "title": "Echo at the Ridge",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "helped_wounded_stranger" },
+    "rootNodeId": "ws3_01",
+    "repeatable": false,
+    "tags": ["story", "reputation"],
+    "nodes": {
+      "ws3_01": {
+        "id": "ws3_01",
+        "speakerName": "Narrator",
+        "text": "At the ridge the stranger mentioned, you find supplies left under a cairn — and a note: \"For the one who stopped. — M.\"",
+        "choices": [
+          { "id": "ws3_take", "text": "Take the supplies.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "resourceDelta": { "food": 2 }, "flagsSet": ["wounded_stranger_stage_3_done", "wounded_stranger_arc_complete"] } }
+        ]
+      }
+    },
+    "displayName": "Cairn",
+    "canSteal": false
+  },
+  {
+    "id": "rex_the_dog_2",
+    "title": "Rex on the Scent",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredFlag": "rex_the_dog_stage_1_done" },
+    "rootNodeId": "rex2_01",
+    "repeatable": false,
+    "tags": ["story"],
+    "nodes": {
+      "rex2_01": {
+        "id": "rex2_01",
+        "speakerName": "Narrator",
+        "text": "The same brown dog — or one very like him — appears at a ford, barking at something in the reeds. Bandits' camp, by the smell of smoke.",
+        "choices": [
+          { "id": "rex2_follow", "text": "Investigate with Rex.", "tone": "heroic", "outcome": { "nextNodeId": null, "moraleDelta": 3, "flagsSet": ["rex_the_dog_stage_2_done", "rex_bandit_tip"] } },
+          { "id": "rex2_pass", "text": "Leave the dog to his business.", "tone": "pragmatic", "outcome": { "nextNodeId": null, "flagsSet": ["rex_the_dog_stage_2_done"] } }
+        ]
+      }
+    },
+    "displayName": "Rex",
+    "canSteal": false
+  },
+  {
+    "id": "dain_quest_deserter_defeat",
+    "title": "The Deserter Escapes",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredCompanionId": "dain" },
+    "rootNodeId": "dq_des_def",
+    "repeatable": false,
+    "tags": ["companion_quest", "dain"],
+    "nodes": {
+      "dq_des_def": {
+        "id": "dq_des_def",
+        "speakerName": "Dain",
+        "text": "Dain sheathes a bloody blade. \"He got away. This isn't finished — and neither is my trust in this march.\"",
+        "choices": [{ "id": "dq_des_def_ok", "text": "...", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Dain",
+    "canSteal": false
+  },
+  {
+    "id": "emmy_quest_child_1",
+    "title": "The Fever Child",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredCompanionId": "emmy" },
+    "rootNodeId": "eq_ch_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "emmy"],
+    "nodes": {
+      "eq_ch_01": {
+        "id": "eq_ch_01",
+        "speakerName": "Emmy",
+        "text": "Emmy kneels beside a burning forehead. \"Feverroot grows near the marsh edge. I need a day to search — will you wait?\"",
+        "choices": [{ "id": "eq_ch_yes", "text": "Help her search.", "tone": "heroic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Emmy",
+    "canSteal": false
+  },
+  {
+    "id": "emmy_quest_child_found",
+    "title": "Fever Broken",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredCompanionId": "emmy" },
+    "rootNodeId": "eq_ch_f",
+    "repeatable": false,
+    "tags": ["companion_quest", "emmy"],
+    "nodes": {
+      "eq_ch_f": {
+        "id": "eq_ch_f",
+        "speakerName": "Emmy",
+        "text": "The child's fever breaks by morning. Emmy exhales. \"Small lives matter as much as big wars. Thank you for stopping.\"",
+        "choices": [{ "id": "eq_ch_f_ok", "text": "...", "tone": "heroic", "outcome": { "nextNodeId": null, "moraleDelta": 4 } }]
+      }
+    },
+    "displayName": "Emmy",
+    "canSteal": false
+  },
+  {
+    "id": "lefty_quest_map_found",
+    "title": "Map Recovered",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredCompanionId": "lefty_the_crook" },
+    "rootNodeId": "lq_map_f",
+    "repeatable": false,
+    "tags": ["companion_quest", "lefty_the_crook"],
+    "nodes": {
+      "lq_map_f": {
+        "id": "lq_map_f",
+        "speakerName": "Lefty",
+        "text": "Lefty unfolds the creased map with a grin. \"Knew you'd find it. This ridge path saves two days — if Roachak's clock allows.\"",
+        "choices": [{ "id": "lq_map_f_ok", "text": "...", "tone": "cunning", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Lefty",
+    "canSteal": false
+  },
+  {
+    "id": "lefty_quest_map_fail",
+    "title": "Empty Camp",
+    "triggerType": "event_fired",
+    "triggerConditions": { "requiredCompanionId": "lefty_the_crook" },
+    "rootNodeId": "lq_map_x",
+    "repeatable": false,
+    "tags": ["companion_quest", "lefty_the_crook"],
+    "nodes": {
+      "lq_map_x": {
+        "id": "lq_map_x",
+        "speakerName": "Lefty",
+        "text": "The camp is cold. Whoever had the map is long gone. Lefty's smile doesn't reach his eyes.",
+        "choices": [{ "id": "lq_map_x_ok", "text": "...", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Lefty",
     "canSteal": false
   }
 ]

@@ -28,6 +28,8 @@ import {
   CombatEngine,
   buildEnemiesForLocation,
   buildBossEnemy,
+  buildEnemyCombatant,
+  ENEMY_DEFINITIONS,
   EnemyCombatant,
 } from '@engine/CombatEngine';
 import { isBossLocation } from '@engine/bosses';
@@ -107,6 +109,11 @@ function buildEnemiesFromEvent(
 
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
   if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'], game.currentLocationId);
+
+  if (event?.tags?.includes('companion_quest_boss') && game.pendingQuestCombat) {
+    const def = ENEMY_DEFINITIONS.find(d => d.id === game.pendingQuestCombat!.enemyId);
+    if (def) return [buildEnemyCombatant(def, game.currentLocationId)];
+  }
 
   const eligible = location.mobs.filter(m => random() * 100 < m.aggroPct && !m.isCompanion);
   const toSpawn = eligible.length > 0

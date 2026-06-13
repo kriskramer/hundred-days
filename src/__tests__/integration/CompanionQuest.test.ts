@@ -8,6 +8,7 @@ import {
 } from '../helpers/playthroughHarness';
 import { getCompanion } from '@data/companions';
 import { onCompanionRecruited } from '@engine/CompanionQuestSystem';
+import { getQuestStep } from '@engine/CompanionQuestSystem';
 import { PlayerAction } from '@engine/types';
 import { makeGameState } from '../__fixtures__/gameState';
 
@@ -35,38 +36,55 @@ function withDainDeserterQuest(locationId: number) {
 }
 
 describe('CompanionQuest — integration scenarios', () => {
-  it('completes Dain two-step dialogue quest via location dialogues', async () => {
+  it('completes Dain dialogue + miniboss quest steps', async () => {
     let state = withDainDeserterQuest(35);
-    const harness = createHarness(state);
+    const harness = createHarness(state, { forceCombatVictory: true });
 
     resolveLocationQuestDialogue(harness, 'dain_quest_deserter_1');
     state = harness.engine.getState();
 
     expect(state.companionQuests![0].currentStepIndex).toBe(1);
     expect(state.companionQuests![0].pinnedLocationId).toBe(40);
+    expect(getQuestStep(state.companionQuests![0])?.type).toBe('miniboss');
 
     harness.engine.syncExternalState({
       ...harness.engine.getState(),
       currentLocationId: 40,
     });
 
-    resolveLocationQuestDialogue(harness, 'dain_quest_deserter_2');
-    state = harness.engine.getState();
+    await submitAndResolve(harness, {
+      action: PlayerAction.Hunt,
+      method: 'hunt',
+      questCompanionId: 'dain',
+      questFight: true,
+    });
 
+    state = harness.engine.getState();
     expect(state.companionQuests![0].status).toBe('completed');
     expect(state.storyFlags.has('dain_quest_complete')).toBe(true);
+    expect(state.pendingQuestCombat).toBeUndefined();
     const dain = state.companions.find(c => c.id === 'dain');
     expect(dain!.loyalty.value).toBeGreaterThan(60);
   });
 
   it('completes Emmy search quest with deterministic hunt success', async () => {
     const emmy = getCompanion('emmy')!;
-    let state = onCompanionRecruited(
-      makeGameState({ currentLocationId: 42, companions: [emmy] }),
-      'emmy',
-    );
-    const quest = state.companionQuests!.find(q => q.companionId === 'emmy');
-    expect(quest?.pinnedLocationId).toBe(42);
+    let state = makeGameState({
+      currentLocationId: 42,
+      companions: [emmy],
+      companionQuests: [{
+        companionId: 'emmy',
+        variantId: 'emmy_rare_herb',
+        title: 'The Marsh Herb',
+        currentStepIndex: 0,
+        status: 'active',
+        stepFlags: [],
+        stepRetriesUsed: 0,
+        pinnedLocationId: 42,
+        stepDeadlineLocationId: 52,
+      }],
+    });
+    expect(state.companionQuests![0].pinnedLocationId).toBe(42);
 
     const harness = createHarness(state, { randomOverride: () => 0.0 });
     const loyaltyBefore = harness.engine.getState().companions[0].loyalty.value;

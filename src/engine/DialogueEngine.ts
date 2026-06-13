@@ -226,8 +226,13 @@ export function findCompanionDialogue(companionId: string, gameState: GameState)
     if (d.triggerType !== 'player_initiated') return false;
     if (!d.tags.includes(companionId)) return false;
     if (!d.repeatable && alreadyHad.has(d.id)) return false;
-    return evalConditions(d.triggerConditions, gameState, { dialogueId: d.id });
+    return evalConditions(d.triggerConditions, gameState, { dialogueId: d.id, companionId });
   });
+
+  const serialized = candidates
+    .filter(d => !d.repeatable && d.chapterOrder !== undefined)
+    .sort((a, b) => (a.chapterOrder ?? 999) - (b.chapterOrder ?? 999));
+  if (serialized.length > 0) return serialized[0];
 
   // Prefer non-repeatable (contextual) over repeatable (generic)
   const contextual = candidates.filter(d => !d.repeatable);

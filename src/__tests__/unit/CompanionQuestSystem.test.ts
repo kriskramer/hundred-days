@@ -40,6 +40,16 @@ function withDainQuest(
 }
 
 describe('CompanionQuestSystem', () => {
+  it('completes dain deserter quest when advancing past the miniboss step', () => {
+    const state = withDainQuest({}, 'dain_hunt_deserter');
+    const quest = { ...state.companionQuests![0], currentStepIndex: 1, pinnedLocationId: 40 };
+    const atMiniboss = { ...state, companionQuests: [quest] };
+    const step = getQuestStep(atMiniboss.companionQuests![0]);
+    expect(step?.type).toBe('miniboss');
+    const next = advanceCompanionQuest(atMiniboss, 'dain');
+    expect(next.companionQuests![0].status).toBe('completed');
+  });
+
   it('assigns a quest when a companion is recruited', () => {
     const state = makeGameState({ companionQuests: [] });
     const next = onCompanionRecruited(state, 'dain');

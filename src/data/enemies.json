@@ -768,5 +768,43 @@
     "tags": ["giant", "undead"],
     "isBoss": true,
     "bossLoot": ["relic_blade", "companionship_token"]
+  },
+  {
+    "id": "deserter_soldier",
+    "name": "Deserter Soldier",
+    "description": "A trained soldier who chose the road over his unit — and won't go quietly.",
+    "baseHP": 28,
+    "baseAttack": 9,
+    "baseDefense": 4,
+    "baseSpeed": 7,
+    "behavior": "aggressive",
+    "minLocationId": 30,
+    "scaleFactor": 1.1,
+    "abilities": [
+      {
+        "id": "desperate_strike",
+        "name": "Desperate Strike",
+        "probability": 0.3,
+        "damageMultiplier": 1.4,
+        "specialEffect": null
+      }
+    ],
+    "packCallSpawnId": null,
+    "packCallSpawnMaxPerCombat": null,
+    "immuneToNegotiate": false,
+    "immuneToFlee": false,
+    "physicalResistance": 0.1,
+    "moraleDamageOnSight": 0,
+    "xpReward": 25,
+    "goldReward": 8,
+    "foodReward": 0,
+    "encounterTexts": [
+      "A soldier in mismatched armour blocks the path. \"I know why you're here. Dain sent you.\"",
+      "The deserter draws steel before you finish speaking. No surrender in his eyes."
+    ],
+    "defeatText": "The deserter falls. Dain is silent a long moment, then nods once.",
+    "victoryText": "The deserter's blade finds its mark. Dain curses under his breath.",
+    "tags": ["humanoid", "quest_boss"],
+    "isBoss": false
   }
 ]

@@ -42,6 +42,7 @@ import {
   ENEMY_DEFINITIONS,
   buildEnemiesForLocation,
   buildBossEnemy,
+  buildEnemyCombatant,
   itemSupportsHealTargeting,
 } from '@engine/CombatEngine';
 import type { TurnEngine } from '@engine/TurnEngine';
@@ -967,6 +968,11 @@ function buildEnemiesFromContext(
   const eliteSpawn = game.runLayout?.eliteSpawns.find(s => s.locationId === game.currentLocationId);
   if (eliteSpawn && event?.tags?.includes('location_ambush')) {
     return buildEnemiesForLocation([eliteSpawn.enemyType], game.currentLocationId);
+  }
+
+  if (event?.tags?.includes('companion_quest_boss') && game.pendingQuestCombat) {
+    const def = ENEMY_DEFINITIONS.find(d => d.id === game.pendingQuestCombat!.enemyId);
+    if (def) return [buildEnemyCombatant(def, game.currentLocationId)];
   }
 
   if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);

@@ -514,6 +514,15 @@ export function RoadScreen({
           disabled: actionsLocked,
           onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'forage', questCompanionId: activeQuest.companionId })),
         }] : []),
+        ...(activeQuest && getQuestStep(activeQuest)?.type === 'miniboss' ? [{
+          label: getQuestActionLabel(activeQuest) ?? 'Fight',
+          sub: activeQuest.stepDeadlineLocationId
+            ? `Before loc ${activeQuest.stepDeadlineLocationId}`
+            : activeQuest.title,
+          variant: 'primary' as const,
+          disabled: actionsLocked,
+          onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'hunt', questCompanionId: activeQuest.companionId, questFight: true })),
+        }] : []),
         ...(hasMerchant ? [{
           label: 'Trade',
           sub: 'Buy · Sell',

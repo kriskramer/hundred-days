@@ -16,7 +16,7 @@
     },
     "steps": [
       { "type": "dialogue", "dialogueId": "dain_quest_deserter_1", "locationId": 35, "maxLocationId": 45 },
-      { "type": "visit", "dialogueId": "dain_quest_deserter_2", "locationId": 40, "maxLocationId": 45 }
+      { "type": "miniboss", "locationId": 40, "maxLocationId": 45, "enemyId": "deserter_soldier", "eventId": "quest_dain_deserter_fight", "victoryDialogueId": "dain_quest_deserter_2", "defeatDialogueId": "dain_quest_deserter_defeat" }
     ],
     "completionFlags": ["dain_quest_complete"],
     "epilogueComplete": "Dain finally caught his deserter — and chose to stand with you at the end.",
@@ -85,5 +85,48 @@
     ],
     "completionFlags": ["lefty_quest_complete"],
     "epilogueComplete": "Lefty settled his debt — and stayed with you through Roachak's gate."
+  },
+  {
+    "id": "emmy_sick_child",
+    "companionId": "emmy",
+    "title": "The Sick Child",
+    "recruitHint": "Emmy heard of a child dying of fever in the next town. She asks you to make time for it.",
+    "stakes": {
+      "level": "medium",
+      "onComplete": { "loyalty": 10, "morale": 4, "flags": ["emmy_child_quest_complete"] },
+      "onStepFail": { "loyalty": 5 },
+      "onQuestFail": {
+        "type": "loyalty_crash",
+        "amount": 15,
+        "narrative": "Emmy stops sharing her remedies. The child will have to wait for another healer."
+      }
+    },
+    "steps": [
+      { "type": "visit", "dialogueId": "emmy_quest_child_1", "locationId": 44, "maxLocationId": 54 },
+      { "type": "search", "locationId": 46, "maxLocationId": 54, "label": "Search for feverroot", "successDialogueId": "emmy_quest_child_found" }
+    ],
+    "completionFlags": ["emmy_child_quest_complete"],
+    "epilogueComplete": "The child Emmy saved sent a letter of thanks that reached you after the war."
+  },
+  {
+    "id": "lefty_stolen_map",
+    "companionId": "lefty_the_crook",
+    "title": "The Stolen Map",
+    "recruitHint": "Lefty lost a map that could shortcut the ridge. Recovering it matters to him.",
+    "stakes": {
+      "level": "medium",
+      "onComplete": { "loyalty": 10, "flags": ["lefty_map_quest_complete"] },
+      "onStepFail": { "loyalty": 4 },
+      "onQuestFail": {
+        "type": "loyalty_loss",
+        "amount": 12,
+        "narrative": "Lefty shrugs when you ask about the map. \"Some things stay lost. So do some people.\""
+      }
+    },
+    "steps": [
+      { "type": "search", "locationId": 52, "maxLocationId": 60, "label": "Search the thieves' camp", "successDialogueId": "lefty_quest_map_found", "failDialogueId": "lefty_quest_map_fail" }
+    ],
+    "completionFlags": ["lefty_map_quest_complete"],
+    "epilogueComplete": "Lefty's map led you through a ravine the soldiers never watched."
   }
 ]

@@ -31,6 +31,7 @@ export interface UnifiedConditions {
   notAlreadyMet?:           boolean;
   requiredFlag?:            string;
   forbiddenFlag?:           string;
+  requiredConversationId?:  string;
 }
 
 /**
@@ -39,7 +40,7 @@ export interface UnifiedConditions {
 export function evalConditions(
   c: UnifiedConditions,
   game: GameState,
-  context?: { dialogueId?: string; eventId?: string }
+  context?: { dialogueId?: string; eventId?: string; companionId?: string }
 ): boolean {
   const rep = game.reputation.value;
   const morale = game.morale.value;
@@ -116,6 +117,14 @@ export function evalConditions(
   // Story Flags
   if (c.requiredFlag !== undefined && !game.storyFlags.has(c.requiredFlag)) return false;
   if (c.forbiddenFlag !== undefined && game.storyFlags.has(c.forbiddenFlag)) return false;
+
+  if (c.requiredConversationId !== undefined) {
+    const companionId = c.requiredCompanionId ?? context?.companionId;
+    const companion = companionId
+      ? companions.find(co => co.id === companionId)
+      : companions.find(co => (co.conversationsHad ?? []).includes(c.requiredConversationId!));
+    if (!companion?.conversationsHad?.includes(c.requiredConversationId)) return false;
+  }
 
   // Special dialogue "notAlreadyMet" condition
   if (c.notAlreadyMet && context?.dialogueId) {

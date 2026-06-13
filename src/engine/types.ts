@@ -473,6 +473,7 @@ export interface DialogueCondition {
   notAlreadyMet?:          boolean;
   requiredFlag?:           string;
   forbiddenFlag?:          string;
+  requiredConversationId?: string;
 }
 
 export interface ChoiceOutcome {
@@ -531,6 +532,7 @@ export interface Dialogue {
   tags:              string[];
   displayName?:      string;
   canSteal?:         boolean;
+  chapterOrder?:     number;
 }
 
 export interface DialogueSessionOutcome {
@@ -735,6 +737,12 @@ export interface GameState {
   companionQuests?:        ActiveCompanionQuest[];
   usedShortcutKeys?:       string[];
   revealedRumorIds?:       string[];
+  pendingQuestCombat?:     PendingQuestCombat;
+}
+
+export interface PendingQuestCombat {
+  companionId: string;
+  enemyId:     string;
 }
 
 // ─────────────────────────────────────────
