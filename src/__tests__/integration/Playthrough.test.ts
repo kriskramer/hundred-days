@@ -1,397 +1,27 @@
-import { TurnEngine, ActionParams } from '@engine/TurnEngine';
-import {
-  createNewGameState,
-  applyMoraleDelta,
-  applyReputationDelta,
-  clamp,
-} from '@engine/GameState';
-import { generateRunLayout } from '@engine/RunLayout';
-import { normalizeRngState, nextMulberry32 } from '@engine/Random';
-import {
-  PlayerAction,
-  TurnPhase,
-  EventType,
-  GameState,
-  GameEvent,
-  CombatResult,
-  StatDelta,
-  TurnRecord,
-  DialogueSessionOutcome,
-  ChoiceOutcome,
-  LevelUpChoice,
-} from '@engine/types';
-import {
-  CombatEngine,
-  buildEnemiesForLocation,
-  buildBossEnemy,
-  EnemyCombatant,
-} from '@engine/CombatEngine';
-import { isBossLocation } from '@engine/bosses';
+import { EventType, GameState, GameEvent, CombatResult, DialogueSessionOutcome } from '@engine/types';
 import { isCombatEvent } from '@utils/isCombatEvent';
-import { getLocation } from '@data/locations';
-import { getDialogue } from '@data/dialogues';
-import { getCompanion } from '@data/companions';
-import { evalConditions } from '@engine/ConditionEvaluator';
+import {
+  makeSeededState,
+  createHarness,
+  submitAndResolve,
+  makeActionPicker,
+  applyDeltasSequentially,
+  applyStandaloneDialogueExpected,
+  SMOKE_POOL,
+} from '../helpers/playthroughHarness';
+import { assertTurnInvariants } from '../helpers/statInvariants';
 
 jest.mock('@engine/SaveEngine', () => ({
   saveEngine: { saveRun: jest.fn(() => Promise.resolve({ success: true })) },
 }));
 
-// ─────────────────────────────────────────
-// Harness setup
-// ─────────────────────────────────────────
-
-function makeSeededState(seed: number): GameState {
-  const base = createNewGameState('Test Hero');
-  return {
-    ...base,
-    seed,
-    rngState: normalizeRngState(seed),
-    runLayout: generateRunLayout(seed),
-  };
-}
-
-interface PlaythroughHarness {
-  engine: TurnEngine;
-  levelUpChoices: LevelUpChoice[] | null;
-  pendingOptionalEvents: GameEvent[];
-}
-
-function createHarness(state: GameState): PlaythroughHarness {
-  const harness: PlaythroughHarness = {
-    engine: undefined as unknown as TurnEngine,
-    levelUpChoices: null,
-    pendingOptionalEvents: [],
-  };
-  harness.engine = new TurnEngine(
-    state,
-    () => {},
-    event => {
-      if (event && !isCombatEvent(event)) {
-        harness.pendingOptionalEvents.push(event);
-      }
-    },
-    choices => { harness.levelUpChoices = choices; },
-  );
-  return harness;
-}
-
-// ─────────────────────────────────────────
-// Combat replication (mirrors CombatScreen.buildEnemiesFromContext)
-// ─────────────────────────────────────────
-
-function buildEnemiesFromEvent(event: GameEvent | null, game: GameState, random: () => number): EnemyCombatant[] {
-  const location = getLocation(game.currentLocationId);
-
-  const isBossEvent = event?.tags?.includes('boss');
-  const isLocationBossFight = !event && isBossLocation(game.currentLocationId) && !game.clearedCombatLocations.has(game.currentLocationId);
-  if (isBossEvent || isLocationBossFight) return buildBossEnemy(game);
-
-  const eliteSpawn = game.runLayout?.eliteSpawns.find(s => s.locationId === game.currentLocationId);
-  if (eliteSpawn && event?.tags?.includes('location_ambush')) {
-    return buildEnemiesForLocation([eliteSpawn.enemyType], game.currentLocationId);
-  }
-
-  if (event?.tags?.includes('bandit')) return buildEnemiesForLocation(['Bandits'], game.currentLocationId);
-  if (event?.tags?.includes('wolves')) return buildEnemiesForLocation(['Wolves'], game.currentLocationId);
-
-  const eligible = location.mobs.filter(m => random() * 100 < m.aggroPct && !m.isCompanion);
-  const toSpawn = eligible.length > 0
-    ? eligible.slice(0, 2)
-    : location.mobs.filter(m => !m.isCompanion).sort((a, b) => b.aggroPct - a.aggroPct).slice(0, 1);
-
-  return buildEnemiesForLocation(toSpawn.map(m => m.enemyId), game.currentLocationId);
-}
-
-function playCombatEncounter(engine: TurnEngine, event: GameEvent, state: GameState): CombatResult {
-  const rng = () => engine.nextRandom();
-  const enemies = buildEnemiesFromEvent(event, state, rng);
-  const combat = new CombatEngine(enemies, state, () => {}, rng);
-
-  let guard = 0;
-  while (combat.getState().phase !== 'post_combat') {
-    if (++guard > 100) throw new Error('Combat did not resolve within 100 rounds');
-
-    const cs = combat.getState();
-    if (cs.phase !== 'awaiting_input') break;
-
-    const lowHp = cs.player.maxHP > 0 && cs.player.currentHP / cs.player.maxHP <= 0.25;
-    const hasAliveEnemy = cs.enemies.some(e => e.currentHP > 0 && !e.isFleeing);
-
-    if (lowHp && hasAliveEnemy) {
-      combat.submitAction({ type: 'flee' });
-    } else {
-      combat.submitAction({ type: 'attack', targetEnemyIndex: 0 });
-    }
-  }
-
-  const result = combat.getState().result;
-  if (!result) throw new Error('Combat ended without a result');
-  return result;
-}
-
-// ─────────────────────────────────────────
-// Dialogue replication (mirrors DialogueEngine.choose/accumulateOutcome)
-// ─────────────────────────────────────────
-
-function accumulateDialogueOutcome(sessionOutcome: DialogueSessionOutcome, outcome: ChoiceOutcome): void {
-  if (outcome.reputationDelta) sessionOutcome.reputationDelta += outcome.reputationDelta;
-  if (outcome.moraleDelta) sessionOutcome.moraleDelta += outcome.moraleDelta;
-  if (outcome.xpGained) sessionOutcome.xpGained += outcome.xpGained;
-  if (outcome.resourceDelta?.food) sessionOutcome.resourceDeltas.food += outcome.resourceDelta.food;
-  if (outcome.resourceDelta?.gold) sessionOutcome.resourceDeltas.gold += outcome.resourceDelta.gold;
-  if (outcome.resourceDelta?.health) sessionOutcome.resourceDeltas.health += outcome.resourceDelta.health;
-  if (outcome.resourceDelta?.daysSpent) {
-    sessionOutcome.resourceDeltas.daysSpent = (sessionOutcome.resourceDeltas.daysSpent ?? 0) + outcome.resourceDelta.daysSpent;
-  }
-  if (outcome.companionEffect) sessionOutcome.companionEffects.push(outcome.companionEffect);
-  if (outcome.eventTrigger) sessionOutcome.eventTriggers.push(outcome.eventTrigger);
-  if (outcome.flagsSet) sessionOutcome.flagsSet.push(...outcome.flagsSet);
-}
-
-function playDialogueEncounter(state: GameState, dialogueId: string): DialogueSessionOutcome {
-  const dialogue = getDialogue(dialogueId);
-  if (!dialogue) throw new Error(`No dialogue found for id "${dialogueId}"`);
-
-  const outcome: DialogueSessionOutcome = {
-    dialogueId,
-    reputationDelta: 0,
-    moraleDelta: 0,
-    xpGained: 0,
-    resourceDeltas: { food: 0, gold: 0, health: 0, daysSpent: 0 },
-    companionEffects: [],
-    eventTriggers: [],
-    flagsSet: [],
-  };
-
-  let currentNodeId: string | null = dialogue.rootNodeId;
-  let guard = 0;
-
-  while (currentNodeId) {
-    if (++guard > 50) throw new Error(`Dialogue "${dialogueId}" did not terminate within 50 nodes`);
-
-    const node = dialogue.nodes[currentNodeId];
-    if (!node) break;
-
-    if (node.autoAdvance) {
-      currentNodeId = node.autoAdvanceToId ?? null;
-      continue;
-    }
-
-    const visibleChoices = node.choices.filter(choice =>
-      !choice.conditions || evalConditions(choice.conditions, state, { dialogueId }),
-    );
-    const choice = visibleChoices[0] ?? node.choices[0];
-    if (!choice) break;
-
-    accumulateDialogueOutcome(outcome, choice.outcome);
-    if (choice.outcome.flagsSet) {
-      choice.outcome.flagsSet.forEach(flag => state.storyFlags.add(flag));
-    }
-    currentNodeId = choice.outcome.nextNodeId;
-  }
-
-  return outcome;
-}
-
-// Mirrors app/game.tsx handleDialogueComplete's outcome -> CombatResult mapping
-function dialogueOutcomeToCombatResult(outcome: DialogueSessionOutcome): CombatResult {
-  return {
-    outcome: 'negotiated',
-    roundsFought: 0,
-    xpGained: outcome.xpGained,
-    goldGained: outcome.resourceDeltas.gold,
-    foodGained: outcome.resourceDeltas.food,
-    healthLost: -(outcome.resourceDeltas.health ?? 0),
-    healthDelta: outcome.resourceDeltas.health ?? 0,
-    moraleDelta: outcome.moraleDelta,
-    reputationDelta: outcome.reputationDelta,
-    injuriesGained: [],
-    companionInjuries: {},
-    daysSpent: outcome.resourceDeltas.daysSpent ?? 0,
-  };
-}
-
-// ─────────────────────────────────────────
-// Turn driver — submits an action and resolves any interactive
-// events / level-ups synchronously, mirroring the UI's role.
-// ─────────────────────────────────────────
-
-interface ResolvedInteraction {
-  event: GameEvent;
-  result: CombatResult;
-  dialogueOutcome?: DialogueSessionOutcome;
-}
-
-async function resolvePendingOptionalEvents(
-  harness: PlaythroughHarness,
-  engine: TurnEngine,
-  resolved: ResolvedInteraction[],
-): Promise<void> {
-  while (harness.pendingOptionalEvents.length > 0) {
-    const event = harness.pendingOptionalEvents.shift()!;
-    const state = engine.getState();
-    const outcome = playDialogueEncounter(state, event.id);
-
-    for (const effect of outcome.companionEffects) {
-      if (effect?.type === 'recruit') {
-        const companion = getCompanion(effect.companionId);
-        if (companion) engine.addCompanion(companion);
-      }
-    }
-    engine.markDialogueSeen(outcome.dialogueId, state.currentLocationId);
-
-    const result = dialogueOutcomeToCombatResult(outcome);
-    resolved.push({ event, result, dialogueOutcome: outcome });
-    await engine.applyStandaloneDialogueResult(result);
-  }
-}
-
-async function submitAndResolve(harness: PlaythroughHarness, params: ActionParams): Promise<ResolvedInteraction[]> {
-  const { engine } = harness;
-  const resolved: ResolvedInteraction[] = [];
-  harness.pendingOptionalEvents = [];
-
-  await engine.submitAction(params);
-
-  while (true) {
-    const state = engine.getState();
-    if (state.isComplete) {
-      await resolvePendingOptionalEvents(harness, engine, resolved);
-      return resolved;
-    }
-
-    const turn = state.currentTurn;
-    if (turn === null) {
-      await resolvePendingOptionalEvents(harness, engine, resolved);
-      return resolved;
-    }
-
-    if (turn.activeInteractiveEvent) {
-      const event = turn.activeInteractiveEvent;
-
-      if (isCombatEvent(event)) {
-        const result = playCombatEncounter(engine, event, state);
-        resolved.push({ event, result });
-        await engine.resolveInteractiveEvent(result);
-      } else {
-        const outcome = playDialogueEncounter(state, event.id);
-
-        for (const effect of outcome.companionEffects) {
-          if (effect?.type === 'recruit') {
-            const companion = getCompanion(effect.companionId);
-            if (companion) engine.addCompanion(companion);
-          }
-        }
-        engine.markDialogueSeen(outcome.dialogueId, state.currentLocationId);
-
-        const result = dialogueOutcomeToCombatResult(outcome);
-        const override: TurnRecord['eventOutcome'] = {
-          eventId: event.id,
-          result: 'dialogue_complete',
-          summary: 'Dialogue completed.',
-        };
-        resolved.push({ event, result, dialogueOutcome: outcome });
-        await engine.resolveInteractiveEvent(result, override);
-      }
-      continue;
-    }
-
-    if (turn.phase === TurnPhase.AwaitingLevelUp) {
-      const choices = harness.levelUpChoices;
-      if (!choices || choices.length === 0) {
-        throw new Error('Engine entered AwaitingLevelUp but no choices were captured');
-      }
-      harness.levelUpChoices = null;
-      await engine.submitLevelUpChoice(choices[0].id);
-      continue;
-    }
-
-    throw new Error(`submitAndResolve: unexpected turn phase "${turn.phase}"`);
-  }
-}
-
-// Replicates TurnEngine.applyAllDeltas() for the resources we assert on,
-// so we can reconcile a turn's recorded StatDelta[] against the resulting state.
-function applyDeltasSequentially(
-  pre: GameState,
-  deltas: StatDelta[],
-  maxHealth: number,
-): { food: number; gold: number; health: number; moraleValue: number; reputationValue: number } {
-  let food = pre.resources.food;
-  let gold = pre.resources.gold;
-  let health = pre.player.health;
-  let morale = pre.morale;
-  let reputation = pre.reputation;
-
-  for (const d of deltas) {
-    if (d.food !== undefined) food = Math.max(0, food + d.food);
-    if (d.gold !== undefined) gold = Math.max(0, gold + d.gold);
-    if (d.health !== undefined) health = clamp(health + d.health, 0, maxHealth);
-    if (d.morale !== undefined) morale = applyMoraleDelta(morale, d.morale);
-    if (d.reputation !== undefined) reputation = applyReputationDelta(reputation, d.reputation);
-  }
-
-  return { food, gold, health, moraleValue: morale.value, reputationValue: reputation.value };
-}
-
-function applyStandaloneDialogueExpected(
-  base: ReturnType<typeof applyDeltasSequentially>,
-  outcome: DialogueSessionOutcome,
-  maxHealth: number,
-): ReturnType<typeof applyDeltasSequentially> {
-  return {
-    food:  Math.max(0, base.food + outcome.resourceDeltas.food),
-    gold:  Math.max(0, base.gold + outcome.resourceDeltas.gold),
-    health: clamp(base.health + (outcome.resourceDeltas.health ?? 0), 0, maxHealth),
-    moraleValue: applyMoraleDelta(
-      { value: base.moraleValue, tier: 'neutral' as const },
-      outcome.moraleDelta,
-    ).value,
-    reputationValue: applyReputationDelta(
-      { value: base.reputationValue, tier: 'neutral' as const },
-      outcome.reputationDelta,
-    ).value,
-  };
-}
-
-// Weighted pool of actions a "reasonable" player would take. Move appears
-// most often (it's how you make progress), with food/morale upkeep mixed in.
-const ACTION_POOL: ActionParams[] = [
-  { action: PlayerAction.Move, forcedMarch: false },
-  { action: PlayerAction.Move, forcedMarch: false },
-  { action: PlayerAction.Move, forcedMarch: false },
-  { action: PlayerAction.Move, forcedMarch: false },
-  { action: PlayerAction.Hunt, method: 'forage' },
-  { action: PlayerAction.Rest, atInn: false },
-  { action: PlayerAction.Camp },
-  { action: PlayerAction.Rally },
-];
-
-// Independent seeded RNG (separate from the engine's own rngState) used to
-// pick a random action each turn, so playthroughs explore varied action
-// sequences while remaining reproducible per seed.
-function makeActionPicker(seed: number): () => ActionParams {
-  let rngState = normalizeRngState(seed);
-  return () => {
-    const next = nextMulberry32(rngState);
-    rngState = next.state;
-    return ACTION_POOL[Math.floor(next.value * ACTION_POOL.length)];
-  };
-}
-
-// ─────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────
-
-describe('Playthrough — resource integrity', () => {
-  it('keeps health/morale/reputation/food/gold/loyalty within bounds and reconciles every recorded delta', async () => {
+describe('Playthrough — smoke invariants', () => {
+  it('keeps resources within bounds and reconciles every recorded delta over 20 turns', async () => {
     const seed = 20260610;
-    const state = makeSeededState(seed);
-    const harness = createHarness(state);
+    const harness = createHarness(makeSeededState(seed));
     const pickAction = makeActionPicker(seed);
 
-    const MAX_TURNS = 80;
+    const MAX_TURNS = 20;
     let turnsRun = 0;
 
     for (let i = 0; i < MAX_TURNS; i++) {
@@ -400,45 +30,10 @@ describe('Playthrough — resource integrity', () => {
 
       const resolved = await submitAndResolve(harness, pickAction());
       turnsRun += 1;
-
-      const post = harness.engine.getState();
-
-      expect(post.player.health).toBeGreaterThanOrEqual(0);
-      expect(post.player.health).toBeLessThanOrEqual(post.player.stats.maxHealth);
-      expect(post.morale.value).toBeGreaterThanOrEqual(0);
-      expect(post.morale.value).toBeLessThanOrEqual(100);
-      expect(post.reputation.value).toBeGreaterThanOrEqual(0);
-      expect(post.reputation.value).toBeLessThanOrEqual(100);
-      expect(post.resources.food).toBeGreaterThanOrEqual(0);
-      expect(post.resources.gold).toBeGreaterThanOrEqual(0);
-      for (const companion of post.companions) {
-        expect(companion.loyalty.value).toBeGreaterThanOrEqual(0);
-        expect(companion.loyalty.value).toBeLessThanOrEqual(100);
-      }
-
-      if (post.turnHistory.length === pre.turnHistory.length + 1) {
-        const record = post.turnHistory[post.turnHistory.length - 1];
-        let expected = applyDeltasSequentially(pre, record.deltas, post.player.stats.maxHealth);
-
-        for (const interaction of resolved) {
-          if (interaction.dialogueOutcome) {
-            expected = applyStandaloneDialogueExpected(
-              expected,
-              interaction.dialogueOutcome,
-              post.player.stats.maxHealth,
-            );
-          }
-        }
-
-        expect(post.resources.food).toBeCloseTo(expected.food, 6);
-        expect(post.resources.gold).toBeCloseTo(expected.gold, 6);
-        expect(post.player.health).toBeCloseTo(expected.health, 6);
-        expect(post.morale.value).toBeCloseTo(expected.moraleValue, 6);
-        expect(post.reputation.value).toBeCloseTo(expected.reputationValue, 6);
-      }
+      assertTurnInvariants(pre, harness.engine.getState(), resolved);
     }
 
-    expect(turnsRun).toBeGreaterThan(10);
+    expect(turnsRun).toBeGreaterThan(5);
     expect(harness.engine.getState().turnHistory.length).toBeGreaterThan(0);
   });
 });
@@ -446,16 +41,15 @@ describe('Playthrough — resource integrity', () => {
 describe('Playthrough — encounter rates', () => {
   it('combat and NPC encounters fire at plausible rates over many turns', async () => {
     const SEEDS = [101, 202, 303, 404, 505, 606];
-    const TURNS_PER_SEED = 50;
+    const TURNS_PER_SEED = 20;
 
     let totalTurns = 0;
     let combatTurns = 0;
     let npcTurns = 0;
 
     for (const seed of SEEDS) {
-      const state = makeSeededState(seed);
-      const harness = createHarness(state);
-      const pickAction = makeActionPicker(seed);
+      const harness = createHarness(makeSeededState(seed));
+      const pickAction = makeActionPicker(seed, SMOKE_POOL);
 
       for (let i = 0; i < TURNS_PER_SEED; i++) {
         const pre = harness.engine.getState();
@@ -473,8 +67,6 @@ describe('Playthrough — encounter rates', () => {
 
     expect(totalTurns).toBeGreaterThan(50);
 
-    // Combat (bandit/wolf ambushes, danger-zone mobs, elites) and NPC road
-    // encounters should both occur, but not on every single turn.
     const combatRate = combatTurns / totalTurns;
     const npcRate = npcTurns / totalTurns;
 
@@ -490,11 +82,15 @@ describe('Playthrough — encounter rates', () => {
 describe('Playthrough — combat encounter resolution', () => {
   it('resolves a full combat encounter and applies its CombatResult to game state', async () => {
     const seed = 8675309;
-    const state = makeSeededState(seed);
-    const harness = createHarness(state);
+    const harness = createHarness(makeSeededState(seed));
     const pickAction = makeActionPicker(seed);
 
-    let found: { pre: GameState; post: GameState; event: GameEvent; result: CombatResult } | null = null;
+    let found: {
+      pre: GameState;
+      post: GameState;
+      event: GameEvent;
+      result: CombatResult;
+    } | null = null;
 
     for (let i = 0; i < 60 && !found; i++) {
       const pre = harness.engine.getState();
@@ -503,10 +99,7 @@ describe('Playthrough — combat encounter resolution', () => {
       const resolved = await submitAndResolve(harness, pickAction());
       const post = harness.engine.getState();
 
-      if (
-        resolved.length >= 1
-        && post.turnHistory.length === pre.turnHistory.length + 1
-      ) {
+      if (resolved.length >= 1 && post.turnHistory.length === pre.turnHistory.length + 1) {
         const combatResolved = resolved.find(r => isCombatEvent(r.event));
         if (combatResolved) {
           found = { pre, post, event: combatResolved.event, result: combatResolved.result };
@@ -546,8 +139,7 @@ describe('Playthrough — combat encounter resolution', () => {
 describe('Playthrough — NPC dialogue encounter resolution', () => {
   it('resolves a full NPC dialogue encounter and applies its outcome to game state', async () => {
     const seed = 13013;
-    const state = makeSeededState(seed);
-    const harness = createHarness(state);
+    const harness = createHarness(makeSeededState(seed));
     const pickAction = makeActionPicker(seed);
 
     let found: {

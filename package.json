@@ -14,7 +14,8 @@
     "test:unit": "jest src/__tests__/unit",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:playthrough": "rtk test npx jest src/__tests__/integration/Playthrough.test.ts"
+    "test:playthrough": "jest src/__tests__/integration/Walkthrough.test.ts src/__tests__/integration/CompanionQuest.test.ts",
+    "test:integration": "jest src/__tests__/integration/"
   },
   "dependencies": {
     "@expo-google-fonts/cinzel": "^0.4.0",

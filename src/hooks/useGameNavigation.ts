@@ -250,7 +250,7 @@ export function useGameNavigation({ gameState, setGame }: UseGameNavigationOptio
         const afterEvent = engine.getState();
         const questMatch = findQuestForDialogue(afterEvent, dialogueId);
         if (questMatch) {
-          engine.syncExternalState(advanceCompanionQuest(afterEvent, questMatch.companionId));
+          syncExternalGameState(advanceCompanionQuest(afterEvent, questMatch.companionId));
         }
         const nextInteractiveEvent = engine.getState().currentTurn?.activeInteractiveEvent;
         if (!nextInteractiveEvent) {

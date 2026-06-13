@@ -5,6 +5,7 @@ import { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE } from '@data/events';
 import { LOCATIONS, REGIONS } from '@data/locations';
 import { getAllShops } from '@data/shops';
 import { ITEMS } from '@data/items';
+import { COMPANION_QUEST_VARIANTS } from '@data/companionQuests';
 import { TRAVEL_DIALOGUES } from '@data/travelDialogues';
 import { BOSS_EVENT_MAP } from '@engine/bosses';
 import {
@@ -260,6 +261,34 @@ describe('Data integrity', () => {
 
       expect(event?.conditions.minLocationId).toBe(boss.locationId);
       expect(location?.actions.hasBossFight).toBe(true);
+    }
+  });
+
+  it('ensures companion quest references are valid', () => {
+    const dialogueIds = new Set(DIALOGUES.map(dialogue => dialogue.id));
+    const companionIds = new Set(COMPANIONS.map(companion => companion.id));
+    const locationIds = new Set(LOCATIONS.map(location => location.id));
+
+    for (const quest of COMPANION_QUEST_VARIANTS) {
+      expect(companionIds.has(quest.companionId)).toBe(true);
+
+      for (const step of quest.steps) {
+        if (step.type === 'dialogue' || step.type === 'visit') {
+          expect(dialogueIds.has(step.dialogueId)).toBe(true);
+        }
+        if (step.type === 'search') {
+          if (step.successDialogueId) {
+            expect(dialogueIds.has(step.successDialogueId)).toBe(true);
+          }
+          if (step.failDialogueId) {
+            expect(dialogueIds.has(step.failDialogueId)).toBe(true);
+          }
+        }
+        expect(locationIds.has(step.locationId)).toBe(true);
+        expect(locationIds.has(step.maxLocationId)).toBe(true);
+        expect(step.locationId).toBeGreaterThanOrEqual(1);
+        expect(step.maxLocationId).toBeLessThanOrEqual(125);
+      }
     }
   });
 

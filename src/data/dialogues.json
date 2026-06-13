@@ -11716,6 +11716,25 @@
     "canSteal": false
   },
   {
+    "id": "dain_quest_heirloom_fail",
+    "title": "Heirloom Not Found",
+    "triggerType": "player_initiated",
+    "triggerConditions": { "requiredCompanionId": "dain" },
+    "rootNodeId": "dq_hf_01",
+    "repeatable": false,
+    "tags": ["companion_quest", "dain"],
+    "nodes": {
+      "dq_hf_01": {
+        "id": "dq_hf_01",
+        "speakerName": "Dain",
+        "text": "The camps yield nothing but ash and broken buckles. Dain stares at the road without speaking.",
+        "choices": [{ "id": "dq_hf_done", "text": "Move on.", "tone": "pragmatic", "outcome": { "nextNodeId": null } }]
+      }
+    },
+    "displayName": "Dain",
+    "canSteal": false
+  },
+  {
     "id": "emmy_quest_herb_found",
     "title": "Marsh Herb",
     "triggerType": "player_initiated",

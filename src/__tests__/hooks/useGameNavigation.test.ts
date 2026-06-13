@@ -2,7 +2,9 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useGameNavigation } from '@hooks/useGameNavigation';
 import { makeGameState } from '../__fixtures__/gameState';
 import { useGameStore } from '@store/gameStore';
-import { EventType, ResolutionType, TurnPhase } from '@engine/types';
+import { EventType, ResolutionType, TurnPhase, PlayerAction } from '@engine/types';
+import { getCompanion } from '@data/companions';
+import { playDialogueEncounter } from '../helpers/playthroughHarness';
 
 jest.mock('@engine/SaveEngine', () => ({
   saveEngine: {
@@ -124,5 +126,64 @@ describe('useGameNavigation', () => {
 
     const { result } = mountHook(state);
     expect(result.current.actionsLocked).toBe(true);
+  });
+
+  it('advances companion quest after turn-bound NPC dialogue completes', async () => {
+    const dain = getCompanion('dain')!;
+    const questEvent = {
+      id: 'dain_quest_deserter_1',
+      type: EventType.NpcEncounter,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Dain Quest',
+      description: 'Dain wants to talk.',
+      conditions: {},
+      interactiveHandlerId: 'dialogue_handler',
+      repeatable: false,
+      tags: ['dialogue'],
+    };
+
+    const state = makeGameState({
+      currentLocationId: 35,
+      companions: [dain],
+      companionQuests: [{
+        companionId: 'dain',
+        variantId: 'dain_hunt_deserter',
+        title: 'The Deserter\'s Trail',
+        currentStepIndex: 0,
+        status: 'active',
+        stepFlags: [],
+        stepRetriesUsed: 0,
+        pinnedLocationId: 35,
+        stepDeadlineLocationId: 45,
+      }],
+      currentTurn: {
+        action: PlayerAction.Move,
+        phase: TurnPhase.AwaitingPlayer,
+        executedForcedMarch: false,
+        locationBefore: 34,
+        activeInteractiveEvent: questEvent,
+        eventsQueue: [],
+        triggeredEventIds: [],
+        pendingDeltas: [],
+        log: [],
+        levelUpOccurred: false,
+      },
+    });
+
+    const { result } = mountHook(state);
+
+    act(() => {
+      result.current.handleOpenNpc('dain_quest_deserter_1', questEvent);
+    });
+
+    const dialogueOutcome = playDialogueEncounter(state, 'dain_quest_deserter_1');
+
+    await act(async () => {
+      await result.current.handleNpcInteractionComplete(dialogueOutcome);
+    });
+
+    const updated = useGameStore.getState().gameState;
+    expect(updated?.companionQuests?.[0].currentStepIndex).toBe(1);
+    expect(updated?.companionQuests?.[0].pinnedLocationId).toBe(40);
   });
 });
