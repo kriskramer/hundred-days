@@ -11,6 +11,11 @@ import { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE } from '@data/events';
 import { findDialogueForLocation, getDialogue } from './DialogueEngine';
 import { evalConditions } from './ConditionEvaluator';
 import { getNpcArchetypesForLocation } from '@data/npcEncounters';
+import {
+  getEncounterProgressMultipliers,
+  getEventEncounterKind,
+  scaleEncounterProbability,
+} from './EncounterBalance';
 
 export { EVENT_DEFINITIONS, EVENT_POOLS_BY_TYPE };
 
@@ -39,8 +44,13 @@ export function sampleEventsForTurn(
   });
 
   const fired: GameEvent[] = [];
+  const locationId = state.currentLocationId;
   for (const event of eligible) {
-    if (rng() < event.conditions.probability) {
+    const kind = getEventEncounterKind(event);
+    const probability = kind
+      ? scaleEncounterProbability(event.conditions.probability, locationId, kind)
+      : event.conditions.probability;
+    if (rng() < probability) {
       fired.push(event);
       if (fired.length >= 2) break;
     }
@@ -65,8 +75,10 @@ export function sampleNpcEncounterForTurn(
   // Shuffle archetypes via rng
   const shuffled = [...archetypes].sort(() => rng() - 0.5);
 
+  const npcMult = getEncounterProgressMultipliers(state.currentLocationId).npc;
+
   for (const archetype of shuffled) {
-    if (rng() > archetype.baseProbability) continue;
+    if (rng() > archetype.baseProbability * npcMult) continue;
 
     // Pick a random dialogue from this archetype's pool
     const pool = archetype.dialoguePool;

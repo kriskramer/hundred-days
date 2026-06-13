@@ -702,6 +702,85 @@ describe('TurnEngine — interactive events', () => {
     expect(onAwaitInput).toHaveBeenCalledWith(banditEvent);
   });
 
+  it('does not block the turn for optional dialogue events', async () => {
+    const dialogueEvent: GameEvent = {
+      id:             'wounded_stranger',
+      type:           EventType.Dialogue,
+      resolutionType: ResolutionType.Interactive,
+      name:           'Someone Needs Help',
+      description:    'A figure is slumped at the side of the road.',
+      conditions:     { probability: 1.0 },
+      interactiveHandlerId: 'dialogue_handler',
+      repeatable:     false,
+      tags:           ['dialogue', 'story'],
+    };
+    mockSampleEvents.mockReturnValue([dialogueEvent]);
+
+    const { engine, onAwaitInput } = makeEngine({
+      currentLocationId: 35,
+      resources: { food: 8, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 60,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Rest, atInn: true });
+
+    expect(onAwaitInput).toHaveBeenCalledWith(dialogueEvent);
+    const after = engine.getState();
+    expect(after.currentTurn).toBeNull();
+    expect(after.dayNumber).toBe(2);
+    expect(after.player.health).toBeGreaterThan(60);
+  });
+
+  it('finishes a stuck optional dialogue turn when the player chooses another action', async () => {
+    const dialogueEvent: GameEvent = {
+      id:             'wounded_stranger',
+      type:           EventType.Dialogue,
+      resolutionType: ResolutionType.Interactive,
+      name:           'Someone Needs Help',
+      description:    'A figure is slumped at the side of the road.',
+      conditions:     { probability: 1.0 },
+      interactiveHandlerId: 'dialogue_handler',
+      repeatable:     false,
+      tags:           ['dialogue', 'story'],
+    };
+
+    const { engine, onAwaitInput } = makeEngine({
+      currentLocationId: 35,
+      resources: { food: 8, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+
+    engine['state'] = {
+      ...engine.getState(),
+      currentTurn: {
+        phase: TurnPhase.AwaitingPlayer,
+        action: PlayerAction.Move,
+        executedForcedMarch: false,
+        locationBefore: 34,
+        eventsQueue: [],
+        triggeredEventIds: ['wounded_stranger'],
+        activeInteractiveEvent: dialogueEvent,
+        eventOutcome: undefined,
+        pendingDeltas: [{ source: 'move', food: -1, narrative: 'You march onward.' }],
+        travelDialogue: undefined,
+        levelUpOccurred: false,
+        log: [{ timestamp: Date.now(), text: 'You march onward.' }],
+      },
+    };
+
+    await engine.submitAction({ action: PlayerAction.Rest, atInn: true });
+
+    expect(onAwaitInput).toHaveBeenCalledWith(null);
+    const after = engine.getState();
+    expect(after.currentTurn).toBeNull();
+    expect(after.turnHistory).toHaveLength(2);
+    expect(after.turnHistory[0].eventOutcome?.result).toBe('skipped');
+    expect(after.turnHistory[1].action).toBe(PlayerAction.Rest);
+  });
+
   it('applies combat result and completes turn after resolveInteractiveEvent', async () => {
     const banditEvent: GameEvent = {
       id: 'bandit_ambush', type: EventType.Combat,
@@ -880,6 +959,54 @@ describe('TurnEngine — interactive events', () => {
     const after = engine.getState();
     expect(after.isComplete).toBe(true);
     expect(after.outcome).toBe('defeat');
+  });
+
+  it('ends the run immediately on interactive boss encounter defeat', async () => {
+    const { engine, onAwaitInput } = makeEngine({
+      currentLocationId: 32,
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+    const bossEvent = onAwaitInput.mock.calls[0][0] as GameEvent;
+    expect(bossEvent.type).toBe(EventType.BossEncounter);
+
+    await engine.resolveInteractiveEvent({
+      outcome: 'defeat', roundsFought: 2, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 40, healthDelta: -40, moraleDelta: -12, reputationDelta: 0,
+      injuriesGained: ['wounded'], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    const after = engine.getState();
+    expect(after.isComplete).toBe(true);
+    expect(after.outcome).toBe('defeat');
+    expect(after.clearedCombatLocations.has(32)).toBe(false);
+  });
+
+  it('ends the run when location combat resolves a defeat outside an active turn', async () => {
+    const { engine } = makeEngine({
+      currentLocationId: 5,
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 20,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+
+    await engine.resolveLocationCombat(5, {
+      outcome: 'defeat', roundsFought: 2, xpGained: 0, goldGained: 0,
+      foodGained: 0, healthLost: 20, healthDelta: -20, moraleDelta: -12, reputationDelta: 0,
+      injuriesGained: [], companionInjuries: {}, itemsConsumed: [],
+    });
+
+    const after = engine.getState();
+    expect(after.isComplete).toBe(true);
+    expect(after.outcome).toBe('defeat');
+    expect(after.player.health).toBe(0);
   });
 
   it('applies full combat rewards for location combat results', async () => {

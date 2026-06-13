@@ -1305,7 +1305,7 @@
       "traveler_news_node": {
         "id": "traveler_news_node",
         "speakerName": "Apprentice",
-        "text": "\"News? Prices are up something awful in the towns ahead — don't get fleeced. Roads get ugly after dark, more than usual lately. And folk keep talking about something stirring out east, though nobody seems to agree on what.\" They shrug. \"Take it for what it's worth.\"",
+        "text": "\"News? The Crimson Circuit came through last week — jugglers, sword-dancers, the whole spectacle. Lovely show, emptied every purse in town.\" They shrug. \"Also heard the crown doubled road taxes at three checkposts east. And someone said a barn burned at Harrow's Rest — grain prices are already climbing. Take it for what it's worth.\"",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -1607,7 +1607,7 @@
       "mr2_news_node": {
         "id": "mr2_news_node",
         "speakerName": "Merchant",
-        "text": "\"Prices on grain and salt are climbing in every town I've passed through. Folk are nervous about something — nobody quite says what.\" She shrugs, businesslike. \"Bad for them, good for me, I suppose.\"",
+        "text": "\"Grain and salt are up, same as everywhere — the barn fire at Harrow's Rest didn't help. Performers came through and distracted half my customers, and the new road tax ate what was left.\" She shrugs, businesslike. \"Bad for them, good for me, I suppose — if they still have coin to spend.\"",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -2499,7 +2499,7 @@
       "br3_listen_node": {
         "id": "br3_listen_node",
         "speakerName": "Bard",
-        "text": "The bard happily rattles off a string of small-town scandals, half of which are probably true. None of it changes your plans, but it's good to know which doors might open a little easier with the right name dropped.",
+        "text": "The bard happily rattles off a string of small-town scandals — the troupe that stole every heart and purse, the toll clerk taking bribes, the granary that lit up the night sky. Half of it is probably true. None of it changes your plans, but it's good to know which doors might open a little easier with the right name dropped.",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -9442,7 +9442,7 @@
       "amrik_g_news_node": {
         "id": "amrik_g_news_node",
         "speakerName": "The Village Merchant",
-        "text": "\"This and that. Mostly the same rumors everyone else is passing around. Nothing I'd bet coin on.\"",
+        "text": "\"Oh, plenty. A traveling troupe — the Crimson Circuit — camped two towns east and left everyone poorer and happier. The crown raised road taxes again, which nobody's happy about. And there's talk of a big fight brewing at Dakla Bohr, if you're far enough along to have heard the name.\"",
         "choices": [],
         "autoAdvance": true,
         "autoAdvanceToId": null
@@ -10764,5 +10764,715 @@
         "autoAdvanceToId": null
       }
     }
+  },
+  {
+    "id": "rumor_mill_performers",
+    "title": "Tavern Talk — The Traveling Troupe",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "town"
+      ]
+    },
+    "rootNodeId": "rumor_perf_01",
+    "repeatable": true,
+    "tags": [
+      "dialogue",
+      "town",
+      "rumor"
+    ],
+    "nodes": {
+      "rumor_perf_01": {
+        "id": "rumor_perf_01",
+        "speakerName": "Narrator",
+        "text": "The common room is louder than usual. A table of locals is still arguing about last night's performance — whether the sword-dancer was real steel or trickery, and whether the fire-juggler singed the rafters on purpose.",
+        "choices": [
+          {
+            "id": "rumor_perf_listen",
+            "text": "Ask what troupe they're talking about.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "rumor_perf_told",
+              "moraleDelta": 2
+            }
+          },
+          {
+            "id": "rumor_perf_ignore",
+            "text": "You don't have time for gossip.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "rumor_perf_told": {
+        "id": "rumor_perf_told",
+        "speakerName": "Local",
+        "text": "\"The Crimson Circuit — acrobats, jugglers, a lute player who can make grown men weep. They came through from the east two nights ago and emptied every purse in town.\" They lean in. \"Word is they're camped on the far side of the next ridge. Good show if you've coin to spare. Watch your belt pouch, though — performers travel with pickpockets the way priests travel with guilt.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Tavern Talk",
+    "canSteal": false
+  },
+  {
+    "id": "rumor_mill_road_taxes",
+    "title": "Tavern Talk — The New Levies",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "town"
+      ]
+    },
+    "rootNodeId": "rumor_tax_01",
+    "repeatable": true,
+    "tags": [
+      "dialogue",
+      "town",
+      "rumor"
+    ],
+    "nodes": {
+      "rumor_tax_01": {
+        "id": "rumor_tax_01",
+        "speakerName": "Narrator",
+        "text": "Two locals at the bar are going at it over a stack of stamped toll receipts — voices low but sharp, the kind of argument that has been simmering since breakfast.",
+        "choices": [
+          {
+            "id": "rumor_tax_listen",
+            "text": "Ask what the fuss is about.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "rumor_tax_told",
+              "moraleDelta": 1
+            }
+          },
+          {
+            "id": "rumor_tax_ignore",
+            "text": "You don't have time for gossip.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "rumor_tax_told": {
+        "id": "rumor_tax_told",
+        "speakerName": "Innkeeper",
+        "text": "\"Crown doubled the road tax at three checkposts east of here — 'war levy,' they call it.\" The innkeeper wipes a mug harder than it needs. \"Merchants pass it straight to us, and we pass it to you. I've had three regulars say they'll take the forest paths instead. Can't say I blame them. Just means the paths get uglier and my rooms stay emptier.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Tavern Talk",
+    "canSteal": false
+  },
+  {
+    "id": "rumor_mill_barn_fire",
+    "title": "Tavern Talk — Smoke on the Wind",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "town"
+      ]
+    },
+    "rootNodeId": "rumor_fire_01",
+    "repeatable": true,
+    "tags": [
+      "dialogue",
+      "town",
+      "rumor"
+    ],
+    "nodes": {
+      "rumor_fire_01": {
+        "id": "rumor_fire_01",
+        "speakerName": "Narrator",
+        "text": "A traveler by the hearth still smells of smoke. They stare into their cup like they're trying to read the future in the dregs, and the whole room keeps glancing their way.",
+        "choices": [
+          {
+            "id": "rumor_fire_listen",
+            "text": "Ask what happened.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "rumor_fire_told",
+              "moraleDelta": 1
+            }
+          },
+          {
+            "id": "rumor_fire_ignore",
+            "text": "You don't have time for gossip.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "rumor_fire_told": {
+        "id": "rumor_fire_told",
+        "speakerName": "Traveler",
+        "text": "\"Granary barn at Harrow's Rest — three towns east — went up in the night. Half the winter stores with it.\" They rub soot from their knuckles. \"Some say lightning. Some say someone tossed a torch because the owner wouldn't pay protection. Either way, prices on grain jump every time the wind blows wrong. If you're buying food ahead, do it now.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Tavern Talk",
+    "canSteal": false
+  },
+  {
+    "id": "rumor_mill_dakla_bohr",
+    "title": "Tavern Talk — Dakla Bohr",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "town"
+      ],
+      "minLocationId": 55
+    },
+    "rootNodeId": "rumor_db_01",
+    "repeatable": true,
+    "tags": [
+      "dialogue",
+      "town",
+      "rumor"
+    ],
+    "nodes": {
+      "rumor_db_01": {
+        "id": "rumor_db_01",
+        "speakerName": "Narrator",
+        "text": "An old soldier sits alone with a untouched meal, tracing a map scratched into the tabletop with a calloused finger. The common room goes quiet whenever he mutters a place name.",
+        "choices": [
+          {
+            "id": "rumor_db_listen",
+            "text": "Ask what he's marking.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "rumor_db_told",
+              "moraleDelta": 1
+            }
+          },
+          {
+            "id": "rumor_db_ignore",
+            "text": "You don't have time for gossip.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "rumor_db_told": {
+        "id": "rumor_db_told",
+        "speakerName": "Old Soldier",
+        "text": "\"Dakla Bohr.\" He taps the scratched mark. \"Every dispatch rider this week says the same — armies converging on the fork south of here. A real battle, not a skirmish. Win it and the eastern line holds. Lose it and...\" He trails off, then shrugs like the rest is obvious. \"If you're still marching east, you'll smell the camps before you see the banners. Give the place a wide berth unless you mean to enlist.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Tavern Talk",
+    "canSteal": false
+  },
+  {
+    "id": "traveler_news_performers",
+    "title": "News from a Troupe Member",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "wilderness"
+      ]
+    },
+    "rootNodeId": "tnp_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor"
+    ],
+    "nodes": {
+      "tnp_01": {
+        "id": "tnp_01",
+        "speakerName": "Narrator",
+        "text": "A young performer hurries toward you from the opposite direction — face still dusted with stage powder, a rolled bedroll tied with ribbon, juggling pins clinking inside a canvas sack.",
+        "choices": [
+          {
+            "id": "tnp_news",
+            "text": "Ask for news from the road ahead.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "tnp_news_node"
+            }
+          },
+          {
+            "id": "tnp_meal",
+            "text": "Share a meal and trade stories.",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "tnp_meal_node",
+              "resourceDelta": {
+                "food": -1,
+                "gold": 2
+              },
+              "moraleDelta": 4
+            }
+          },
+          {
+            "id": "tnp_pass",
+            "text": "Nod and continue on without stopping.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "tnp_news_node": {
+        "id": "tnp_news_node",
+        "speakerName": "Performer",
+        "text": "\"The Crimson Circuit camped two days east — best crowds we've had all season. Townsfolk forgot the war for one night, which is worth something.\" They grin, then lower their voice. \"Between us, leave before the second act if you value your purse. Our manager hires 'apprentices' who aren't. Roads after dark are still ugly, troupe or no troupe.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "tnp_meal_node": {
+        "id": "tnp_meal_node",
+        "speakerName": "Performer",
+        "text": "They accept your food with theatrical gratitude, flip a coin into your palm, and bow like you're an audience of one. \"If you catch the show, cheer for the juggler — that's me.\" They skip off down the road, humming.",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Fellow Traveler",
+    "canSteal": true
+  },
+  {
+    "id": "traveler_news_road_taxes",
+    "title": "News from a Toll Clerk",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "wilderness"
+      ]
+    },
+    "rootNodeId": "tnt_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor"
+    ],
+    "nodes": {
+      "tnt_01": {
+        "id": "tnt_01",
+        "speakerName": "Narrator",
+        "text": "A harried clerk sits on a roadside stone, boots muddy, a leather satchel of sealed tax notices hugged to their chest like something precious and despised.",
+        "choices": [
+          {
+            "id": "tnt_news",
+            "text": "Ask for news from the road ahead.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "tnt_news_node"
+            }
+          },
+          {
+            "id": "tnt_meal",
+            "text": "Share a meal and trade stories.",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "tnt_meal_node",
+              "resourceDelta": {
+                "food": -1,
+                "gold": 3
+              },
+              "moraleDelta": 3
+            }
+          },
+          {
+            "id": "tnt_pass",
+            "text": "Nod and continue on without stopping.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "tnt_news_node": {
+        "id": "tnt_news_node",
+        "speakerName": "Clerk",
+        "text": "\"New levy on every wagon wheel crossing the valley — war tax, officially. Unofficially, three checkposts east are backed up a mile each because nobody brought enough coin.\" They sigh. \"Foot travelers get shaken down too if they look prosperous. Keep your receipts if you pay. And if someone offers you a 'forest shortcut' around the tolls, they're probably selling you to bandits.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "tnt_meal_node": {
+        "id": "tnt_meal_node",
+        "speakerName": "Clerk",
+        "text": "Grateful for the food, they press a few coins into your hand — petty cash, they explain, for the trouble of listening. \"First friendly face in a week. Safe travels.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Fellow Traveler",
+    "canSteal": true
+  },
+  {
+    "id": "traveler_news_barn_fire",
+    "title": "News from a Burned-Out Farm",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "wilderness"
+      ]
+    },
+    "rootNodeId": "tnf_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor"
+    ],
+    "nodes": {
+      "tnf_01": {
+        "id": "tnf_01",
+        "speakerName": "Narrator",
+        "text": "A farmer trudges toward you with a soot-blackened cloak and empty hands — the look of someone who lost a argument with the night and knows it.",
+        "choices": [
+          {
+            "id": "tnf_news",
+            "text": "Ask for news from the road ahead.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "tnf_news_node"
+            }
+          },
+          {
+            "id": "tnf_meal",
+            "text": "Share a meal and trade stories.",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "tnf_meal_node",
+              "resourceDelta": {
+                "food": -2
+              },
+              "reputationDelta": 3,
+              "moraleDelta": 2
+            }
+          },
+          {
+            "id": "tnf_pass",
+            "text": "Nod and continue on without stopping.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "tnf_news_node": {
+        "id": "tnf_news_node",
+        "speakerName": "Farmer",
+        "text": "\"My cousin's barn at Harrow's Rest — three days east — burned to the ground. Six head of cattle, all the hay, gone.\" Their voice is flat with shock. \"Could've been lightning. Could've been someone who didn't like his politics. Either way, folk there are hungry and angry. If you're buying grain, expect to pay. If you're selling mercy, they'll take that too.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "tnf_meal_node": {
+        "id": "tnf_meal_node",
+        "speakerName": "Farmer",
+        "text": "They eat slowly, like they've forgotten how. \"You're kind. Don't meet many of those lately.\" They shuffle on without another word.",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Fellow Traveler",
+    "canSteal": true
+  },
+  {
+    "id": "traveler_news_dakla_bohr",
+    "title": "News from a Dispatch Rider",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "locationTypes": [
+        "wilderness"
+      ],
+      "minLocationId": 60
+    },
+    "rootNodeId": "tnd_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor"
+    ],
+    "nodes": {
+      "tnd_01": {
+        "id": "tnd_01",
+        "speakerName": "Narrator",
+        "text": "A dispatch rider pulls up short when they see you — mud to the knee, horse lathered, a leather tube of sealed orders bouncing at their belt.",
+        "choices": [
+          {
+            "id": "tnd_news",
+            "text": "Ask for news from the road ahead.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "tnd_news_node"
+            }
+          },
+          {
+            "id": "tnd_meal",
+            "text": "Offer water and a bite while they rest the horse.",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "tnd_meal_node",
+              "resourceDelta": {
+                "food": -1
+              },
+              "reputationDelta": 2,
+              "moraleDelta": 2
+            }
+          },
+          {
+            "id": "tnd_pass",
+            "text": "Wave them on without stopping.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "tnd_news_node": {
+        "id": "tnd_news_node",
+        "speakerName": "Rider",
+        "text": "\"Orders through every garrison I've passed — all able bodies to march on Dakla Bohr before the month turns.\" They glance south, where the road forks toward distant smoke. \"Real battle brewing at the fork. Win and the line holds. Lose and the whole eastern front unravels. I'm not going there. Just delivering the paper that sends other people.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "tnd_meal_node": {
+        "id": "tnd_meal_node",
+        "speakerName": "Rider",
+        "text": "They accept gratefully, pat the horse's neck, and salute you with a tired half-smile before spurring on west. You watch the dust settle long after they're gone.",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Fellow Traveler",
+    "canSteal": true
+  },
+  {
+    "id": "merchant_road_04",
+    "title": "Levies and Audiences",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "mr4_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor",
+      "merchant"
+    ],
+    "nodes": {
+      "mr4_01": {
+        "id": "mr4_01",
+        "speakerName": "Merchant",
+        "text": "\"You look like someone who listens.\" The merchant wipes road dust from his brow. \"I've got news worth more than the salt I'm hauling — or I can sell you the salt instead. Your choice.\"",
+        "choices": [
+          {
+            "id": "mr4_news",
+            "text": "\"What news do you have?\"",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "mr4_news_node",
+              "moraleDelta": 1
+            }
+          },
+          {
+            "id": "mr4_buy",
+            "text": "Buy a sack of salt and keep moving.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": "mr4_buy_node",
+              "resourceDelta": {
+                "gold": -4,
+                "food": 2
+              }
+            }
+          },
+          {
+            "id": "mr4_decline",
+            "text": "\"Not today.\"",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "mr4_news_node": {
+        "id": "mr4_news_node",
+        "speakerName": "Merchant",
+        "text": "\"Performers came through last week — the Crimson Circuit. Lovely show, terrible for business. Every customer spent their coin on ale and applause instead of my goods.\" He scowls. \"And the new road tax ate what was left. Three checkposts doubled their fees. I had to leave half my load at the second toll or I'd have nothing to sell at the third.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "mr4_buy_node": {
+        "id": "mr4_buy_node",
+        "speakerName": "Merchant",
+        "text": "\"Smart choice. Salt keeps longer than gossip.\" He hands over the sack and rattles off down the road.",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Traveling Merchant",
+    "canSteal": true
+  },
+  {
+    "id": "merchant_road_05",
+    "title": "Smoke and Dispatches",
+    "triggerType": "event_fired",
+    "triggerConditions": {
+      "minLocationId": 55
+    },
+    "rootNodeId": "mr5_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor",
+      "merchant"
+    ],
+    "nodes": {
+      "mr5_01": {
+        "id": "mr5_01",
+        "speakerName": "Merchant",
+        "text": "A merchant woman has unhitched her cart beside the road, staring at a column of smoke far to the east. She doesn't look happy.",
+        "choices": [
+          {
+            "id": "mr5_news",
+            "text": "\"Bad day for trade?\"",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "mr5_news_node",
+              "moraleDelta": 1
+            }
+          },
+          {
+            "id": "mr5_sell",
+            "text": "Sell her some of your own surplus food.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": "mr5_sell_node",
+              "resourceDelta": {
+                "food": -3,
+                "gold": 6
+              }
+            }
+          },
+          {
+            "id": "mr5_decline",
+            "text": "Leave her to her thoughts.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "mr5_news_node": {
+        "id": "mr5_news_node",
+        "speakerName": "Merchant",
+        "text": "\"Barn fire at Harrow's Rest took a supplier of mine — half a harvest gone, prices already climbing.\" She nods at the distant smoke. \"And that's not the worst of it. Every rider I meet says the same: armies marching on Dakla Bohr. Soldiers who used to guard the trade routes are being pulled south. Caravans are rerouting, bandits know it, and I'm stuck in the middle with a cart full of pottery.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "mr5_sell_node": {
+        "id": "mr5_sell_node",
+        "speakerName": "Merchant",
+        "text": "\"Bless you — I've been living on hardtack for three days.\" She counts out coin without haggling. \"If you're still heading east, give Dakla Bohr a wide berth. Nothing good is gathering there.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Traveling Merchant",
+    "canSteal": true
+  },
+  {
+    "id": "bard_road_04",
+    "title": "Ballads and Bulletins",
+    "triggerType": "event_fired",
+    "triggerConditions": {},
+    "rootNodeId": "br4_01",
+    "repeatable": true,
+    "tags": [
+      "npc_encounter",
+      "flavor",
+      "bard"
+    ],
+    "nodes": {
+      "br4_01": {
+        "id": "br4_01",
+        "speakerName": "Bard",
+        "text": "The bard finishes a verse about a doomed romance and immediately launches into something faster — a marching rhythm with too many drumbeats for comfort. \"News travels better set to music,\" they say. \"Want the short version or the version with harmonies?\"",
+        "choices": [
+          {
+            "id": "br4_short",
+            "text": "The short version, please.",
+            "tone": "curious",
+            "outcome": {
+              "nextNodeId": "br4_short_node"
+            }
+          },
+          {
+            "id": "br4_tip",
+            "text": "Pay for the version with harmonies.",
+            "tone": "heroic",
+            "outcome": {
+              "nextNodeId": "br4_tip_node",
+              "resourceDelta": {
+                "gold": -2
+              },
+              "moraleDelta": 3
+            }
+          },
+          {
+            "id": "br4_move",
+            "text": "You haven't time for concerts.",
+            "tone": "pragmatic",
+            "outcome": {
+              "nextNodeId": null
+            }
+          }
+        ]
+      },
+      "br4_short_node": {
+        "id": "br4_short_node",
+        "speakerName": "Bard",
+        "text": "\"Performers east, taxes up, barn burned at Harrow's Rest, armies at Dakla Bohr.\" They strum once, flatly. \"There — four verses in one. I could make it rhyme, but then you'd remember it, and some of this you'd rather forget.\"",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      },
+      "br4_tip_node": {
+        "id": "br4_tip_node",
+        "speakerName": "Bard",
+        "text": "They launch into a wicked little song — the Crimson Circuit's pickpockets, the toll clerk who takes bribes, the granary that lit up the sky, the banners gathering at Dakla Bohr. It's funny until it isn't. By the last verse the road feels narrower than it did a moment ago.",
+        "choices": [],
+        "autoAdvance": true,
+        "autoAdvanceToId": null
+      }
+    },
+    "displayName": "Road Bard",
+    "canSteal": true
   }
 ]

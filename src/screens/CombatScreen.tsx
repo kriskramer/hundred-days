@@ -35,12 +35,14 @@ import {
   CombatEngine,
   CombatState,
   CombatAction,
+  CombatHealTarget,
   CombatLogEntry,
   EnemyCombatant,
   CompanionCombatant,
   ENEMY_DEFINITIONS,
   buildEnemiesForLocation,
   buildBossEnemy,
+  itemSupportsHealTargeting,
 } from '@engine/CombatEngine';
 import type { TurnEngine } from '@engine/TurnEngine';
 
@@ -68,8 +70,10 @@ interface Props {
 import { Colors as C } from '@theme';
 import { TypewriterText } from '@components';
 
-const LOG_TYPE_INTERVAL = 18;
-const LOG_LINE_GAP_MS   = 120;
+const LOG_TYPE_INTERVAL        = 18;
+const LOG_LINE_GAP_MS          = 120;
+const ENCOUNTER_TYPE_INTERVAL  = 18;
+const ENCOUNTER_INITIAL_DELAY  = 150;
 
 const BEHAVIOR_DESC: Record<EnemyBehavior, string> = {
   [EnemyBehavior.Aggressive]:  'Attacks every round without hesitation.',
@@ -89,7 +93,9 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const [combatState, setCombatState] = useState<CombatState | null>(null);
   const [showResult,  setShowResult]  = useState(false);
   const [showItemPicker, setShowItemPicker] = useState(false);
+  const [pendingHealItem, setPendingHealItem] = useState<ItemDefinition | null>(null);
   const [encounterText, setEncounterText] = useState('');
+  const [encounterTypingDone, setEncounterTypingDone] = useState(false);
 
   const [animateFromIdx, setAnimateFromIdx] = useState(0);
 
@@ -104,6 +110,21 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
   const companionShakeValues = useRef<Record<string, Animated.Value>>({});
   const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionHandledRef = useRef(false);
+  const combatResultRef = useRef<CombatResult | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const showResultRef = useRef(showResult);
+
+  useEffect(() => {
+    combatResultRef.current = combatState?.result ?? null;
+  }, [combatState?.result]);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    showResultRef.current = showResult;
+  }, [showResult]);
 
   useEffect(() => {
     return () => {
@@ -120,7 +141,9 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
 
     const combatRng = engine ? () => engine.nextRandom() : Math.random;
     const enemies = buildEnemiesFromContext(event, gameState, combatRng);
-    setEncounterText(getEncounterText(enemies, combatRng));
+    const nextEncounterText = getEncounterText(enemies, combatRng);
+    setEncounterText(nextEncounterText);
+    setEncounterTypingDone(!nextEncounterText);
 
     const combatEngine = new CombatEngine(
       enemies,
@@ -183,43 +206,63 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
 
   // ── Actions ──────────────────────────────────────────────
 
-  const handleAction = useCallback((type: CombatAction['type'], targetIdx = 0, itemId?: string) => {
+  const handleAction = useCallback((
+    type: CombatAction['type'],
+    targetIdx = 0,
+    itemId?: string,
+    healTarget?: CombatHealTarget,
+  ) => {
     if (!engineRef.current) return;
     if (combatState?.phase !== 'awaiting_input') return;
     if (type === 'attack') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setAnimateFromIdx(combatState?.log.length ?? 0);
-    engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId });
+    engineRef.current.submitAction({ type, targetEnemyIndex: targetIdx, itemId, healTarget });
   }, [combatState?.log.length, combatState?.phase]);
 
+  const useCombatItem = useCallback((item: ItemDefinition, healTarget?: CombatHealTarget) => {
+    setShowItemPicker(false);
+    setPendingHealItem(null);
+    handleAction('skill', 0, item.id, healTarget);
+  }, [handleAction]);
+
   const completeCombat = useCallback(() => {
-    if (completionHandledRef.current || !combatState?.result) return;
+    if (completionHandledRef.current || !combatResultRef.current) return;
     completionHandledRef.current = true;
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
+    }
     setShowResult(false);
-    onComplete(combatState.result);
-  }, [combatState?.result, onComplete]);
+    onCompleteRef.current(combatResultRef.current);
+  }, []);
 
   const handleContinue = useCallback(() => {
-    if (!combatState?.result) return;
+    if (!combatResultRef.current) return;
     completeCombat();
-  }, [combatState?.result, completeCombat]);
+  }, [completeCombat]);
 
   const scheduleResultResolution = useCallback(() => {
-    if (!combatState?.result || completionHandledRef.current) return;
-    if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+    if (!combatResultRef.current || completionHandledRef.current || showResultRef.current) return;
+    // Do not clear an existing timer — parent re-renders were resetting it indefinitely.
+    if (resultTimeoutRef.current) return;
+
     resultTimeoutRef.current = setTimeout(() => {
-      if (shouldAutoResolveCombatResult(combatState.result)) {
+      resultTimeoutRef.current = null;
+      const result = combatResultRef.current;
+      if (!result || completionHandledRef.current || showResultRef.current) return;
+      if (shouldAutoResolveCombatResult(result)) {
         completeCombat();
         return;
       }
       setShowResult(true);
     }, 500);
-  }, [combatState?.result, completeCombat]);
+  }, [completeCombat]);
 
   const handleLogFinished = useCallback(() => {
-    if (combatState?.phase === 'post_combat' && combatState.result && !showResult) {
+    if (combatState?.phase === 'post_combat' && combatResultRef.current) {
       scheduleResultResolution();
     }
-  }, [combatState?.phase, combatState?.result, scheduleResultResolution, showResult]);
+  }, [combatState?.phase, scheduleResultResolution]);
 
   // Safety net: if phase enters post_combat but no log line calls handleLogFinished
   // (e.g. empty enemy array), trigger result display directly.
@@ -254,6 +297,9 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
     gameState.morale.value,
     gameState.consecutiveCombatDays
   );
+  const encounterBaseDelayMs = encounterTypingDone
+    ? 0
+    : getEncounterTypingDurationMs(encounterText);
 
   return (
     <View style={s.root}>
@@ -268,8 +314,9 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
               key={encounterText}
               text={encounterText}
               style={s.encounterText}
-              interval={18}
-              delay={150}
+              interval={ENCOUNTER_TYPE_INTERVAL}
+              delay={ENCOUNTER_INITIAL_DELAY}
+              onComplete={() => setEncounterTypingDone(true)}
             />
           </View>
         ) : null}
@@ -360,7 +407,12 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
               entry={entry}
               companions={combatState.companions}
               enemies={combatState.enemies}
-              animDelay={getCombatLogAnimationDelay(combatState.log, animateFromIdx, i)}
+              animDelay={getCombatLogAnimationDelay(
+                combatState.log,
+                animateFromIdx,
+                i,
+                encounterBaseDelayMs,
+              )}
               onComplete={i === combatState.log.length - 1 ? handleLogFinished : undefined}
             />
           ))}
@@ -438,8 +490,12 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
                   style={[s.itemPickerRow, isLimitReached && { opacity: 0.4 }]}
                   disabled={isLimitReached}
                   onPress={() => {
-                    setShowItemPicker(false);
-                    handleAction('skill', 0, item.id);
+                    if (itemSupportsHealTargeting(item, combatState.companions)) {
+                      setShowItemPicker(false);
+                      setPendingHealItem(item);
+                      return;
+                    }
+                    useCombatItem(item);
                   }}
                 >
                   <Text style={s.itemName}>
@@ -451,6 +507,58 @@ export function CombatScreen({ gameState, engine, event, onComplete, onToast }: 
             })}
           </ScrollView>
           <TouchableOpacity style={s.itemPickerCancelBtn} onPress={() => setShowItemPicker(false)}>
+            <Text style={s.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── HEAL TARGET PICKER ── */}
+      {pendingHealItem && (
+        <View style={s.itemPickerOverlay}>
+          <Text style={s.itemPickerTitle}>HEAL WHO?</Text>
+          <Text style={s.healTargetItemName}>{pendingHealItem.name}</Text>
+          <ScrollView style={s.itemPickerScroll}>
+            <TouchableOpacity
+              style={s.itemPickerRow}
+              onPress={() => useCombatItem(pendingHealItem, { scope: 'self' })}
+            >
+              <Text style={s.itemName}>Yourself</Text>
+              <Text style={s.itemDesc}>
+                {combatState.player.currentHP} / {combatState.player.maxHP} HP
+              </Text>
+            </TouchableOpacity>
+            {combatState.companions.map(companion => (
+              <TouchableOpacity
+                key={companion.companionId}
+                style={[s.itemPickerRow, companion.currentHP <= 0 && { opacity: 0.4 }]}
+                disabled={companion.currentHP <= 0}
+                onPress={() => useCombatItem(pendingHealItem, {
+                  scope: 'companion',
+                  companionId: companion.companionId,
+                })}
+              >
+                <Text style={s.itemName}>{companion.name}</Text>
+                <Text style={s.itemDesc}>
+                  {companion.currentHP <= 0
+                    ? 'Knocked out'
+                    : `${companion.currentHP} / ${companion.maxHP} HP`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={s.itemPickerRow}
+              onPress={() => useCombatItem(pendingHealItem, { scope: 'party' })}
+            >
+              <Text style={s.itemName}>Whole Party</Text>
+              <Text style={s.itemDesc}>
+                Heal yourself and all companions for {pendingHealItem.activeEffect?.healthRestore ?? 0} HP each
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+          <TouchableOpacity
+            style={s.itemPickerCancelBtn}
+            onPress={() => setPendingHealItem(null)}
+          >
             <Text style={s.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -817,14 +925,24 @@ export function getCombatLogLineText(entry: CombatLogEntry): string {
   return `${entry.actor ? `${entry.actor}: ` : ''}${entry.action}`;
 }
 
+export function getEncounterTypingDurationMs(
+  text: string,
+  interval = ENCOUNTER_TYPE_INTERVAL,
+  delay = ENCOUNTER_INITIAL_DELAY,
+): number {
+  if (!text) return 0;
+  return delay + text.length * interval;
+}
+
 export function getCombatLogAnimationDelay(
   log: CombatLogEntry[],
   animateFromIdx: number,
   entryIdx: number,
+  baseDelayMs = 0,
 ): number {
   if (entryIdx < animateFromIdx) return -1;
 
-  let delay = 0;
+  let delay = baseDelayMs;
   for (let i = animateFromIdx; i < entryIdx; i++) {
     delay += getCombatLogLineText(log[i]).length * LOG_TYPE_INTERVAL;
     delay += LOG_LINE_GAP_MS;
@@ -1250,6 +1368,13 @@ const s = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 2,
     marginBottom: 16,
+  },
+  healTargetItemName: {
+    color: C.parchment,
+    fontFamily: 'CrimsonText_400Regular',
+    fontSize: 14,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   itemPickerScroll: {
     width: '100%',

@@ -1,7 +1,7 @@
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Text, TouchableOpacity } from 'react-native';
 import { RoadScreen } from '@screens/RoadScreen';
-import { PlayerAction, WeatherType } from '@engine/types';
+import { EventType, PlayerAction, ResolutionType, WeatherType } from '@engine/types';
 import { TurnEngine } from '@engine/TurnEngine';
 import { makeGameState } from '../__fixtures__/gameState';
 import { getShopEntryNarrative, getTradePurchaseNarrative } from '@utils/tradeJournal';
@@ -12,15 +12,6 @@ jest.mock('@components', () => {
   return {
     ...actual,
     CompanionDetailModal: () => null,
-  };
-});
-
-jest.mock('@engine/EventSystem', () => {
-  const actual = jest.requireActual('@engine/EventSystem');
-
-  return {
-    ...actual,
-    hasEligibleDialogue: jest.fn(() => true),
   };
 });
 
@@ -165,9 +156,34 @@ describe('RoadScreen', () => {
       expect(queryByText('PREVIOUS DAY')).toBeTruthy();
     });
 
-    // Alert badges (danger and stranger) are always visible in the new design
+    // Alert badges appear only when the location actually has threats or NPCs
     expect(queryByText('⚔ DANGER')).toBeTruthy();
-    expect(queryByText('◇ STRANGER NEARBY')).toBeTruthy();
+    expect(queryByText('◇ STRANGER NEARBY')).toBeNull();
+  });
+
+  it('does not show STRANGER NEARBY at Okuna when no NPC is present', async () => {
+    const onToast = jest.fn();
+    const gameState = makeGameState({
+      currentLocationId: 1,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      runLayout: { npcSlots: [], roamingMerchants: [], activeShortcuts: [], eliteSpawns: [] },
+    });
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+
+    const { queryByText } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText('Okuna')).toBeTruthy();
+    });
+    expect(queryByText('◇ STRANGER NEARBY')).toBeNull();
+    expect(queryByText('NPC')).toBeNull();
   });
 
   it('renders stored travel dialogue as an on-the-road segment', async () => {
@@ -511,5 +527,43 @@ describe('RoadScreen', () => {
       expect(queryByText('Rex')).toBeTruthy();
       expect(queryByText('Start dialogue')).toBeNull();
     });
+  });
+
+  it('shows event-driven town dialogue as an NPC button instead of auto-opening', async () => {
+    const onToast = jest.fn();
+    const onOpenDialogue = jest.fn();
+    const gameState = makeGameState({
+      currentLocationId: 4,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+    });
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+    const activeEvent = {
+      id: 'rumor_mill_town',
+      type: EventType.Dialogue,
+      resolutionType: ResolutionType.Interactive,
+      name: 'Tavern Talk',
+      description: 'Locals are talking about something up ahead.',
+      conditions: { probability: 0.2, locationTypes: ['town'] },
+      interactiveHandlerId: 'dialogue_handler',
+      repeatable: true,
+      tags: ['dialogue', 'town', 'rumor'],
+    };
+
+    const { queryByText } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        onOpenDialogue={onOpenDialogue}
+        activeEvent={activeEvent}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText('Tavern Talk')).toBeTruthy();
+      expect(queryByText('◇ STRANGER NEARBY')).toBeTruthy();
+    });
+    expect(onOpenDialogue).not.toHaveBeenCalled();
   });
 });

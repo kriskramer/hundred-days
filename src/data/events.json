@@ -387,7 +387,7 @@
       "name": "Bandit Ambush",
       "description": "Armed figures step out from the treeline.",
       "conditions": {
-        "probability": 0.12,
+        "probability": 0.10,
         "locationTypes": [
           "wilderness"
         ],
@@ -410,7 +410,7 @@
       "name": "Wolf Pack",
       "description": "Yellow eyes in the dark. Then more yellow eyes.",
       "conditions": {
-        "probability": 0.1,
+        "probability": 0.085,
         "locationTypes": [
           "wilderness"
         ],
@@ -488,7 +488,7 @@
       "name": "A Fellow Traveler",
       "description": "Someone is walking the same road as you.",
       "conditions": {
-        "probability": 0.06,
+        "probability": 0.05,
         "locationTypes": [
           "wilderness"
         ]
@@ -508,7 +508,7 @@
       "name": "A Solitary Figure",
       "description": "Someone sits alone at the roadside, away from the path.",
       "conditions": {
-        "probability": 0.05,
+        "probability": 0.04,
         "locationTypes": [
           "wilderness"
         ]
@@ -528,7 +528,7 @@
       "name": "Tavern Talk",
       "description": "Locals are talking about something up ahead.",
       "conditions": {
-        "probability": 0.2,
+        "probability": 0.12,
         "locationTypes": [
           "town"
         ]
@@ -539,6 +539,168 @@
         "dialogue",
         "town",
         "rumor"
+      ]
+    },
+    {
+      "id": "rumor_mill_performers",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Tavern Talk",
+      "description": "Locals are still buzzing about a traveling troupe.",
+      "conditions": {
+        "probability": 0.1,
+        "locationTypes": [
+          "town"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "town",
+        "rumor"
+      ]
+    },
+    {
+      "id": "rumor_mill_road_taxes",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Tavern Talk",
+      "description": "Patrons are arguing about new road levies.",
+      "conditions": {
+        "probability": 0.1,
+        "locationTypes": [
+          "town"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "town",
+        "rumor"
+      ]
+    },
+    {
+      "id": "rumor_mill_barn_fire",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Tavern Talk",
+      "description": "A traveler reeks of smoke and bad news.",
+      "conditions": {
+        "probability": 0.1,
+        "locationTypes": [
+          "town"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "town",
+        "rumor"
+      ]
+    },
+    {
+      "id": "rumor_mill_dakla_bohr",
+      "type": "dialogue",
+      "resolutionType": "interactive",
+      "name": "Tavern Talk",
+      "description": "An old soldier mutters about Dakla Bohr.",
+      "conditions": {
+        "probability": 0.1,
+        "locationTypes": [
+          "town"
+        ],
+        "minLocationId": 55
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "town",
+        "rumor"
+      ]
+    },
+    {
+      "id": "traveler_news_performers",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Fellow Traveler",
+      "description": "A performer hurries past with news from the road.",
+      "conditions": {
+        "probability": 0.04,
+        "locationTypes": [
+          "wilderness"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
+      ]
+    },
+    {
+      "id": "traveler_news_road_taxes",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Fellow Traveler",
+      "description": "A toll clerk rests by the roadside with sealed notices.",
+      "conditions": {
+        "probability": 0.04,
+        "locationTypes": [
+          "wilderness"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
+      ]
+    },
+    {
+      "id": "traveler_news_barn_fire",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Fellow Traveler",
+      "description": "A soot-stained farmer trudges west with grim news.",
+      "conditions": {
+        "probability": 0.04,
+        "locationTypes": [
+          "wilderness"
+        ]
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
+      ]
+    },
+    {
+      "id": "traveler_news_dakla_bohr",
+      "type": "npc_encounter",
+      "resolutionType": "interactive",
+      "name": "A Fellow Traveler",
+      "description": "A dispatch rider pauses with news of the gathering battle.",
+      "conditions": {
+        "probability": 0.04,
+        "locationTypes": [
+          "wilderness"
+        ],
+        "minLocationId": 60
+      },
+      "interactiveHandlerId": "dialogue_handler",
+      "repeatable": true,
+      "tags": [
+        "dialogue",
+        "npc_encounter",
+        "flavor"
       ]
     }
   ],
@@ -552,14 +714,22 @@
       "inspiring_vista",
       "bad_dream",
       "npc_road_encounter_human",
-      "npc_road_encounter_outcast"
+      "npc_road_encounter_outcast",
+      "traveler_news_performers",
+      "traveler_news_road_taxes",
+      "traveler_news_barn_fire",
+      "traveler_news_dakla_bohr"
     ],
     "town": [
       "pickpocket",
       "toll_road",
       "weather_storm_rolls_in",
       "bad_dream",
-      "rumor_mill_town"
+      "rumor_mill_town",
+      "rumor_mill_performers",
+      "rumor_mill_road_taxes",
+      "rumor_mill_barn_fire",
+      "rumor_mill_dakla_bohr"
     ],
     "dungeon": [
       "bandit_ambush",

@@ -18,6 +18,7 @@ import {
   PlayerStats,
 } from './types';
 import { BOSS_EVENT_MAP } from './bosses';
+import { isCombatEvent, isOptionalDialogueEvent } from '@utils/isCombatEvent';
 
 import {
   getMoraleTier,
@@ -39,6 +40,7 @@ import {
   buildLevelUpChoicePreviews,
 } from './GameState';
 import { GameBalance } from './GameBalance';
+import { getEncounterProgressMultipliers } from './EncounterBalance';
 
 import {
   sampleEventsForTurn,
@@ -88,7 +90,7 @@ export type ActionParams =
 export class TurnEngine {
   private state:    GameState;
   private onStateChange:  (state: GameState) => void;
-  private onAwaitInput:   (event: GameEvent)  => void;
+  private onAwaitInput:   (event: GameEvent | null) => void;
   private onLevelUp:      (choices: LevelUpChoice[]) => void;
   private bossResults: Map<number, CombatResult> = new Map();
   private readonly randomOverride?: () => number;
@@ -97,7 +99,7 @@ export class TurnEngine {
   constructor(
     initialState:   GameState,
     onStateChange:  (state: GameState) => void,
-    onAwaitInput:   (event: GameEvent)  => void,
+    onAwaitInput:   (event: GameEvent | null) => void,
     onLevelUp:      (choices: LevelUpChoice[]) => void,
     randomOverride?: () => number,
   ) {
@@ -117,9 +119,49 @@ export class TurnEngine {
 
   /** Submit the player's chosen action to start a turn. */
   async submitAction(params: ActionParams): Promise<void> {
-    if (this.state.currentTurn !== null && this.state.currentTurn.phase !== TurnPhase.AwaitingAction) return;
+    if (this.state.currentTurn !== null) {
+      const { phase, activeInteractiveEvent } = this.state.currentTurn;
+      if (
+        phase === TurnPhase.AwaitingPlayer
+        && activeInteractiveEvent
+        && isOptionalDialogueEvent(activeInteractiveEvent)
+      ) {
+        await this.dismissOptionalDialogueAndFinishTurn();
+      } else if (phase !== TurnPhase.AwaitingAction) {
+        return;
+      }
+    }
     this.initTurn(params.action);
     await this.runTurn(params);
+  }
+
+  /** Apply dialogue rewards when the player talks after the turn already ended. */
+  async applyStandaloneDialogueResult(result: CombatResult): Promise<void> {
+    const { player, resources, morale, reputation } = this.state;
+    const existingEffects = new Set(player.statusEffects.map(effect => effect.id));
+
+    this.setState({
+      dayNumber:  this.state.dayNumber + (result.daysSpent ?? 0),
+      player:     applyXP({
+        ...player,
+        health: clamp(player.health + (result.healthDelta ?? 0), 0, player.stats.maxHealth),
+        statusEffects: [
+          ...player.statusEffects,
+          ...result.injuriesGained
+            .filter(effectId => !existingEffects.has(effectId))
+            .map(effectId => ({ id: effectId, durationTurns: 3 })),
+        ],
+      }, result.xpGained),
+      resources: {
+        ...resources,
+        food: Math.max(0, resources.food + result.foodGained),
+        gold: Math.max(0, resources.gold + result.goldGained),
+      },
+      morale:      applyMoraleDelta(morale, result.moraleDelta),
+      reputation:  applyReputationDelta(reputation, result.reputationDelta),
+    });
+
+    await saveEngine.saveRun(this.state);
   }
 
   /** Called after an interactive event (combat / dialogue) resolves. */
@@ -156,7 +198,7 @@ export class TurnEngine {
         summary: this.buildCombatResultNarrative(result),
       },
     });
-    this.applyEventResult(result);
+    this.applyEventResult(result, activeEvent);
     const projectedHealth = clamp(
       this.state.player.health + this.getCombatHealthDelta(result),
       0,
@@ -167,7 +209,7 @@ export class TurnEngine {
       projectedHealth,
       bossLoc ? Number(bossLoc) : this.state.currentLocationId,
     );
-    if (activeEvent?.type === EventType.Combat && defeatNarrative) {
+    if (defeatNarrative) {
       this.endRun('defeat', defeatNarrative);
       return;
     }
@@ -854,8 +896,12 @@ export class TurnEngine {
     const aggressiveMobs = location.mobs.filter(m => m.aggroPct > 0 && !m.isCompanion);
     if (aggressiveMobs.length === 0) return;
 
+    const combatMult = getEncounterProgressMultipliers(this.state.currentLocationId).combat;
+
     // Roll each mob's aggro probability — only ambush if at least one would spawn
-    const anySpawn = aggressiveMobs.some(m => this.nextRandom() * 100 < m.aggroPct);
+    const anySpawn = aggressiveMobs.some(m =>
+      this.nextRandom() * 100 < m.aggroPct * GameBalance.LOCATION_AGGRO_BASE_MULT * combatMult,
+    );
     if (!anySpawn) return;
 
     const verb = params.action === PlayerAction.Hunt ? 'foraging' : 'making camp';
@@ -881,7 +927,10 @@ export class TurnEngine {
     const region   = getRegion(this.state.currentLocationId);
     const danger   = region?.dangerLevel ?? 0;
     const isSafe   = loc.isTown || danger <= 1;
-    const chance   = isSafe ? 0 : danger * 0.05; // 5% per danger tier (max 50%)
+    const combatMult = getEncounterProgressMultipliers(this.state.currentLocationId).combat;
+    const chance   = isSafe
+      ? 0
+      : danger * GameBalance.HAZARD_AMBUSH_CHANCE_PER_DANGER * combatMult;
     if (this.nextRandom() > chance) return;
 
     this.addLog(action === PlayerAction.Rest
@@ -906,6 +955,22 @@ export class TurnEngine {
 
     const current = this.state.currentTurn?.eventsQueue ?? [];
     this.updateTurn({ eventsQueue: [ambush, ...current] });
+  }
+
+  private async dismissOptionalDialogueAndFinishTurn(): Promise<void> {
+    const event = this.state.currentTurn?.activeInteractiveEvent;
+    if (!event || !isOptionalDialogueEvent(event)) return;
+
+    this.updateTurn({
+      activeInteractiveEvent: null,
+      eventOutcome: {
+        eventId: event.id,
+        result:  'skipped',
+        summary: 'You passed without stopping.',
+      },
+    });
+    this.onAwaitInput(null);
+    await this.continueFromPhase(TurnPhase.ResolvingEvents);
   }
 
   private async processEventQueue(): Promise<void> {
@@ -933,10 +998,18 @@ export class TurnEngine {
           this.updateCompanionWitnessedEvents(event.id);
         }
       } else if (event.resolutionType === ResolutionType.Interactive) {
+        const remaining = queue.slice(i + 1);
+
+        if (isOptionalDialogueEvent(event)) {
+          // Optional road dialogue — surface in UI but keep the turn moving.
+          this.onAwaitInput(event);
+          this.updateTurn({ eventsQueue: remaining });
+          continue;
+        }
+
         // Replace the queue with only the events that come AFTER this one so
         // the next processEventQueue call (after combat/dialogue resolves)
         // doesn't re-encounter this same event.
-        const remaining = queue.slice(i + 1);
         this.updateTurn({ activeInteractiveEvent: event, eventsQueue: remaining });
         this.setPhase(TurnPhase.AwaitingPlayer);
         this.onAwaitInput(event);
@@ -948,9 +1021,9 @@ export class TurnEngine {
     await this.continueFromPhase(TurnPhase.UpdatingStats);
   }
 
-  private applyEventResult(result: CombatResult): void {
-    const activeEvent = this.state.currentTurn?.activeInteractiveEvent;
-    const isCombat = activeEvent?.type === 'combat';
+  private applyEventResult(result: CombatResult, eventOverride?: GameEvent | null): void {
+    const activeEvent = eventOverride ?? this.state.currentTurn?.activeInteractiveEvent;
+    const isCombat = isCombatEvent(activeEvent);
 
     let nextConsecutive = this.state.consecutiveCombatDays ?? 0;
     let fatiguePenalty = 0;

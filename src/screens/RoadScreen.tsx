@@ -5,7 +5,6 @@ import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
 import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
 import { isBossLocation } from '@engine/bosses';
-import { hasEligibleDialogue } from '@engine/EventSystem';
 import { canStealFromDialogue, findCompanionDialogue, findDialogueForLocation, getDialogue, getDialogueDisplayName } from '@engine/DialogueEngine';
 import { Colors } from '@theme';
 import { confirmAction } from '@utils/confirmAction';
@@ -171,7 +170,6 @@ export function RoadScreen({
   activeEvent,
 }: Props) {
   const location       = getLocation(gameState.currentLocationId);
-  const dialogueNearby = hasEligibleDialogue(gameState);
   const dangerNearby   = location.mobs.some(m => m.aggroPct > 0 && !m.isCompanion)
                       && !gameState.clearedCombatLocations.has(gameState.currentLocationId);
   const bossNearby     = isBossLocation(gameState.currentLocationId)
@@ -240,6 +238,8 @@ export function RoadScreen({
       });
     }
   }
+
+  const dialogueNearby = npcItems.length > 0;
 
   const lastTurn = gameState.turnHistory[gameState.turnHistory.length - 1];
   const baseLocationText = location.locationText || '';
@@ -365,7 +365,7 @@ export function RoadScreen({
       }
       return next;
     });
-    setForceComplete(false);
+    setForceComplete(true);
   }
 
   function runWhenJournalReady(action: () => void) {
@@ -393,7 +393,7 @@ export function RoadScreen({
     const queuedAction = queuedActionRef.current;
     queuedActionRef.current = null;
     queuedAction();
-  }, [isTyping]);
+  }, [isTyping, completedKeys]);
 
   let netFood = 0;
   let netGold = 0;

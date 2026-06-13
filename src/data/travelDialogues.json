@@ -232,5 +232,57 @@
     "weight": 3,
     "repeatable": true,
     "tags": ["companion", "animal", "morale"]
+  },
+  {
+    "id": "npc_town_performers_01",
+    "speakerType": "npc",
+    "speakerName": "Drunk Patron",
+    "text": "A drunk at the inn door is still humming a tune from the Crimson Circuit. \"Best juggler I ever saw. Worst pickpocket I ever met. Same person, probably.\"",
+    "conditions": {
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 8
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["npc", "town", "rumor"]
+  },
+  {
+    "id": "npc_town_road_taxes_01",
+    "speakerType": "npc",
+    "speakerName": "Angry Merchant",
+    "text": "A merchant unloading crates mutters loud enough for you to hear. \"War levy, they call it. I call it theft with a seal on it. Third toll increase this season.\"",
+    "conditions": {
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 12
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["npc", "town", "rumor"]
+  },
+  {
+    "id": "npc_town_barn_fire_01",
+    "speakerType": "npc",
+    "speakerName": "Worried Farmer",
+    "text": "A farmer at the market sniffs the air and frowns. \"Smell that? Smoke from Harrow's Rest, three days east. Barn fire took half their stores. Prices'll jump by week's end.\"",
+    "conditions": {
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 15
+    },
+    "weight": 2,
+    "repeatable": true,
+    "tags": ["npc", "town", "rumor"]
+  },
+  {
+    "id": "npc_town_dakla_bohr_01",
+    "speakerType": "npc",
+    "speakerName": "Veteran at the Bar",
+    "text": "An old soldier nursing ale doesn't look at you when he speaks. \"Dakla Bohr. Armies gathering. You hear that name often enough, start making plans that don't involve going south.\"",
+    "conditions": {
+      "locationTypes": ["town", "settlement"],
+      "minLocationId": 55
+    },
+    "weight": 3,
+    "repeatable": true,
+    "tags": ["npc", "town", "rumor", "late_game"]
   }
 ]

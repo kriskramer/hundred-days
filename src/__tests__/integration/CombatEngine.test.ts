@@ -23,11 +23,15 @@ function makeRatsEnemy(): EnemyCombatant {
   };
 }
 
-function makeEngine(enemyOverrides: Partial<EnemyCombatant> = {}, stateOverrides = {}) {
+function makeEngine(
+  enemyOverrides: Partial<EnemyCombatant> = {},
+  stateOverrides = {},
+  random: () => number = Math.random,
+) {
   const enemies = [{ ...makeRatsEnemy(), ...enemyOverrides }];
   const state = makeGameState(stateOverrides);
   const onStateChange = jest.fn();
-  const engine = new CombatEngine(enemies, state, onStateChange, Math.random);
+  const engine = new CombatEngine(enemies, state, onStateChange, random);
   return { engine, onStateChange };
 }
 
@@ -581,5 +585,104 @@ describe('CombatEngine — Item Usage', () => {
       remainingRounds: 2,
       magnitude: 6,
     });
+  });
+
+  it('heals a targeted companion when using a healing potion', () => {
+    const companion = makeCompanion({ id: 'ally_one', name: 'Bran' });
+    let call = 0;
+    const random = () => {
+      const seq = [0.99, 0.5, 0.5, 0.99, 0.05, 0.5, 0.5, 0.99, 0.99, 0.99, 0.99];
+      return call < seq.length ? seq[call++] : 0.99;
+    };
+    const { engine } = makeEngine({}, { companions: [companion] }, random);
+    const companionHP = engine.getState().companions[0].currentHP;
+
+    engine.submitAction({ type: 'defend' });
+    const damagedHP = engine.getState().companions[0].currentHP;
+    expect(damagedHP).toBeLessThan(companionHP);
+
+    engine.submitAction({
+      type: 'skill',
+      itemId: 'healing_potion',
+      healTarget: { scope: 'companion', companionId: 'ally_one' },
+    });
+
+    const healedHP = engine.getState().companions[0].currentHP;
+    expect(healedHP).toBeGreaterThan(damagedHP);
+    expect(engine.getState().itemsConsumed).toContain('healing_potion');
+  });
+
+  it('heals the whole party when using a healing potion on party scope', () => {
+    const companion = makeCompanion({ id: 'ally_one', name: 'Bran' });
+    let call = 0;
+    const random = () => {
+      const seq = [0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99];
+      return call < seq.length ? seq[call++] : 0.99;
+    };
+    const { engine } = makeEngine({}, {
+      companions: [companion],
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 40,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    }, random);
+    engine.getState().companions[0].currentHP = 20;
+
+    engine.submitAction({
+      type: 'skill',
+      itemId: 'healing_potion',
+      healTarget: { scope: 'party' },
+    });
+
+    const state = engine.getState();
+    expect(state.player.currentHP).toBeGreaterThan(40);
+    expect(state.companions[0].currentHP).toBe(45);
+  });
+});
+
+describe('CombatEngine — enemy targeting', () => {
+  it('sometimes attacks companions instead of the player', () => {
+    const companion = makeCompanion({ id: 'ally_one', name: 'Bran' });
+    let call = 0;
+    const random = () => {
+      const seq = [0.99, 0.5, 0.5, 0.99, 0.05, 0.5, 0.5];
+      return call < seq.length ? seq[call++] : 0.99;
+    };
+    const { engine } = makeEngine({}, { companions: [companion] }, random);
+    const playerHPBefore = engine.getState().player.currentHP;
+    const companionHPBefore = engine.getState().companions[0].currentHP;
+
+    engine.submitAction({ type: 'defend' });
+
+    const state = engine.getState();
+    expect(state.player.currentHP).toBe(playerHPBefore);
+    expect(state.companions[0].currentHP).toBeLessThan(companionHPBefore);
+    expect(state.log.some(entry => entry.action.includes('attacks Bran'))).toBe(true);
+  });
+
+  it('opportunist enemies prefer the weakest party member', () => {
+    const companion = makeCompanion({ id: 'ally_one', name: 'Bran' });
+    const opportunist = {
+      ...makeRatsEnemy(),
+      behavior: EnemyBehavior.Opportunist,
+    };
+    const state = makeGameState({
+      companions: [companion],
+      player: {
+        name: 'Test', level: 1, xp: 0, health: 80,
+        stats: { maxHealth: 100, attack: 8, defense: 4, speed: 5, endurance: 3, perception: 3, leadership: 2 },
+        statusEffects: [],
+      },
+    });
+    const onStateChange = jest.fn();
+    const combatEngine = new CombatEngine([opportunist], state, onStateChange, () => 0.5);
+    combatEngine.getState().companions[0].currentHP = 20;
+
+    combatEngine.submitAction({ type: 'defend' });
+
+    const after = combatEngine.getState();
+    expect(after.companions[0].currentHP).toBeLessThan(20);
+    expect(after.player.currentHP).toBe(80);
   });
 });

@@ -99,14 +99,19 @@ export default function GameScreen() {
         // Auto-save handled inside TurnEngine.cleanup()
       },
       // onAwaitInput (interactive event — combat or dialogue)
-      (event: GameEvent) => {
+      (event: GameEvent | null) => {
+        if (!event) {
+          setActiveEvent(null);
+          return;
+        }
         setActiveEvent(event);
         if (isCombatEvent(event)) {
           setPendingCombatEvent(event);
           setIsManualCombat(false);
           setCombatAlertVisible(true);
         }
-        if (event.type === 'dialogue') setActiveTab('dialogue');
+        // Dialogue events stay on the road screen — player chooses when to talk,
+        // same as location_enter NPCs and moral-choice encounters.
       },
       // onLevelUp
       (choices: LevelUpChoice[]) => {
@@ -142,20 +147,27 @@ export default function GameScreen() {
 
 
   async function handleInteractiveEventComplete(result: CombatResult) {
-    if (activeEvent) {
-      // Event-driven combat: feed result back into the turn engine
-      await engineRef.current?.resolveInteractiveEvent(result);
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    const engineState = engine.getState();
+    const awaitingInteractive =
+      engineState.currentTurn?.phase === TurnPhase.AwaitingPlayer
+      && !!engineState.currentTurn?.activeInteractiveEvent;
+
+    if (awaitingInteractive) {
+      await engine.resolveInteractiveEvent(result).catch(console.error);
     } else {
-      // Location-initiated combat: apply result and mark location cleared
-      const locationId = gameState?.currentLocationId;
-      if (locationId !== undefined) {
-        await engineRef.current?.resolveLocationCombat(locationId, result).catch(console.error);
-      }
+      // Location combat, or combat finished after the turn already advanced
+      await engine.resolveLocationCombat(engineState.currentLocationId, result).catch(console.error);
     }
-    const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
-    if (!nextInteractiveEvent) {
+
+    const after = engine.getState();
+    if (!after.currentTurn?.activeInteractiveEvent) {
       setActiveEvent(null);
-      setActiveTab('road');
+      if (!after.isComplete) {
+        setActiveTab('road');
+      }
     }
   }
 
@@ -233,13 +245,20 @@ export default function GameScreen() {
       daysSpent:         outcome.resourceDeltas.daysSpent ?? 0,
     };
     if (activeEvent) {
-      await engineRef.current?.resolveInteractiveEvent(result, {
-        eventId: completedEventId,
-        result: 'dialogue_complete',
-        summary: 'Dialogue completed.',
-      }).catch(console.error);
-      const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
-      if (!nextInteractiveEvent) {
+      const awaitingPlayer = engineRef.current?.getState().currentTurn?.phase === TurnPhase.AwaitingPlayer;
+      if (awaitingPlayer) {
+        await engineRef.current?.resolveInteractiveEvent(result, {
+          eventId: completedEventId,
+          result: 'dialogue_complete',
+          summary: 'Dialogue completed.',
+        }).catch(console.error);
+        const nextInteractiveEvent = engineRef.current?.getState().currentTurn?.activeInteractiveEvent;
+        if (!nextInteractiveEvent) {
+          setActiveEvent(null);
+          setActiveTab('road');
+        }
+      } else {
+        await engineRef.current?.applyStandaloneDialogueResult(result).catch(console.error);
         setActiveEvent(null);
         setActiveTab('road');
       }

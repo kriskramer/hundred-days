@@ -54,17 +54,23 @@ function makeSeededState(seed: number): GameState {
 interface PlaythroughHarness {
   engine: TurnEngine;
   levelUpChoices: LevelUpChoice[] | null;
+  pendingOptionalEvents: GameEvent[];
 }
 
 function createHarness(state: GameState): PlaythroughHarness {
   const harness: PlaythroughHarness = {
     engine: undefined as unknown as TurnEngine,
     levelUpChoices: null,
+    pendingOptionalEvents: [],
   };
   harness.engine = new TurnEngine(
     state,
     () => {},
-    () => {},
+    event => {
+      if (event && !isCombatEvent(event)) {
+        harness.pendingOptionalEvents.push(event);
+      }
+    },
     choices => { harness.levelUpChoices = choices; },
   );
   return harness;
@@ -217,18 +223,49 @@ interface ResolvedInteraction {
   dialogueOutcome?: DialogueSessionOutcome;
 }
 
+async function resolvePendingOptionalEvents(
+  harness: PlaythroughHarness,
+  engine: TurnEngine,
+  resolved: ResolvedInteraction[],
+): Promise<void> {
+  while (harness.pendingOptionalEvents.length > 0) {
+    const event = harness.pendingOptionalEvents.shift()!;
+    const state = engine.getState();
+    const outcome = playDialogueEncounter(state, event.id);
+
+    for (const effect of outcome.companionEffects) {
+      if (effect?.type === 'recruit') {
+        const companion = getCompanion(effect.companionId);
+        if (companion) engine.addCompanion(companion);
+      }
+    }
+    engine.markDialogueSeen(outcome.dialogueId, state.currentLocationId);
+
+    const result = dialogueOutcomeToCombatResult(outcome);
+    resolved.push({ event, result, dialogueOutcome: outcome });
+    await engine.applyStandaloneDialogueResult(result);
+  }
+}
+
 async function submitAndResolve(harness: PlaythroughHarness, params: ActionParams): Promise<ResolvedInteraction[]> {
   const { engine } = harness;
   const resolved: ResolvedInteraction[] = [];
+  harness.pendingOptionalEvents = [];
 
   await engine.submitAction(params);
 
   while (true) {
     const state = engine.getState();
-    if (state.isComplete) return resolved;
+    if (state.isComplete) {
+      await resolvePendingOptionalEvents(harness, engine, resolved);
+      return resolved;
+    }
 
     const turn = state.currentTurn;
-    if (turn === null) return resolved;
+    if (turn === null) {
+      await resolvePendingOptionalEvents(harness, engine, resolved);
+      return resolved;
+    }
 
     if (turn.activeInteractiveEvent) {
       const event = turn.activeInteractiveEvent;
@@ -298,6 +335,26 @@ function applyDeltasSequentially(
   return { food, gold, health, moraleValue: morale.value, reputationValue: reputation.value };
 }
 
+function applyStandaloneDialogueExpected(
+  base: ReturnType<typeof applyDeltasSequentially>,
+  outcome: DialogueSessionOutcome,
+  maxHealth: number,
+): ReturnType<typeof applyDeltasSequentially> {
+  return {
+    food:  Math.max(0, base.food + outcome.resourceDeltas.food),
+    gold:  Math.max(0, base.gold + outcome.resourceDeltas.gold),
+    health: clamp(base.health + (outcome.resourceDeltas.health ?? 0), 0, maxHealth),
+    moraleValue: applyMoraleDelta(
+      { value: base.moraleValue, tier: 'neutral' as const },
+      outcome.moraleDelta,
+    ).value,
+    reputationValue: applyReputationDelta(
+      { value: base.reputationValue, tier: 'neutral' as const },
+      outcome.reputationDelta,
+    ).value,
+  };
+}
+
 // Weighted pool of actions a "reasonable" player would take. Move appears
 // most often (it's how you make progress), with food/morale upkeep mixed in.
 const ACTION_POOL: ActionParams[] = [
@@ -341,7 +398,7 @@ describe('Playthrough — resource integrity', () => {
       const pre = harness.engine.getState();
       if (pre.isComplete) break;
 
-      await submitAndResolve(harness, pickAction());
+      const resolved = await submitAndResolve(harness, pickAction());
       turnsRun += 1;
 
       const post = harness.engine.getState();
@@ -361,7 +418,17 @@ describe('Playthrough — resource integrity', () => {
 
       if (post.turnHistory.length === pre.turnHistory.length + 1) {
         const record = post.turnHistory[post.turnHistory.length - 1];
-        const expected = applyDeltasSequentially(pre, record.deltas, post.player.stats.maxHealth);
+        let expected = applyDeltasSequentially(pre, record.deltas, post.player.stats.maxHealth);
+
+        for (const interaction of resolved) {
+          if (interaction.dialogueOutcome) {
+            expected = applyStandaloneDialogueExpected(
+              expected,
+              interaction.dialogueOutcome,
+              post.player.stats.maxHealth,
+            );
+          }
+        }
 
         expect(post.resources.food).toBeCloseTo(expected.food, 6);
         expect(post.resources.gold).toBeCloseTo(expected.gold, 6);
@@ -519,24 +586,15 @@ describe('Playthrough — NPC dialogue encounter resolution', () => {
     expect(outcome.dialogueId).toBe(event.id);
 
     const record = post.turnHistory[post.turnHistory.length - 1];
-    expect(record.eventOutcome?.eventId).toBe(event.id);
-    expect(record.eventOutcome?.result).toBe('dialogue_complete');
+    let expected = applyDeltasSequentially(pre, record.deltas, post.player.stats.maxHealth);
+    expected = applyStandaloneDialogueExpected(expected, outcome, post.player.stats.maxHealth);
 
-    const eventDelta = record.deltas.find(d => d.source === 'event_result');
-    expect(eventDelta).toBeDefined();
-    expect(eventDelta!.xp).toBe(outcome.xpGained);
-    expect(eventDelta!.gold).toBe(outcome.resourceDeltas.gold);
-    expect(eventDelta!.food).toBe(outcome.resourceDeltas.food);
-    expect(eventDelta!.health).toBe(outcome.resourceDeltas.health ?? 0);
-    expect(eventDelta!.morale).toBe(outcome.moraleDelta);
-    expect(eventDelta!.reputation).toBe(outcome.reputationDelta);
-
-    const expected = applyDeltasSequentially(pre, record.deltas, post.player.stats.maxHealth);
     expect(post.resources.food).toBeCloseTo(expected.food, 6);
     expect(post.resources.gold).toBeCloseTo(expected.gold, 6);
     expect(post.player.health).toBeCloseTo(expected.health, 6);
     expect(post.morale.value).toBeCloseTo(expected.moraleValue, 6);
     expect(post.reputation.value).toBeCloseTo(expected.reputationValue, 6);
+    expect(post.player.xp).toBeGreaterThanOrEqual(pre.player.xp + outcome.xpGained);
 
     expect(post.firedEventIds.has(`${outcome.dialogueId}_loc${post.currentLocationId}`)).toBe(true);
 

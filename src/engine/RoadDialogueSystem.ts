@@ -8,13 +8,14 @@ import type {
   TravelDialogueOccurrence,
 } from './types';
 import { BOSS_EVENT_MAP } from './bosses';
+import { getEncounterProgressMultipliers } from './EncounterBalance';
 
 interface TravelDialogueCandidate extends TravelDialogueOccurrence {
   weight: number;
 }
 
-const BASE_TRIGGER_CHANCE = 0.10;
-const MAX_TRIGGER_CHANCE = 0.28;
+const BASE_TRIGGER_CHANCE = 0.08;
+const MAX_TRIGGER_CHANCE = 0.25;
 const RECENT_DIALOGUE_WINDOW = 6;
 const RECENT_SPEAKER_WINDOW = 2;
 
@@ -47,6 +48,9 @@ export function getTravelDialogueTriggerChance(state: GameState): number {
   if (location.isTown || location.type === 'settlement') {
     chance += 0.03;
   }
+
+  const npcMult = getEncounterProgressMultipliers(state.currentLocationId).npc;
+  chance *= npcMult;
 
   return Math.min(MAX_TRIGGER_CHANCE, chance);
 }

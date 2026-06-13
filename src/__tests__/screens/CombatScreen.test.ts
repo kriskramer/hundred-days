@@ -3,6 +3,7 @@ import type { CombatResult } from '@engine/types';
 import {
   getCombatLogAnimationDelay,
   getDisplayedMoraleDelta,
+  getEncounterTypingDurationMs,
   shouldAutoResolveCombatResult,
 } from '@screens/CombatScreen';
 
@@ -56,6 +57,21 @@ describe('getCombatLogAnimationDelay', () => {
       + ('Wolf: Bites back'.length * 18)
       + 120,
     );
+  });
+
+  it('waits for encounter narration before the first animated log line', () => {
+    const encounterMs = getEncounterTypingDurationMs('A wolf blocks the path.');
+    expect(getCombatLogAnimationDelay(log, 0, 0, encounterMs)).toBe(encounterMs);
+    expect(getCombatLogAnimationDelay(log, 0, 1, encounterMs)).toBe(
+      encounterMs + ('Player: Strikes hard'.length * 18) + 120,
+    );
+  });
+});
+
+describe('getEncounterTypingDurationMs', () => {
+  it('includes the initial delay and per-character typing time', () => {
+    expect(getEncounterTypingDurationMs('Hi')).toBe(150 + 2 * 18);
+    expect(getEncounterTypingDurationMs('')).toBe(0);
   });
 });
 

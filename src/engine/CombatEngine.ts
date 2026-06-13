@@ -7,6 +7,7 @@ import {
   SpecialEffect,
   EnemyDefinition,
   EnemyAbility,
+  ItemDefinition,
   MoraleState,
   MoraleTier,
 } from './types';
@@ -111,11 +112,24 @@ export interface CombatState {
 
 export type CombatActionType = 'attack' | 'defend' | 'skill' | 'flee' | 'negotiate';
 
+export type CombatHealTarget =
+  | { scope: 'self' }
+  | { scope: 'companion'; companionId: string }
+  | { scope: 'party' };
+
 export interface CombatAction {
   type:             CombatActionType;
   targetEnemyIndex?: number;
   skillId?:         string;
   itemId?:          string;
+  healTarget?:      CombatHealTarget;
+}
+
+export function itemSupportsHealTargeting(
+  def: ItemDefinition,
+  companions: CompanionCombatant[],
+): boolean {
+  return !!def.activeEffect?.healthRestore && companions.length > 0;
 }
 
 export function buildEnemyCombatant(def: EnemyDefinition, locationId: number): EnemyCombatant {
@@ -193,10 +207,11 @@ export function buildBossEnemy(game: GameState): EnemyCombatant[] {
 
 export class CombatEngine {
   private state:           CombatState;
-  private onStateChange:   (state: CombatState) => void;
-  private initialPlayerHP: number;
-  private readonly random: () => number;
-  private spawnedCount:    Record<string, number> = {};
+  private onStateChange:        (state: CombatState) => void;
+  private initialPlayerHP:      number;
+  private initialCompanionHP:     Record<string, number>;
+  private readonly random:        () => number;
+  private spawnedCount:           Record<string, number> = {};
 
   constructor(
     enemies:       EnemyCombatant[],
@@ -206,8 +221,11 @@ export class CombatEngine {
   ) {
     this.onStateChange   = onStateChange;
     this.random          = random;
-    this.state           = this.init(enemies, gameState);
-    this.initialPlayerHP = this.state.player.currentHP;
+    this.state               = this.init(enemies, gameState);
+    this.initialPlayerHP     = this.state.player.currentHP;
+    this.initialCompanionHP  = Object.fromEntries(
+      this.state.companions.map(c => [c.companionId, c.currentHP]),
+    );
     // Start in awaiting_input (or after surprise round)
     if (this.state.surpriseRound) {
       this.runEnemyTurn();
@@ -303,7 +321,7 @@ export class CombatEngine {
     } else {
       if (action.type === 'attack') this.playerAttack(action.targetEnemyIndex ?? 0);
       if (action.type === 'defend') this.playerDefend();
-      if (action.type === 'skill')  this.playerSkill(action.itemId || action.skillId);
+      if (action.type === 'skill')  this.playerSkill(action.itemId || action.skillId, action.healTarget);
     }
 
     if (!this.isOver()) this.companionsAct();
@@ -361,7 +379,7 @@ export class CombatEngine {
     this.log('Player', 'takes a defensive stance.', this.state.round, undefined, undefined, undefined, 'normal');
   }
 
-  private playerSkill(itemId?: string): void {
+  private playerSkill(itemId?: string, healTarget: CombatHealTarget = { scope: 'self' }): void {
     if (!itemId) {
       this.log('Player', 'uses a skill.', this.state.round, undefined, undefined, undefined, 'effect');
       return;
@@ -390,12 +408,8 @@ export class CombatEngine {
     const activeEffect = def.activeEffect;
     if (!activeEffect) return;
 
-    // Apply active effect
     if (activeEffect.healthRestore) {
-      const oldHP = this.state.player.currentHP;
-      this.state.player.currentHP = Math.min(this.state.player.maxHP, this.state.player.currentHP + activeEffect.healthRestore);
-      const healed = this.state.player.currentHP - oldHP;
-      this.log('Player', `recovers ${healed} HP.`, this.state.round, healed, undefined, undefined, 'heal');
+      this.applyItemHealthRestore(activeEffect.healthRestore, healTarget);
     }
 
     if (activeEffect.moraleRestore) {
@@ -403,7 +417,7 @@ export class CombatEngine {
       this.log('Player', `recovers ${activeEffect.moraleRestore} Morale.`, this.state.round, undefined, undefined, undefined, 'heal');
     }
 
-    if (activeEffect.clearsStatusEffect) {
+    if (activeEffect.clearsStatusEffect && (healTarget.scope === 'self' || healTarget.scope === 'party')) {
       const effectId = activeEffect.clearsStatusEffect;
       const hadEffect = this.state.player.statusEffects.some(e => e.id === effectId);
       if (hadEffect) {
@@ -459,6 +473,44 @@ export class CombatEngine {
         target.statusEffects.push({ id: 'stunned', remainingRounds: 1 });
         this.log('Player', `stuns ${target.name} for 1 round.`, this.state.round, undefined, undefined, undefined, 'effect');
       }
+    }
+  }
+
+  private applyItemHealthRestore(amount: number, target: CombatHealTarget): void {
+    const healNamed = (name: string, currentHP: number, maxHP: number): number => {
+      const newHP = Math.min(maxHP, currentHP + amount);
+      const healed = newHP - currentHP;
+      if (healed > 0) {
+        this.log(name, `recovers ${healed} HP.`, this.state.round, healed, undefined, undefined, 'heal');
+      }
+      return newHP;
+    };
+
+    switch (target.scope) {
+      case 'self':
+        this.state.player.currentHP = healNamed(
+          'Player',
+          this.state.player.currentHP,
+          this.state.player.maxHP,
+        );
+        break;
+      case 'companion': {
+        const companion = this.state.companions.find(c => c.companionId === target.companionId);
+        if (!companion || companion.currentHP <= 0) break;
+        companion.currentHP = healNamed(companion.name, companion.currentHP, companion.maxHP);
+        break;
+      }
+      case 'party':
+        this.state.player.currentHP = healNamed(
+          'Player',
+          this.state.player.currentHP,
+          this.state.player.maxHP,
+        );
+        for (const companion of this.state.companions) {
+          if (companion.currentHP <= 0) continue;
+          companion.currentHP = healNamed(companion.name, companion.currentHP, companion.maxHP);
+        }
+        break;
     }
   }
 
@@ -563,35 +615,127 @@ export class CombatEngine {
     }
   }
 
+  private pickEnemyAttackTarget(enemy: EnemyCombatant):
+    | { kind: 'player' }
+    | { kind: 'companion'; companion: CompanionCombatant } {
+    const aliveCompanions = this.state.companions.filter(c => c.currentHP > 0);
+
+    if (enemy.behavior === EnemyBehavior.Opportunist) {
+      type Candidate =
+        | { kind: 'player'; ratio: number }
+        | { kind: 'companion'; companion: CompanionCombatant; ratio: number };
+
+      const candidates: Candidate[] = [
+        {
+          kind: 'player',
+          ratio: this.state.player.currentHP / this.state.player.maxHP,
+        },
+        ...aliveCompanions.map(companion => ({
+          kind: 'companion' as const,
+          companion,
+          ratio: companion.currentHP / companion.maxHP,
+        })),
+      ];
+
+      const weakest = candidates.reduce((a, b) => (a.ratio <= b.ratio ? a : b));
+      if (weakest.kind === 'player') return { kind: 'player' };
+      return { kind: 'companion', companion: weakest.companion };
+    }
+
+    if (
+      aliveCompanions.length === 0
+    ) {
+      return { kind: 'player' };
+    }
+
+    const roll = this.random();
+    if (roll >= GameBalance.ENEMY_COMPANION_TARGET_CHANCE) {
+      return { kind: 'player' };
+    }
+
+    const idx = Math.min(
+      aliveCompanions.length - 1,
+      Math.floor((roll / GameBalance.ENEMY_COMPANION_TARGET_CHANCE) * aliveCompanions.length),
+    );
+    return { kind: 'companion', companion: aliveCompanions[idx] };
+  }
+
   private enemyBasicAttack(enemy: EnemyCombatant): void {
-    const defMult = this.state.player.isDefending
-      ? 1 - GameBalance.DEFEND_DAMAGE_REDUCTION
-      : 1.0;
-    const shieldWall = this.state.player.statusEffects.find(e => e.id === 'shield_wall');
-    if (shieldWall) {
-      this.log(enemy.name, 'attacks — blocked by Shield Wall!', this.state.round, 0, undefined, undefined, 'normal');
+    const target = this.pickEnemyAttackTarget(enemy);
+
+    if (target.kind === 'player') {
+      const shieldWall = this.state.player.statusEffects.find(e => e.id === 'shield_wall');
+      if (shieldWall) {
+        this.log(enemy.name, 'attacks — blocked by Shield Wall!', this.state.round, 0, undefined, undefined, 'normal');
+        return;
+      }
+
+      const defMult = this.state.player.isDefending
+        ? 1 - GameBalance.DEFEND_DAMAGE_REDUCTION
+        : 1.0;
+      const { damage } = this.calcDamage(enemy.attack * defMult, this.state.player.defense);
+      this.state.player.currentHP = Math.max(0, this.state.player.currentHP - damage);
+      this.log(enemy.name, `attacks you for ${damage} damage.`, this.state.round, damage, undefined, undefined, 'damage');
       return;
     }
-    const { damage } = this.calcDamage(enemy.attack * defMult, this.state.player.defense);
-    this.state.player.currentHP = Math.max(0, this.state.player.currentHP - damage);
-    this.log(enemy.name, `attacks you for ${damage} damage.`, this.state.round, damage, undefined, undefined, 'damage');
+
+    const { damage } = this.calcDamage(enemy.attack, target.companion.defense);
+    target.companion.currentHP = Math.max(0, target.companion.currentHP - damage);
+    this.log(
+      enemy.name,
+      `attacks ${target.companion.name} for ${damage} damage.`,
+      this.state.round,
+      damage,
+      undefined,
+      undefined,
+      'damage',
+    );
+    if (target.companion.currentHP <= 0) {
+      this.log('', `${target.companion.name} is knocked out!`, this.state.round, undefined, undefined, undefined, 'system');
+    }
   }
 
   private resolveEnemyAbility(enemy: EnemyCombatant, ability: EnemyAbility): void {
     const defMult = this.state.player.isDefending
       ? 1 - GameBalance.DEFEND_DAMAGE_REDUCTION
       : 1.0;
-    let baseDmg   = 0;
+    let baseDmg = 0;
+    let logText = `uses ${ability.name}!`;
 
     if (ability.damageMultiplier > 0) {
-      const res = this.calcDamage(enemy.attack * ability.damageMultiplier * defMult, this.state.player.defense);
-      baseDmg   = res.damage;
-      this.state.player.currentHP = Math.max(0, this.state.player.currentHP - baseDmg);
-    }
+      const target = this.pickEnemyAttackTarget(enemy);
 
-    const logText = baseDmg > 0
-      ? `uses ${ability.name} on you for ${baseDmg} damage.`
-      : `uses ${ability.name}!`;
+      if (target.kind === 'player') {
+        const shieldWall = this.state.player.statusEffects.find(e => e.id === 'shield_wall');
+        if (shieldWall) {
+          this.log(enemy.name, `uses ${ability.name} — blocked by Shield Wall!`, this.state.round, 0, undefined, undefined, 'normal');
+          return;
+        }
+
+        const res = this.calcDamage(
+          enemy.attack * ability.damageMultiplier * defMult,
+          this.state.player.defense,
+        );
+        baseDmg = res.damage;
+        this.state.player.currentHP = Math.max(0, this.state.player.currentHP - baseDmg);
+        logText = baseDmg > 0
+          ? `uses ${ability.name} on you for ${baseDmg} damage.`
+          : `uses ${ability.name}!`;
+      } else {
+        const res = this.calcDamage(
+          enemy.attack * ability.damageMultiplier,
+          target.companion.defense,
+        );
+        baseDmg = res.damage;
+        target.companion.currentHP = Math.max(0, target.companion.currentHP - baseDmg);
+        logText = baseDmg > 0
+          ? `uses ${ability.name} on ${target.companion.name} for ${baseDmg} damage.`
+          : `uses ${ability.name} on ${target.companion.name}!`;
+        if (target.companion.currentHP <= 0) {
+          this.log('', `${target.companion.name} is knocked out!`, this.state.round, undefined, undefined, undefined, 'system');
+        }
+      }
+    }
 
     this.log(enemy.name, logText, this.state.round, baseDmg || undefined, undefined, undefined, baseDmg > 0 ? 'damage' : 'effect');
 
@@ -751,6 +895,17 @@ export class CombatEngine {
     const healthLost = Math.max(0, this.initialPlayerHP - this.state.player.currentHP);
     const healthDelta = this.state.player.currentHP - this.initialPlayerHP;
 
+    const companionInjuries: Record<string, string[]> = {};
+    for (const companion of this.state.companions) {
+      const initialHP = this.initialCompanionHP[companion.companionId] ?? companion.maxHP;
+      const hpLost = initialHP - companion.currentHP;
+      if (companion.currentHP <= 0) {
+        companionInjuries[companion.companionId] = ['knocked_out'];
+      } else if (hpLost > 20) {
+        companionInjuries[companion.companionId] = ['wounded'];
+      }
+    }
+
     const moraleDelta = outcome === 'victory'    ?  8
                       : outcome === 'fled'        ? -3
                       : outcome === 'negotiated'  ?  3
@@ -777,7 +932,7 @@ export class CombatEngine {
       moraleDelta:       moraleDelta - (this.state.resourceSideEffects.moraleLost ?? 0),
       reputationDelta:   outcome === 'victory' && this.state.enemies.some(e => e.isFleeing) ? 5 : 0,
       injuriesGained:    healthLost > 40 ? ['wounded'] : [],
-      companionInjuries: {},
+      companionInjuries,
       itemsConsumed:     this.state.itemsConsumed,
       lootedItems,
     };

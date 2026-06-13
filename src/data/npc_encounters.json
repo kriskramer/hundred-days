@@ -4,15 +4,15 @@
     "name": "Traveling Merchant",
     "tags": ["human", "trade"],
     "regionRange": [1, 100],
-    "baseProbability": 0.15,
-    "dialoguePool": ["merchant_road_01", "merchant_road_02", "merchant_road_03"]
+    "baseProbability": 0.13,
+    "dialoguePool": ["merchant_road_01", "merchant_road_02", "merchant_road_03", "merchant_road_04", "merchant_road_05"]
   },
   {
     "id": "weary_soldier",
     "name": "Weary Soldier",
     "tags": ["human", "military"],
     "regionRange": [10, 90],
-    "baseProbability": 0.12,
+    "baseProbability": 0.10,
     "dialoguePool": ["soldier_road_01", "soldier_road_02", "soldier_road_03"]
   },
   {
@@ -20,7 +20,7 @@
     "name": "Refugee Family",
     "tags": ["human", "displaced"],
     "regionRange": [20, 85],
-    "baseProbability": 0.10,
+    "baseProbability": 0.085,
     "dialoguePool": ["refugee_road_01", "refugee_road_02", "refugee_road_03"]
   },
   {
@@ -28,7 +28,7 @@
     "name": "Wandering Hermit",
     "tags": ["human", "recluse"],
     "regionRange": [15, 100],
-    "baseProbability": 0.08,
+    "baseProbability": 0.07,
     "dialoguePool": ["hermit_road_01", "hermit_road_02", "hermit_road_03"]
   },
   {
@@ -36,15 +36,15 @@
     "name": "Road Bard",
     "tags": ["human", "performer"],
     "regionRange": [1, 70],
-    "baseProbability": 0.10,
-    "dialoguePool": ["bard_road_01", "bard_road_02", "bard_road_03"]
+    "baseProbability": 0.085,
+    "dialoguePool": ["bard_road_01", "bard_road_02", "bard_road_03", "bard_road_04"]
   },
   {
     "id": "suspicious_stranger",
     "name": "Suspicious Stranger",
     "tags": ["human", "unknown"],
     "regionRange": [10, 100],
-    "baseProbability": 0.09,
+    "baseProbability": 0.08,
     "dialoguePool": ["stranger_road_01", "stranger_road_02", "stranger_road_03"]
   },
   {
@@ -52,7 +52,7 @@
     "name": "Pilgrim",
     "tags": ["human", "religious"],
     "regionRange": [1, 80],
-    "baseProbability": 0.09,
+    "baseProbability": 0.08,
     "dialoguePool": ["pilgrim_road_01", "pilgrim_road_02", "pilgrim_road_03"]
   },
   {
@@ -60,7 +60,7 @@
     "name": "Injured Scout",
     "tags": ["human", "military"],
     "regionRange": [25, 100],
-    "baseProbability": 0.10,
+    "baseProbability": 0.085,
     "dialoguePool": ["scout_road_01", "scout_road_02", "scout_road_03"]
   },
   {
@@ -68,7 +68,7 @@
     "name": "Noble Traveler",
     "tags": ["human", "nobility"],
     "regionRange": [1, 50],
-    "baseProbability": 0.07,
+    "baseProbability": 0.06,
     "dialoguePool": ["noble_road_01", "noble_road_02", "noble_road_03"]
   },
   {
@@ -76,7 +76,7 @@
     "name": "Deserter",
     "tags": ["human", "military"],
     "regionRange": [30, 100],
-    "baseProbability": 0.08,
+    "baseProbability": 0.07,
     "dialoguePool": ["deserter_road_01", "deserter_road_02", "deserter_road_03"]
   },
   {
@@ -84,7 +84,7 @@
     "name": "Road Guard",
     "tags": ["human", "authority"],
     "regionRange": [1, 60],
-    "baseProbability": 0.10,
+    "baseProbability": 0.085,
     "dialoguePool": ["guard_road_01", "guard_road_02", "guard_road_03"]
   },
   {
@@ -92,7 +92,7 @@
     "name": "Wandering Healer",
     "tags": ["human", "medicine"],
     "regionRange": [5, 90],
-    "baseProbability": 0.08,
+    "baseProbability": 0.07,
     "dialoguePool": ["healer_road_01", "healer_road_02", "healer_road_03"]
   },
   {
@@ -100,7 +100,7 @@
     "name": "Merchant Caravan",
     "tags": ["human", "trade", "group"],
     "regionRange": [1, 65],
-    "baseProbability": 0.07,
+    "baseProbability": 0.06,
     "dialoguePool": ["caravan_road_01", "caravan_road_02", "caravan_road_03"]
   },
   {
@@ -108,7 +108,7 @@
     "name": "Lost Child",
     "tags": ["human", "child"],
     "regionRange": [1, 45],
-    "baseProbability": 0.06,
+    "baseProbability": 0.05,
     "dialoguePool": ["child_road_01", "child_road_02", "child_road_03"]
   }
 ]
