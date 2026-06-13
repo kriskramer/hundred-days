@@ -6,7 +6,7 @@ import {
   clamp,
 } from '@engine/GameState';
 import { generateRunLayout } from '@engine/RunLayout';
-import { normalizeRngState } from '@engine/Random';
+import { normalizeRngState, nextMulberry32 } from '@engine/Random';
 import {
   PlayerAction,
   TurnPhase,
@@ -298,16 +298,30 @@ function applyDeltasSequentially(
   return { food, gold, health, moraleValue: morale.value, reputationValue: reputation.value };
 }
 
-const MIXED_ACTION_CYCLE: ActionParams[] = [
+// Weighted pool of actions a "reasonable" player would take. Move appears
+// most often (it's how you make progress), with food/morale upkeep mixed in.
+const ACTION_POOL: ActionParams[] = [
+  { action: PlayerAction.Move, forcedMarch: false },
+  { action: PlayerAction.Move, forcedMarch: false },
+  { action: PlayerAction.Move, forcedMarch: false },
   { action: PlayerAction.Move, forcedMarch: false },
   { action: PlayerAction.Hunt, method: 'forage' },
-  { action: PlayerAction.Move, forcedMarch: false },
   { action: PlayerAction.Rest, atInn: false },
-  { action: PlayerAction.Move, forcedMarch: false },
   { action: PlayerAction.Camp },
-  { action: PlayerAction.Move, forcedMarch: false },
   { action: PlayerAction.Rally },
 ];
+
+// Independent seeded RNG (separate from the engine's own rngState) used to
+// pick a random action each turn, so playthroughs explore varied action
+// sequences while remaining reproducible per seed.
+function makeActionPicker(seed: number): () => ActionParams {
+  let rngState = normalizeRngState(seed);
+  return () => {
+    const next = nextMulberry32(rngState);
+    rngState = next.state;
+    return ACTION_POOL[Math.floor(next.value * ACTION_POOL.length)];
+  };
+}
 
 // ─────────────────────────────────────────
 // Tests
@@ -315,8 +329,10 @@ const MIXED_ACTION_CYCLE: ActionParams[] = [
 
 describe('Playthrough — resource integrity', () => {
   it('keeps health/morale/reputation/food/gold/loyalty within bounds and reconciles every recorded delta', async () => {
-    const state = makeSeededState(20260610);
+    const seed = 20260610;
+    const state = makeSeededState(seed);
     const harness = createHarness(state);
+    const pickAction = makeActionPicker(seed);
 
     const MAX_TURNS = 80;
     let turnsRun = 0;
@@ -325,7 +341,7 @@ describe('Playthrough — resource integrity', () => {
       const pre = harness.engine.getState();
       if (pre.isComplete) break;
 
-      await submitAndResolve(harness, MIXED_ACTION_CYCLE[i % MIXED_ACTION_CYCLE.length]);
+      await submitAndResolve(harness, pickAction());
       turnsRun += 1;
 
       const post = harness.engine.getState();
@@ -372,12 +388,13 @@ describe('Playthrough — encounter rates', () => {
     for (const seed of SEEDS) {
       const state = makeSeededState(seed);
       const harness = createHarness(state);
+      const pickAction = makeActionPicker(seed);
 
       for (let i = 0; i < TURNS_PER_SEED; i++) {
         const pre = harness.engine.getState();
         if (pre.isComplete) break;
 
-        const resolved = await submitAndResolve(harness, MIXED_ACTION_CYCLE[i % MIXED_ACTION_CYCLE.length]);
+        const resolved = await submitAndResolve(harness, pickAction());
         totalTurns += 1;
 
         if (resolved.some(({ event }) => isCombatEvent(event))) combatTurns += 1;
@@ -405,8 +422,10 @@ describe('Playthrough — encounter rates', () => {
 
 describe('Playthrough — combat encounter resolution', () => {
   it('resolves a full combat encounter and applies its CombatResult to game state', async () => {
-    const state = makeSeededState(8675309);
+    const seed = 8675309;
+    const state = makeSeededState(seed);
     const harness = createHarness(state);
+    const pickAction = makeActionPicker(seed);
 
     let found: { pre: GameState; post: GameState; event: GameEvent; result: CombatResult } | null = null;
 
@@ -414,7 +433,7 @@ describe('Playthrough — combat encounter resolution', () => {
       const pre = harness.engine.getState();
       if (pre.isComplete) break;
 
-      const resolved = await submitAndResolve(harness, MIXED_ACTION_CYCLE[i % MIXED_ACTION_CYCLE.length]);
+      const resolved = await submitAndResolve(harness, pickAction());
       const post = harness.engine.getState();
 
       if (
@@ -457,8 +476,10 @@ describe('Playthrough — combat encounter resolution', () => {
 
 describe('Playthrough — NPC dialogue encounter resolution', () => {
   it('resolves a full NPC dialogue encounter and applies its outcome to game state', async () => {
-    const state = makeSeededState(13013);
+    const seed = 13013;
+    const state = makeSeededState(seed);
     const harness = createHarness(state);
+    const pickAction = makeActionPicker(seed);
 
     let found: {
       pre: GameState;
@@ -472,7 +493,7 @@ describe('Playthrough — NPC dialogue encounter resolution', () => {
       const pre = harness.engine.getState();
       if (pre.isComplete) break;
 
-      const resolved = await submitAndResolve(harness, MIXED_ACTION_CYCLE[i % MIXED_ACTION_CYCLE.length]);
+      const resolved = await submitAndResolve(harness, pickAction());
       const post = harness.engine.getState();
 
       if (

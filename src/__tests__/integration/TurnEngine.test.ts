@@ -191,6 +191,57 @@ describe('TurnEngine — Move action', () => {
     expect(forcedMarch.getState().morale.value).toBe(75);
   });
 
+  it('still applies passive morale events on forced marches while blocking turn-end recovery', async () => {
+    const companion = makeCompanion({
+      passiveBonus: { moralePerTurn: 2 },
+    });
+
+    mockSampleEvents.mockReturnValue([{
+      id: 'inspiring_vista_test',
+      type: EventType.MoraleShift,
+      resolutionType: ResolutionType.Passive,
+      name: 'Inspiring Vista',
+      description: 'A sweeping view lifts the party.',
+      conditions: { probability: 1 },
+      passiveOutcome: {
+        resourceDelta: { morale: 10 },
+        narrativeText: 'The view restores everyone’s resolve.',
+      },
+      repeatable: true,
+      tags: ['morale', 'positive'],
+    }]);
+
+    const { engine } = makeEngine({
+      weather: WeatherType.Ideal,
+      companions: [companion],
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 80, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: true });
+
+    expect(engine.getState().morale.value).toBe(85);
+  });
+
+  it('decays a forced-march streak without applying any hidden morale penalty on a regular move', async () => {
+    const companion = makeCompanion({
+      passiveBonus: { moralePerTurn: 2 },
+    });
+
+    const { engine } = makeEngine({
+      weather: WeatherType.Ideal,
+      companions: [companion],
+      consecutiveForcedMarches: 2,
+      resources: { food: 50, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      morale: { value: 70, tier: MoraleTier.Steady, tierChangedThisTurn: false, dreadActive: false },
+    });
+
+    await engine.submitAction({ action: PlayerAction.Move, forcedMarch: false });
+
+    expect(engine.getState().consecutiveForcedMarches).toBe(0);
+    expect(engine.getState().morale.value).toBe(74);
+  });
+
   it('stops at the nearest uncleared boss checkpoint', async () => {
     // Start at loc 30, boss at 32, clear combat locations empty → should stop at 32
     const { engine, onAwaitInput } = makeEngine({
