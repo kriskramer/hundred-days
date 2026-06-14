@@ -1,5 +1,5 @@
 import {
-  pickRunPremiseId,
+  pickQuestPremiseId,
   buildShortcutScenarioDeltas,
   buildNarrativeEpilogue,
   getShortcutKey,
@@ -9,10 +9,10 @@ import { makeGameState } from '../__fixtures__/gameState';
 import { getCompanion } from '@data/companions';
 
 describe('NarrativeSystem', () => {
-  it('picks a deterministic run premise from the seed', () => {
-    expect(pickRunPremiseId(0)).toBe(pickRunPremiseId(0));
-    expect(pickRunPremiseId(7)).toBe(pickRunPremiseId(7));
-    expect(pickRunPremiseId(0)).not.toBe(pickRunPremiseId(1));
+  it('picks a deterministic quest premise template from the seed', () => {
+    expect(pickQuestPremiseId(0)).toBe(pickQuestPremiseId(0));
+    expect(pickQuestPremiseId(7)).toBe(pickQuestPremiseId(7));
+    expect(pickQuestPremiseId(0)).not.toBe(pickQuestPremiseId(1));
   });
 
   it('builds shortcut scenario deltas only on first use', () => {

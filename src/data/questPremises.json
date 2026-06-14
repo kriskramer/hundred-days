@@ -1,0 +1,58 @@
+[
+  {
+    "id": "council_letter",
+    "title": "The Council's Letter",
+    "hook": "The Okuna council seeks a courier for a sealed letter east — proof of mandate, and a target on your back.",
+    "rumor": "The council's seal weighs heavier than your pack.",
+    "epilogueComplete": "The council's letter reached its destination — and your name rode with it."
+  },
+  {
+    "id": "refugee_escort",
+    "title": "Refugee Escort",
+    "hook": "A family of refugees beg for an escort to the eastern garrison before the roads close.",
+    "rumor": "Their prayers follow you eastward.",
+    "epilogueComplete": "The refugees reached the garrison because you stayed on the road with them."
+  },
+  {
+    "id": "debt_collector",
+    "title": "Okuna Debt",
+    "hook": "A moneylender in Okuna reminds you: gold borrowed here must be repaid in Vorishy — with interest, if Roachak's shadow doesn't claim you first.",
+    "rumor": "Every day on the road is a day closer to ruin or redemption.",
+    "epilogueComplete": "You settled your debt in Vorishy — one worry fewer before Roachak."
+  },
+  {
+    "id": "lost_sibling",
+    "title": "The Missing Rider",
+    "hook": "Word on the road says your sibling rode east six months ago and never returned. Someone may know more along the way.",
+    "rumor": "You tell yourself you are not chasing a ghost.",
+    "epilogueComplete": "You found what became of your sibling — not the answer you hoped for, but an answer."
+  },
+  {
+    "id": "penitent_pilgrim",
+    "title": "Witness to the Fall",
+    "hook": "The priesthood offers absolution to any pilgrim who reaches Roachak and witnesses the sorcerer's fall — or dies trying.",
+    "rumor": "Penance wears the shape of a hundred days.",
+    "epilogueComplete": "The priesthood recorded your witness — penance earned on the hundredth mile."
+  },
+  {
+    "id": "mercenary_contract",
+    "title": "The Hidden Relic",
+    "hook": "A merchant consortium in Okuna pays well for escort work — a relic bound for Vorishy before the hundredth day.",
+    "rumor": "The relic is hidden. The contract is not.",
+    "epilogueComplete": "The relic reached Vorishy under your guard — and the consortium paid every coin promised."
+  },
+  {
+    "id": "village_hero",
+    "title": "Roadside Oath",
+    "hook": "After bandits burned your village, you swore to warn every traveler on this road — but the miles ahead will test that vow.",
+    "rumor": "They called you fool. You called it duty.",
+    "epilogueComplete": "Travelers along the road still speak of the fool who kept their oath."
+  },
+  {
+    "id": "scholar_mission",
+    "title": "Forbidden Texts",
+    "hook": "A scholar in Okuna believes texts in Roachak's vault could save or damn the world — and wants proof brought back.",
+    "rumor": "The scholar's curiosity may outlive the scholar.",
+    "epilogueComplete": "You brought back what the scholar sought — knowledge Roachak would rather have kept buried."
+  }
+]

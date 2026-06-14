@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Text } from 'react-native';
 
 export function TypewriterText({
@@ -8,6 +8,7 @@ export function TypewriterText({
   delay = 0,
   forceComplete = false,
   onComplete,
+  renderDisplayed,
 }: {
   text:            string;
   style?:          object;
@@ -15,6 +16,7 @@ export function TypewriterText({
   delay?:          number;
   forceComplete?:  boolean;
   onComplete?:     () => void;
+  renderDisplayed?: (displayed: string) => React.ReactNode;
 }) {
   const [displayed, setDisplayed] = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -93,6 +95,8 @@ export function TypewriterText({
       if (timeoutRef.current)  clearTimeout(timeoutRef.current);
     };
   }, [interval, delay, text, forceComplete]);
+
+  if (renderDisplayed) return renderDisplayed(displayed);
 
   return <Text style={style}>{displayed}</Text>;
 }

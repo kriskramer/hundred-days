@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, Animated } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { GameState, PlayerAction, WeatherType, CompanionArchetype, GameEvent } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
@@ -9,7 +9,6 @@ import { canStealFromDialogue, findCompanionDialogue, findDialogueForLocation, g
 import {
   canShowNpcSlot,
   getNpcSlotDialogueId,
-  getRunPremise,
 } from '@engine/NarrativeSystem';
 import {
   getQuestAtLocation,
@@ -19,7 +18,6 @@ import {
 } from '@engine/CompanionQuestSystem';
 import { findDetourAtLocation } from '@engine/RunLayout';
 import { Colors } from '@theme';
-import { confirmAction } from '@utils/confirmAction';
 import { TypewriterText, CompanionDetailModal } from '@components';
 import { CompanionDialogueModal } from '@components/CompanionDialogueModal';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
@@ -33,7 +31,7 @@ import { createShadowStyle, NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles
 
 interface JournalSegment {
   key:          string;
-  type:         'prev_entry' | 'prev_delta' | 'loc_desc' | 'random_text' | 'npc_cue'
+  type:         'prev_entry' | 'prev_delta' | 'loc_arrival' | 'loc_details' | 'loc_desc' | 'random_text' | 'npc_cue'
                 | 'travel_dialogue' | 'action_result' | 'combat_intro' | 'trade_intro';
   text?:        string;
   deltaFood?:   number;
@@ -52,20 +50,19 @@ interface Props {
   onOpenNpc?:      (dialogueId: string, event?: GameEvent | null) => void;
   onOpenInn?:      () => void;
   textInterval?:   number;
-  confirmActions?: boolean;
   merchantCloseKey?: number;
   activeEvent?:    GameEvent | null;
   actionsLocked?:  boolean;
 }
 
-function getForageLabel(huntYield: number | null): string | null {
+function getForageWord(huntYield: number | null): string | null {
   if (huntYield === null)       return null;
-  if (huntYield === 0)          return '❧ BARREN';
-  if (huntYield < 0.5)          return '❧ SCARCE';
-  if (huntYield < 1.0)          return '❧ MEAGRE';
-  if (huntYield < 1.5)          return '❧ ADEQUATE';
-  if (huntYield < 2.0)          return '❧ PLENTIFUL';
-  return '❧ BOUNTIFUL';
+  if (huntYield === 0)          return 'BARREN';
+  if (huntYield < 0.5)          return 'SCARCE';
+  if (huntYield < 1.0)          return 'MEAGRE';
+  if (huntYield < 1.5)          return 'ADEQUATE';
+  if (huntYield < 2.0)          return 'PLENTIFUL';
+  return 'BOUNTIFUL';
 }
 
 const WEATHER_LABEL: Record<WeatherType, string> = {
@@ -76,24 +73,66 @@ const WEATHER_LABEL: Record<WeatherType, string> = {
   [WeatherType.Ideal]:   'Ideal Conditions',
 };
 
-const WEATHER_TEXT_STYLE: Record<WeatherType, { color: string; label: string }> = {
-  [WeatherType.Severe]:  { color: '#8B1A1A', label: '⛈ Severe Storm' },
-  [WeatherType.Poor]:    { color: '#A04A00', label: '☁ Poor Weather' },
-  [WeatherType.Neutral]: { color: Colors.mist, label: '☁ Overcast' },
-  [WeatherType.Good]:    { color: '#1E4E2C', label: '☀ Good Weather' },
-  [WeatherType.Ideal]:   { color: '#1B5232', label: '✨ Ideal Conditions' },
+const ARRIVAL_PREFIX = 'You have arrived at ';
+
+const ARRIVAL_PREFIX_STYLE = {
+  fontFamily: 'Cinzel_600SemiBold' as const,
+  fontSize: 14,
+  lineHeight: 22,
+  color: Colors.ink,
 };
 
-function getForageTextColor(huntYield: number | null): string {
-  if (huntYield === null) return Colors.mist;
-  if (huntYield === 0)    return '#8B1A1A';
-  if (huntYield < 0.5)    return '#A04A00';
-  if (huntYield < 1.0)    return '#86600B';
-  if (huntYield < 1.5)    return Colors.mist;
-  if (huntYield < 2.0)    return '#1E4E2C';
-  return '#1B5232';
+const ARRIVAL_NAME_STYLE = {
+  fontFamily: 'Cinzel_600SemiBold' as const,
+  fontSize: 18,
+  lineHeight: 26,
+  color: Colors.ink,
+};
+
+function buildLocationArrivalText(locationName: string): string {
+  return `${ARRIVAL_PREFIX}${locationName}.`;
 }
 
+function renderArrivalText(displayed: string) {
+  const prefixPart = displayed.slice(0, Math.min(displayed.length, ARRIVAL_PREFIX.length));
+  const namePart = displayed.length > ARRIVAL_PREFIX.length ? displayed.slice(ARRIVAL_PREFIX.length) : '';
+
+  return (
+    <Text style={{ marginTop: 8 }}>
+      <Text style={ARRIVAL_PREFIX_STYLE}>{prefixPart}</Text>
+      <Text style={ARRIVAL_NAME_STYLE}>{namePart}</Text>
+    </Text>
+  );
+}
+
+function buildLocationDetailsText(
+  isTown: boolean,
+  hasShop: boolean,
+  weather: WeatherType,
+  huntYield: number | null,
+): string {
+  const features: string[] = [];
+  if (isTown) features.push('a TOWN');
+  if (hasShop) features.push('a SHOP');
+
+  const parts: string[] = [];
+  if (features.length === 0) {
+    parts.push('There is nothing of note here.');
+  } else if (features.length === 1) {
+    parts.push(`There is ${features[0]} here.`);
+  } else {
+    parts.push(`There is ${features[0]} here, and ${features[1]}.`);
+  }
+
+  parts.push(`The weather is ${WEATHER_LABEL[weather].toUpperCase()}.`);
+
+  const forageWord = getForageWord(huntYield);
+  if (forageWord) {
+    parts.push(`Foraging appears to be ${forageWord}.`);
+  }
+
+  return parts.join(' ');
+}
 
 interface ShakingBadgeProps {
   children: React.ReactNode;
@@ -176,7 +215,6 @@ export function RoadScreen({
   onOpenNpc,
   onOpenInn,
   textInterval = 22,
-  confirmActions = true,
   merchantCloseKey,
   activeEvent,
   actionsLocked = false,
@@ -276,6 +314,7 @@ export function RoadScreen({
     : null;
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
+  const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
 
   // Effect A — reset journal panel on location arrival
   useEffect(() => {
@@ -301,10 +340,25 @@ export function RoadScreen({
       }
     }
 
+    segs.push({
+      key:     `arrival-${gameState.currentLocationId}`,
+      type:    'loc_arrival',
+      text:    buildLocationArrivalText(location.name),
+      instant: false,
+    });
+    segs.push({
+      key:     `details-${gameState.currentLocationId}`,
+      type:    'loc_details',
+      text:    buildLocationDetailsText(
+        location.isTown,
+        hasMerchant,
+        gameState.weather,
+        location.actions.huntYield,
+      ),
+      instant: false,
+    });
     if (baseLocationText)
       segs.push({ key: `loc-${gameState.currentLocationId}`, type: 'loc_desc',    text: baseLocationText, instant: false });
-    if (gameState.dayNumber === 1 && runPremise)
-      segs.push({ key: 'run-premise', type: 'random_text', text: runPremise.journalIntro, instant: false });
     if (randomText)
       segs.push({ key: `rnd-${gameState.currentLocationId}`, type: 'random_text', text: randomText,        instant: false });
     if (travelDialogueText)
@@ -443,15 +497,21 @@ export function RoadScreen({
   ) ?? [];
 
   const activeDetour = findDetourAtLocation(gameState.runLayout, gameState.currentLocationId);
-  const runPremise = getRunPremise(gameState.runPremiseId);
 
   const itemBonuses = computeEquippedBonuses(inventoryFromResources(gameState.resources));
   const luckThreshold = getLuckThreshold(gameState.morale)
     + ((gameState.player.stats.luck ?? 0) / 100)
     + (itemBonuses.luckModifier ?? 0);
   const isLucky = luckThreshold > 0.25;
-  const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
   const merchantName = getMerchantAtLocation(gameState.currentLocationId, gameState.runLayout)?.merchantName ?? location.name;
+  const previousDaySegments = segments.filter(seg => seg.type === 'prev_entry' || seg.type === 'prev_delta');
+  const headerSegments = segments.filter(seg => seg.type === 'loc_arrival' || seg.type === 'loc_details');
+  const journalSegments = segments.filter(
+    seg => seg.type !== 'prev_entry'
+      && seg.type !== 'prev_delta'
+      && seg.type !== 'loc_arrival'
+      && seg.type !== 'loc_details',
+  );
 
   function appendCombatIntro(onOpen: () => void) {
     const hostileMob = location.mobs.find(m => m.aggroPct > 0 && !m.isCompanion);
@@ -485,25 +545,25 @@ export function RoadScreen({
       ]
     : [
         ...(dangerNearby ? [{ label: 'Combat', sub: 'Face nearby danger', variant: 'primary' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => appendCombatIntro(() => onOpenCombat?.())) }] : []),
-        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: false }, 'Move', '1 location · 1 food')), isLucky },
-        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: true  }, 'Force March', '2 locations · 1.5 food')) },
+        { label: 'Move',         sub: '1 loc · 1 food',    variant: 'move' as const,       disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false })), isLucky },
+        { label: 'Force March',  sub: '2 locs · 1.5 food', variant: 'forceMarch' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: true })) },
         ...activeShortcuts.map(s => ({
           label: s.label,
           sub: `To loc ${s.to} · 2 food`,
           variant: 'primary' as const,
           disabled: actionsLocked,
-          onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to }, s.label, `Shortcut to location ${s.to} · 2 food`))
+          onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Move, forcedMarch: false, shortcutTo: s.to }))
         })),
         ...(activeDetour ? [{
           label: activeDetour.label,
           sub: `Detour to loc ${activeDetour.rejoinAt}`,
           variant: 'primary' as const,
           disabled: actionsLocked,
-          onPress: () => runWhenJournalReady(() => submitWithConfirm(
-            { action: PlayerAction.Move, forcedMarch: false, detourThreadId: activeDetour.threadId },
-            activeDetour.label,
-            `Side path rejoining at location ${activeDetour.rejoinAt}`,
-          )),
+          onPress: () => runWhenJournalReady(() => submit({
+            action: PlayerAction.Move,
+            forcedMarch: false,
+            detourThreadId: activeDetour.threadId,
+          })),
         }] : []),
         ...(activeQuest && getQuestStep(activeQuest)?.type === 'search' ? [{
           label: getQuestActionLabel(activeQuest) ?? 'Search',
@@ -540,9 +600,9 @@ export function RoadScreen({
           })
         }] : []),
         ...(location.isTown  ? [{ label: 'Visit Inn', sub: 'Rest · rumors', variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => onOpenInn?.()) }] : []),
-        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Hunt, method: 'forage' }, 'Forage', 'Search for food')) }] : []),
-        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Rally }, 'Rally', 'Boost party morale')) },
-        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submitWithConfirm({ action: PlayerAction.Camp }, 'Make Camp', 'Rest and recover')) }] : []),
+        ...(!location.isTown ? [{ label: 'Forage',       sub: 'Gain food',          variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Hunt, method: 'forage' })) }] : []),
+        { label: 'Rally',        sub: 'Boost morale',       variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Rally })) },
+        ...(!location.isTown ? [{ label: 'Make Camp',    sub: '+10 HP · rest',      variant: 'default' as const, disabled: actionsLocked, onPress: () => runWhenJournalReady(() => submit({ action: PlayerAction.Camp })) }] : []),
       ]);
   const npcActionButtons = npcItems.map(item => ({
     label: item.name,
@@ -602,16 +662,6 @@ export function RoadScreen({
     engine.submitAction(params).catch(console.error);
   }
 
-  function submitWithConfirm(params: ActionParams, label: string, costDesc: string) {
-    if (actionsLocked) return;
-    if (!confirmActions) {
-      submit(params);
-      return;
-    }
-
-    confirmAction(label, costDesc, () => submit(params));
-  }
-
   const handleCompanionPress = (id: string) => {
     const dialogue = findCompanionDialogue(id, gameState);
     if (dialogue) {
@@ -665,40 +715,39 @@ export function RoadScreen({
           <View style={{ padding: 16 }}>
             {/* Location header */}
             <View className="border-b border-parchment-deep pb-3 mb-4">
-              <Text className="font-display text-mist" style={{ fontSize: 11, letterSpacing: 2 }}>
-                {location.region.toUpperCase()} · LOCATION {location.id}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 }}>
-                <Text className="font-display-bold text-ink" style={{ fontSize: 22, flexShrink: 1 }}>
-                  {location.name}
-                </Text>
-                {location.isTown && (
-                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.mist }}>
-                    TOWN
-                  </Text>
-                )}
-                {hasMerchant && (
-                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 11, lineHeight: 26, letterSpacing: 1, color: Colors.gold }}>
-                    SHOP
-                  </Text>
-                )}
-              </View>
-              {/* Weather · Forage row */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                {(() => {
-                  const style = WEATHER_TEXT_STYLE[gameState.weather];
-                  return (
-                    <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, letterSpacing: 1, color: style.color }}>
-                      {style.label.toUpperCase()}
-                    </Text>
-                  );
-                })()}
-                {getForageLabel(location.actions.huntYield) && (
-                  <Text style={{ fontFamily: 'Cinzel_600SemiBold', fontSize: 10, letterSpacing: 1, color: getForageTextColor(location.actions.huntYield) }}>
-                    {getForageLabel(location.actions.huntYield)}
-                  </Text>
-                )}
-              </View>
+              {previousDaySegments.map((seg, i) => (
+                <JournalSegmentView
+                  key={seg.key}
+                  seg={seg}
+                  isTyping={seg.key === typingKey}
+                  isCompleted={completedKeys.has(seg.key)}
+                  forceComplete={forceComplete && seg.key === typingKey}
+                  textInterval={textInterval}
+                  showDivider={i > 0}
+                  renderDelta={renderDelta}
+                  onComplete={() => {
+                    setCompletedKeys(prev => new Set([...prev, seg.key]));
+                    setForceComplete(false);
+                  }}
+                />
+              ))}
+              {headerSegments.map((seg, i) => (
+                <JournalSegmentView
+                  key={seg.key}
+                  seg={seg}
+                  isTyping={seg.key === typingKey}
+                  isCompleted={completedKeys.has(seg.key)}
+                  forceComplete={forceComplete && seg.key === typingKey}
+                  textInterval={textInterval}
+                  showDivider={i > 0 || previousDaySegments.length > 0}
+                  renderDelta={renderDelta}
+                  onComplete={() => {
+                    setCompletedKeys(prev => new Set([...prev, seg.key]));
+                    setForceComplete(false);
+                  }}
+                  compact={i > 0}
+                />
+              ))}
 
               {/* Alert badges row — only when relevant */}
               {showAlertBadges && (
@@ -737,12 +786,10 @@ export function RoadScreen({
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
-              <TouchableOpacity
-                activeOpacity={0.95}
-                onPress={() => setForceComplete(true)}
+              <View
                 style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}
               >
-                {segments.map((seg, i) => (
+                {journalSegments.map((seg, i) => (
                   <JournalSegmentView
                     key={seg.key}
                     seg={seg}
@@ -750,7 +797,7 @@ export function RoadScreen({
                     isCompleted={completedKeys.has(seg.key)}
                     forceComplete={forceComplete && seg.key === typingKey}
                     textInterval={textInterval}
-                    showDivider={i > 0}
+                    showDivider={i > 0 || previousDaySegments.length > 0 || headerSegments.length > 0}
                     renderDelta={renderDelta}
                     onComplete={() => {
                       setCompletedKeys(prev => new Set([...prev, seg.key]));
@@ -760,7 +807,7 @@ export function RoadScreen({
                     }}
                   />
                 ))}
-              </TouchableOpacity>
+              </View>
             </ScrollView>
 
             {/* Actions */}
@@ -800,6 +847,13 @@ export function RoadScreen({
           </View>
         </View>
       </ScrollView>
+      {isTyping && !forceComplete && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setForceComplete(true)}
+          style={StyleSheet.absoluteFillObject}
+        />
+      )}
       <CompanionDetailModal
         visible={selectedCompanionId !== null}
         companionId={selectedCompanionId}
@@ -839,6 +893,7 @@ function JournalSegmentView({
   showDivider,
   renderDelta,
   onComplete,
+  compact = false,
 }: {
   seg:           JournalSegment;
   isTyping:      boolean;
@@ -848,14 +903,19 @@ function JournalSegmentView({
   showDivider:   boolean;
   renderDelta:   (val: number, label: string, icon: string) => React.ReactNode;
   onComplete:    () => void;
+  compact?:      boolean;
 }) {
   const isPrevEntry = seg.type === 'prev_entry';
   const isTravelDialogue = seg.type === 'travel_dialogue';
-  const textStyle = isPrevEntry
-    ? { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 14, lineHeight: 21, color: Colors.mist, opacity: 0.8 }
-    : isTravelDialogue
-      ? { fontFamily: 'CrimsonText_400Regular' as const, fontSize: 15, lineHeight: 23, color: Colors.ink }
-    : { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 15, lineHeight: 22, color: Colors.inkLight };
+  const isLocArrival = seg.type === 'loc_arrival';
+  const isLocDetails = seg.type === 'loc_details';
+  const textStyle = isLocDetails
+      ? { fontFamily: 'CrimsonText_400Regular' as const, fontSize: 14, lineHeight: 21, color: Colors.mist, marginTop: compact ? 6 : 8 }
+    : isPrevEntry
+      ? { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 14, lineHeight: 21, color: Colors.mist, opacity: 0.8 }
+      : isTravelDialogue
+        ? { fontFamily: 'CrimsonText_400Regular' as const, fontSize: 15, lineHeight: 23, color: Colors.ink }
+      : { fontFamily: 'CrimsonText_400Regular_Italic' as const, fontSize: 15, lineHeight: 22, color: Colors.inkLight };
 
   const header = SEGMENT_HEADERS[seg.type] ?? null;
 
@@ -891,7 +951,20 @@ function JournalSegmentView({
           {header}
         </Text>
       )}
-      {seg.instant || isCompleted ? (
+      {isLocArrival ? (
+        seg.instant || isCompleted ? (
+          renderArrivalText(seg.text ?? '')
+        ) : (
+          <TypewriterText
+            key={seg.key}
+            text={seg.text ?? ''}
+            interval={textInterval}
+            forceComplete={forceComplete}
+            onComplete={onComplete}
+            renderDisplayed={renderArrivalText}
+          />
+        )
+      ) : seg.instant || isCompleted ? (
         <Text style={textStyle}>{seg.text}</Text>
       ) : (
         <TypewriterText

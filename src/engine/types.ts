@@ -692,11 +692,27 @@ export interface ActiveCompanionQuest {
   stepRetriesUsed?: number;
 }
 
-export interface RunPremise {
-  id: string;
-  text: string;
-  journalIntro: string;
+export interface QuestPremiseBeat {
+  minLoc: number;
+  maxLoc: number;
+  eventId?: string;
+  dialogueId?: string;
+  requiredFlag?: string;
+  forbiddenFlag?: string;
 }
+
+/** Optional run questline seed — wired via events/dialogues when implemented. */
+export interface QuestPremiseTemplate {
+  id: string;
+  title: string;
+  hook: string;
+  rumor: string;
+  epilogueComplete?: string;
+  beats?: QuestPremiseBeat[];
+}
+
+/** @deprecated Renamed to QuestPremiseTemplate; kept for save migration only. */
+export type RunPremise = QuestPremiseTemplate;
 
 // ─────────────────────────────────────────
 // Game state (master)
@@ -733,7 +749,8 @@ export interface GameState {
   consecutiveCombatDays:    number;
   consecutiveLowMorale:     number;
 
-  runPremiseId?:           string;
+  /** Reserved for a future optional run questline (see questPremises.json). */
+  runPremiseId?:           string | null;
   companionQuests?:        ActiveCompanionQuest[];
   usedShortcutKeys?:       string[];
   revealedRumorIds?:       string[];

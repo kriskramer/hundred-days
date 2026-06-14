@@ -6,6 +6,7 @@ import { LOCATIONS, REGIONS } from '@data/locations';
 import { getAllShops } from '@data/shops';
 import { ITEMS } from '@data/items';
 import { COMPANION_QUEST_VARIANTS } from '@data/companionQuests';
+import { QUEST_PREMISE_TEMPLATES } from '@data/questPremises';
 import { TRAVEL_DIALOGUES } from '@data/travelDialogues';
 import { BOSS_EVENT_MAP } from '@engine/bosses';
 import {
@@ -42,6 +43,7 @@ describe('Data integrity', () => {
     expect(findDuplicates(getAllShops().map(shop => shop.id))).toEqual([]);
     expect(findDuplicates(ENEMIES.map(enemy => enemy.id))).toEqual([]);
     expect(findDuplicates(ITEMS.map(item => item.id))).toEqual([]);
+    expect(findDuplicates(QUEST_PREMISE_TEMPLATES.map(p => p.id))).toEqual([]);
   });
 
   it('keeps location IDs contiguous from 1 to 125', () => {

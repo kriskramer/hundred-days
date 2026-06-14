@@ -1,51 +1,10 @@
-import type { GameState, RunPremise, StatDelta } from './types';
+import type { GameState, StatDelta } from './types';
 import type { PathShortcut } from './RunLayout';
 import { getRegion } from '@data/locations';
 import { getShortcutScenario } from '@data/shortcutScenarios';
 import { getCompanionQuestVariant } from '@data/companionQuests';
 
-export const RUN_PREMISES: RunPremise[] = [
-  {
-    id: 'council_letter',
-    text: 'You carry a sealed letter from the Okuna council — proof of your mandate, and a target on your back.',
-    journalIntro: 'The council\'s seal weighs heavier than your pack.',
-  },
-  {
-    id: 'refugee_escort',
-    text: 'A family of refugees entrusted you with reaching the eastern garrison before the roads close.',
-    journalIntro: 'Their prayers follow you eastward.',
-  },
-  {
-    id: 'debt_collector',
-    text: 'Gold you borrowed in Okuna must be repaid in Vorishy — with interest, if Roachak\'s shadow doesn\'t claim you first.',
-    journalIntro: 'Every day on the road is a day closer to ruin or redemption.',
-  },
-  {
-    id: 'lost_sibling',
-    text: 'Your sibling rode east six months ago and never returned. You follow the same road, hoping answers wait at its end.',
-    journalIntro: 'You tell yourself you are not chasing a ghost.',
-  },
-  {
-    id: 'penitent_pilgrim',
-    text: 'The priesthood sent you to witness Roachak\'s fall — or die trying to earn forgiveness.',
-    journalIntro: 'Penance wears the shape of a hundred days.',
-  },
-  {
-    id: 'mercenary_contract',
-    text: 'A merchant consortium paid you to escort a relic to Vorishy before the hundredth day.',
-    journalIntro: 'The relic is hidden. The contract is not.',
-  },
-  {
-    id: 'village_hero',
-    text: 'When bandits burned your village, you swore no one else on this road would die unprepared.',
-    journalIntro: 'They called you fool. You called it duty.',
-  },
-  {
-    id: 'scholar_mission',
-    text: 'You seek forbidden texts rumoured to be in Roachak\'s vault — knowledge that could save or damn the world.',
-    journalIntro: 'The scholar\'s curiosity may outlive the scholar.',
-  },
-];
+export { getQuestPremise, pickQuestPremiseId, QUEST_PREMISE_TEMPLATES } from '@data/questPremises';
 
 const EPILOGUE_FLAG_PRIORITY = [
   'dain_quest_complete',
@@ -70,16 +29,6 @@ const EPILOGUE_FLAG_LINES: Record<string, string> = {
   saga_courier_complete: 'The missing courier\'s satchel reached its destination because of you.',
   saga_lights_complete: 'You never solved the strange lights in the marsh — but you survived them.',
 };
-
-export function pickRunPremiseId(seed: number): string {
-  const index = Math.abs(seed) % RUN_PREMISES.length;
-  return RUN_PREMISES[index].id;
-}
-
-export function getRunPremise(premiseId: string | undefined): RunPremise | undefined {
-  if (!premiseId) return undefined;
-  return RUN_PREMISES.find(p => p.id === premiseId);
-}
 
 export function getShortcutKey(shortcut: PathShortcut): string {
   return `${shortcut.from}_${shortcut.to}`;
@@ -109,7 +58,6 @@ export function buildShortcutScenarioDeltas(
 export function buildNarrativeEpilogue(state: GameState): string {
   const region = getRegion(state.currentLocationId).name;
   const companions = state.companions.map(c => c.name);
-  const premise = getRunPremise(state.runPremiseId);
 
   let frame: string;
   switch (state.outcome) {
@@ -127,7 +75,6 @@ export function buildNarrativeEpilogue(state: GameState): string {
   }
 
   const highlights: string[] = [];
-  if (premise) highlights.push(premise.text);
 
   for (const flag of EPILOGUE_FLAG_PRIORITY) {
     if (state.storyFlags.has(flag) && EPILOGUE_FLAG_LINES[flag]) {

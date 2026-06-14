@@ -13,7 +13,6 @@ import {
 import { normalizeRngState, nextMulberry32 } from './Random';
 import { Location } from '../data/locations';
 import { generateRunLayout } from './RunLayout';
-import { pickRunPremiseId } from './NarrativeSystem';
 import {
   BOSS_POWER_IDEAL_CONFIG,
   BOSS_POWER_THRESHOLD_CONFIG,
@@ -150,7 +149,6 @@ export function createNewGameState(
     consecutiveCombatDays:    0,
     consecutiveLowMorale:     0,
 
-    runPremiseId:        pickRunPremiseId(seed),
     companionQuests:     [],
     usedShortcutKeys:    [],
     revealedRumorIds:    [],

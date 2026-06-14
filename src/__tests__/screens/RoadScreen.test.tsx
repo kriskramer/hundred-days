@@ -32,7 +32,6 @@ describe('RoadScreen', () => {
         engine={engine}
         onToast={onToast}
         textInterval={0}
-        confirmActions={false}
       />
     );
 
@@ -129,6 +128,7 @@ describe('RoadScreen', () => {
     const gameState2 = {
       ...gameState1,
       currentLocationId: 27,
+      runLayout: { npcSlots: [], roamingMerchants: [], activeShortcuts: [], eliteSpawns: [], activeDetours: [], sagaThreads: [] },
       turnHistory: [
         {
           dayNumber: 1,
@@ -182,7 +182,7 @@ describe('RoadScreen', () => {
     );
 
     await waitFor(() => {
-      expect(queryByText('Okuna')).toBeTruthy();
+      expect(queryByText(/You have arrived at Okuna\./)).toBeTruthy();
     });
     expect(queryByText('◇ STRANGER NEARBY')).toBeNull();
     expect(queryByText('NPC')).toBeNull();

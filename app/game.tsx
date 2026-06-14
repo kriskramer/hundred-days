@@ -134,7 +134,6 @@ export default function GameScreen() {
                 : settings?.textSpeed === 'instant'
                   ? 0
                   : 22}
-            confirmActions={settings?.confirmActions ?? true}
             merchantCloseKey={nav.merchantCloseKey}
           />
         </View>
