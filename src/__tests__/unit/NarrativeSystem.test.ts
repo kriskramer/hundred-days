@@ -3,12 +3,22 @@ import {
   buildShortcutScenarioDeltas,
   buildNarrativeEpilogue,
   getShortcutKey,
+  canShowNpcSlot,
 } from '@engine/NarrativeSystem';
 import { generateRunLayout } from '@engine/RunLayout';
 import { makeGameState } from '../__fixtures__/gameState';
 import { getCompanion } from '@data/companions';
 
 describe('NarrativeSystem', () => {
+  it('hides npc slots for companions already in the party', () => {
+    const slot = { locationId: 10, npcEventId: 'rex_the_dog', arcStage: 2 };
+    const storyFlags = new Set(['rex_the_dog_stage_1_done']);
+    const firedEventIds = new Set<string>();
+
+    expect(canShowNpcSlot(slot, storyFlags, firedEventIds)).toBe(true);
+    expect(canShowNpcSlot(slot, storyFlags, firedEventIds, new Set(['rex_the_dog']))).toBe(false);
+  });
+
   it('picks a deterministic quest premise template from the seed', () => {
     expect(pickQuestPremiseId(0)).toBe(pickQuestPremiseId(0));
     expect(pickQuestPremiseId(7)).toBe(pickQuestPremiseId(7));

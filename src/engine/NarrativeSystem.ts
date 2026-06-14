@@ -129,9 +129,11 @@ export function canShowNpcSlot(
   slot: { npcEventId: string; arcStage: number; locationId: number },
   storyFlags: Set<string>,
   firedEventIds: Set<string>,
+  recruitedCompanionIds?: ReadonlySet<string>,
 ): boolean {
   const firedKey = getNpcSlotFiredKey(slot.npcEventId, slot.arcStage, slot.locationId);
   if (firedEventIds.has(firedKey)) return false;
+  if (recruitedCompanionIds?.has(slot.npcEventId)) return false;
   if (slot.arcStage <= 1) return true;
   const prevFlag = `${slot.npcEventId}_stage_${slot.arcStage - 1}_done`;
   return storyFlags.has(prevFlag);

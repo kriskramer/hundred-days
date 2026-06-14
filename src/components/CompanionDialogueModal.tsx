@@ -15,7 +15,13 @@ import {
   Animated,
 } from 'react-native';
 
-import type { Dialogue, DialogueChoice, DialogueNode, DialogueSessionOutcome, GameState } from '@engine/types';
+import type {
+  Dialogue,
+  DialogueChoice,
+  DialogueNode,
+  DialogueSessionOutcome,
+  GameState,
+} from '@engine/types';
 import { DialogueEngine, ChoiceTone } from '@engine/DialogueEngine';
 import { NATIVE_ANIMATED_DRIVER } from '@utils/platformStyles';
 
@@ -31,6 +37,7 @@ const C = {
   blood:     '#8B1A1A',
   gold:      '#B8860B',
   mist:      '#6B7C6E',
+  greenLight:'#4A8A5A',
 };
 
 const TONE_META: Record<ChoiceTone, { color: string; label: string }> = {
@@ -63,6 +70,8 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
   const [currentNode,    setCurrentNode]    = useState<DialogueNode | null>(null);
   const [visibleChoices, setVisibleChoices] = useState<DialogueChoice[]>([]);
   const [isDone,         setIsDone]         = useState(false);
+  const [outcome,        setOutcome]        = useState<DialogueSessionOutcome | null>(null);
+  const [outcomeText,    setOutcomeText]    = useState<string | null>(null);
 
   const engineRef = useRef<DialogueEngine | null>(null);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -82,6 +91,8 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
       setCurrentNode(null);
       setVisibleChoices([]);
       setIsDone(false);
+      setOutcome(null);
+      setOutcomeText(null);
       engineRef.current?.destroy();
       engineRef.current = null;
       return;
@@ -94,11 +105,14 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
         animateIn();
         setCurrentNode(node);
         setVisibleChoices(choices);
+        setOutcomeText(null);
       },
-      (outcome) => {
+      (sessionOutcome) => {
         setIsDone(true);
-        onComplete(outcome);
+        setOutcome(sessionOutcome);
+        setVisibleChoices([]);
       },
+      { manualDismiss: true },
     );
 
     engineRef.current = engine;
@@ -109,10 +123,36 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
   }, [visible, dialogue?.id]);
 
   const handleChoice = useCallback((choice: DialogueChoice) => {
+    if (choice.outcome.outcomeText) {
+      setOutcomeText(choice.outcome.outcomeText);
+    }
     engineRef.current?.choose(choice.id, gameState, gameState.companions);
   }, [gameState]);
 
+  const handleDismiss = useCallback(() => {
+    if (isDone && outcome) {
+      onComplete(outcome);
+      onClose();
+      return;
+    }
+
+    if (currentNode?.autoAdvance && visibleChoices.length === 0 && engineRef.current) {
+      engineRef.current.advance(gameState, gameState.companions);
+      const sessionOutcome = engineRef.current.getSession().outcome;
+      const hasStats = sessionOutcome.reputationDelta !== 0 || sessionOutcome.moraleDelta !== 0
+        || sessionOutcome.xpGained !== 0 || sessionOutcome.resourceDeltas.gold !== 0
+        || sessionOutcome.resourceDeltas.food !== 0;
+      if (!hasStats) {
+        onComplete(sessionOutcome);
+        onClose();
+      }
+    }
+  }, [currentNode, gameState, isDone, onClose, onComplete, outcome, visibleChoices.length]);
+
   if (!visible) return null;
+
+  const awaitingDismiss = !!currentNode?.autoAdvance && visibleChoices.length === 0 && !isDone;
+  const showDismissBtn  = awaitingDismiss || isDone;
 
   return (
     <Modal
@@ -150,6 +190,12 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
               </Animated.View>
             )}
 
+            {outcomeText && (
+              <View style={s.outcomeTextBox}>
+                <Text style={s.outcomeTextContent}>{outcomeText}</Text>
+              </View>
+            )}
+
             {/* Choices */}
             {visibleChoices.length > 0 && !isDone && (
               <Animated.View style={{ opacity: fadeAnim, marginTop: 12 }}>
@@ -171,16 +217,56 @@ export function CompanionDialogueModal({ visible, dialogue, gameState, onComplet
               </Animated.View>
             )}
 
-            {/* Done state */}
-            {isDone && (
-              <TouchableOpacity style={s.doneBtn} onPress={onClose} activeOpacity={0.8}>
-                <Text style={s.doneBtnText}>CONTINUE</Text>
+            {isDone && outcome && <OutcomeSummary outcome={outcome} />}
+
+            {showDismissBtn && (
+              <TouchableOpacity style={s.doneBtn} onPress={handleDismiss} activeOpacity={0.8}>
+                <Text style={s.doneBtnText}>CLOSE</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
         </View>
       </View>
     </Modal>
+  );
+}
+
+// ─────────────────────────────────────────
+// Outcome summary
+// ─────────────────────────────────────────
+
+function OutcomeSummary({ outcome }: { outcome: DialogueSessionOutcome }) {
+  const hasGains  = outcome.reputationDelta > 0 || outcome.moraleDelta > 0
+                 || outcome.xpGained > 0        || outcome.resourceDeltas.gold > 0
+                 || outcome.resourceDeltas.food  > 0;
+  const hasLosses = outcome.reputationDelta < 0 || outcome.moraleDelta < 0
+                 || outcome.resourceDeltas.gold  < 0 || outcome.resourceDeltas.food < 0;
+
+  if (!hasGains && !hasLosses) return null;
+
+  return (
+    <View style={s.outcomeStatsBox}>
+      <Text style={s.outcomeStatsTitle}>Conversation results</Text>
+      <View style={s.outcomeStatsDivider} />
+      {renderStatLine('Reputation', outcome.reputationDelta)}
+      {renderStatLine('Morale',     outcome.moraleDelta)}
+      {renderStatLine('XP',         outcome.xpGained)}
+      {renderStatLine('Gold',       outcome.resourceDeltas.gold)}
+      {renderStatLine('Food',       outcome.resourceDeltas.food)}
+    </View>
+  );
+}
+
+function renderStatLine(label: string, value: number) {
+  if (!value) return null;
+  const positive = value > 0;
+  return (
+    <View key={label} style={s.statLine}>
+      <Text style={s.statLabel}>{label}</Text>
+      <Text style={[s.statValue, { color: positive ? C.greenLight : '#FF9999' }]}>
+        {positive ? '+' : ''}{value}
+      </Text>
+    </View>
   );
 }
 
@@ -256,6 +342,21 @@ const s = StyleSheet.create({
     fontFamily: 'CrimsonText_400Regular_Italic',
     color: '#3A3020',
   },
+  outcomeTextBox: {
+    backgroundColor: C.parchDark,
+    borderLeftColor: C.gold,
+    borderLeftWidth: 3,
+    borderRadius: 6,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  outcomeTextContent: {
+    color: '#3A3020',
+    fontFamily: 'CrimsonText_400Regular_Italic',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   responseLabel: {
     fontFamily: 'Cinzel_400Regular',
     fontSize: 10,
@@ -292,6 +393,40 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: C.ink,
     lineHeight: 20,
+  },
+  outcomeStatsBox: {
+    backgroundColor: C.parchDark,
+    borderRadius: 6,
+    marginTop: 12,
+    padding: 14,
+  },
+  outcomeStatsTitle: {
+    color: C.ink,
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  outcomeStatsDivider: {
+    backgroundColor: C.parchDeep,
+    height: 1,
+    marginBottom: 8,
+  },
+  statLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  statLabel: {
+    color: C.mist,
+    fontFamily: 'CrimsonText_400Regular',
+    fontSize: 14,
+  },
+  statValue: {
+    fontFamily: 'Cinzel_600SemiBold',
+    fontSize: 14,
   },
   doneBtn: {
     backgroundColor: C.ink,

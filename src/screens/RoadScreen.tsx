@@ -22,7 +22,7 @@ import { TypewriterText, CompanionDetailModal } from '@components';
 import { CompanionDialogueModal } from '@components/CompanionDialogueModal';
 import { getLuckThreshold, computeEquippedBonuses, inventoryFromResources } from '@engine';
 import { getMerchantAtLocation, hasMerchantAtLocation } from '@engine/ItemSystem';
-import { getMerchantEntryNarrative } from '@utils/tradeJournal';
+import { getMerchantEntryNarrative, getShopEntryNarrative } from '@utils/tradeJournal';
 import { getEnemyDefinition } from '@engine';
 import { saveEngine } from '@engine/SaveEngine';
 import { useGameStore } from '@store/gameStore';
@@ -258,9 +258,10 @@ export function RoadScreen({
 
   const activeDialogue = findDialogueForLocation(gameState.currentLocationId, gameState);
   const dialogueCue    = activeDialogue ? (DIALOGUE_CUES[activeDialogue.id] || 'Someone is nearby, looking to speak with you.') : null;
+  const recruitedCompanionIds = new Set(gameState.companions.map(c => c.id));
   const currentNpcSlot = gameState.runLayout?.npcSlots.find(
     slot => slot.locationId === gameState.currentLocationId
-      && canShowNpcSlot(slot, gameState.storyFlags, gameState.firedEventIds),
+      && canShowNpcSlot(slot, gameState.storyFlags, gameState.firedEventIds, recruitedCompanionIds),
   ) ?? null;
 
   interface NpcItem {
@@ -616,7 +617,7 @@ export function RoadScreen({
             setSegments(prev => [...prev, {
               key:     `trade-${Date.now()}`,
               type:    'trade_intro',
-              text:    flavorText,
+              text:    getShopEntryNarrative(merchantName),
               instant: false,
             }]);
           })
@@ -901,7 +902,6 @@ const SEGMENT_HEADERS: Partial<Record<JournalSegment['type'], string>> = {
   travel_dialogue:'ON THE ROAD',
   action_result: 'YOU ACTED',
   combat_intro:  'DANGER APPROACHES',
-  trade_intro:   'AT THE MARKET',
 };
 
 function JournalSegmentView({

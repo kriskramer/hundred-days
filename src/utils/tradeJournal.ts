@@ -1,7 +1,7 @@
 import { GameState, PlayerAction, TurnRecord } from '@engine/types';
 
 export function getShopEntryNarrative(shopName: string): string {
-  return `You enter the ${shopName}.`;
+  return `You enter ${shopName}.`;
 }
 
 export function getTradePurchaseNarrative(

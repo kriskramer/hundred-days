@@ -27,12 +27,12 @@ describe('tradeJournal', () => {
       eventsTriggered: [],
       deltas: [],
       levelUpOccurred: false,
-      narrativeSummary: 'You enter the The Sdrakam Armory.',
+      narrativeSummary: 'You enter The Sdrakam Armory.',
     });
   });
 
   it('formats the shop entry narrative', () => {
-    expect(getShopEntryNarrative('Kanlin\'s Supplies')).toBe('You enter the Kanlin\'s Supplies.');
+    expect(getShopEntryNarrative('Kanlin\'s Supplies')).toBe('You enter Kanlin\'s Supplies.');
   });
 
   it('formats purchase narrative and includes auto-equip when applicable', () => {
@@ -53,7 +53,7 @@ describe('tradeJournal', () => {
     expect(
       appendTradeJournalLine(record, 'You purchased Traveler\'s Blade for 25 gold.')
     ).toMatchObject({
-      narrativeSummary: 'You enter the The Sdrakam Armory.\nYou purchased Traveler\'s Blade for 25 gold.',
+      narrativeSummary: 'You enter The Sdrakam Armory.\nYou purchased Traveler\'s Blade for 25 gold.',
     });
   });
 

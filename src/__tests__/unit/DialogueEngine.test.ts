@@ -503,6 +503,27 @@ describe('DialogueEngine — auto-advance', () => {
     expect(onComplete).toHaveBeenCalled();
   });
 
+  it('does not auto-advance when manualDismiss is enabled', () => {
+    const dialogue = makeDialogue({
+      nodes: {
+        node_01: {
+          id: 'node_01', speakerName: 'Narrator', text: 'Auto-advance test.',
+          choices: [],
+          autoAdvance: true,
+          autoAdvanceToId: null,
+          autoAdvanceDelayMs: 1800,
+        },
+      },
+    });
+    const state = makeGameState();
+    const onComplete = jest.fn();
+    const engine = new DialogueEngine(dialogue, state, jest.fn(), onComplete, { manualDismiss: true });
+    engine.start(state, []);
+
+    jest.advanceTimersByTime(1800);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it('destroy cancels auto-advance timer', () => {
     const dialogue = makeDialogue({
       nodes: {

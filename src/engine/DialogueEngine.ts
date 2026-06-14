@@ -24,22 +24,30 @@ export type {
   DialogueSession,
 } from './types';
 
+export interface DialogueEngineOptions {
+  /** When true, auto-advance nodes wait for an explicit advance() call instead of using a timer. */
+  manualDismiss?: boolean;
+}
+
 export class DialogueEngine {
   private session: DialogueSession;
   private dialogue: Dialogue;
   private onNodeChange: (node: DialogueNode, choices: DialogueChoice[]) => void;
   private onComplete: (outcome: DialogueSessionOutcome) => void;
   private autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
+  private manualDismiss: boolean;
 
   constructor(
     dialogue: Dialogue,
     _gameState: GameState,
     onNodeChange: (node: DialogueNode, choices: DialogueChoice[]) => void,
     onComplete: (outcome: DialogueSessionOutcome) => void,
+    options?: DialogueEngineOptions,
   ) {
     this.dialogue = dialogue;
     this.onNodeChange = onNodeChange;
     this.onComplete = onComplete;
+    this.manualDismiss = options?.manualDismiss ?? false;
     this.session = {
       dialogueId: dialogue.id,
       currentNodeId: dialogue.rootNodeId,
@@ -114,7 +122,7 @@ export class DialogueEngine {
 
     this.onNodeChange(node, visibleChoices);
 
-    if (!node.autoAdvance) {
+    if (!node.autoAdvance || this.manualDismiss) {
       return;
     }
 
