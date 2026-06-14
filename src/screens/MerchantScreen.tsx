@@ -99,6 +99,8 @@ export function MerchantScreen({ onBackToRoad, onToast, merchantEntryNarrative }
     .map(invItem => ({ invItem, def: getItemDef(invItem.definitionId) }))
     .filter(({ def }) => !!def?.shopPrice && def.category !== ItemCategory.QuestItem);
 
+  const shopDialogue = findShopDialogue(locationId, gameState);
+
   async function handleBuy(itemId: string) {
     const result = await buyItem(locationId, itemId);
     if (!result.success) {
@@ -136,26 +138,14 @@ export function MerchantScreen({ onBackToRoad, onToast, merchantEntryNarrative }
   return (
     <View style={s.root}>
       <View style={s.topHeader}>
-        <View>
+        <View style={s.headerTitle}>
           <Text style={s.kicker}>MERCHANT</Text>
-          <Text style={s.title}>{merchant?.merchantName ?? location.name}</Text>
+          <Text style={s.title} numberOfLines={1}>{merchant?.merchantName ?? location.name}</Text>
           {merchant && (
-            <Text style={s.subtitle}>{location.name}</Text>
+            <Text style={s.subtitle} numberOfLines={1}>{location.name}</Text>
           )}
         </View>
         <View style={s.headerActions}>
-          {findShopDialogue(locationId, gameState) && (
-            <TouchableOpacity
-              onPress={() => {
-                const d = findShopDialogue(locationId, gameState);
-                if (d) setShopDialogueId(d.id);
-              }}
-              style={s.talkBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={s.talkBtnText}>TALK</Text>
-            </TouchableOpacity>
-          )}
           <View style={s.goldBox}>
             <Text style={s.goldLabel}>GOLD</Text>
             <Text style={s.goldValue}>{Math.floor(resources.gold)}</Text>
@@ -163,9 +153,10 @@ export function MerchantScreen({ onBackToRoad, onToast, merchantEntryNarrative }
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={onBackToRoad}
-            style={s.backButton}
+            style={s.closeBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={s.backButtonText}>ROAD</Text>
+            <Text style={s.closeBtnText}>✕</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -220,6 +211,15 @@ export function MerchantScreen({ onBackToRoad, onToast, merchantEntryNarrative }
             </Text>
           </TouchableOpacity>
         ))}
+        {shopDialogue && (
+          <TouchableOpacity
+            onPress={() => setShopDialogueId(shopDialogue.id)}
+            style={s.tabBtn}
+            activeOpacity={0.8}
+          >
+            <Text style={s.tabBtnText}>TALK</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -360,22 +360,19 @@ const s = StyleSheet.create({
   actionBtnTextDisabled: {
     color: C.mist,
   },
-  backButton: {
-    alignItems: 'center',
-    backgroundColor: C.parchDark,
-    borderColor: C.parchDeep,
-    borderRadius: 3,
-    borderWidth: 1,
+  closeBtn: {
+    alignItems:     'center',
+    borderColor:    C.parchDeep,
+    borderRadius:   2,
+    borderWidth:    1,
+    height:         32,
     justifyContent: 'center',
-    minWidth: 72,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    width:          32,
   },
-  backButtonText: {
-    color: C.ink,
-    fontFamily: 'Cinzel_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 1.2,
+  closeBtnText: {
+    color:      C.parchment,
+    fontFamily: 'Cinzel_400Regular',
+    fontSize:   14,
   },
   buyBtn: {
     backgroundColor: C.blood,
@@ -415,9 +412,14 @@ const s = StyleSheet.create({
     fontSize:   20,
   },
   headerActions: {
-    alignItems: 'center',
+    alignItems:    'center',
     flexDirection: 'row',
-    gap: 12,
+    flexShrink:    0,
+    gap:           10,
+  },
+  headerTitle: {
+    flex:        1,
+    marginRight: 12,
   },
   itemDesc: {
     color:      C.mist,
@@ -561,18 +563,6 @@ const s = StyleSheet.create({
     gap:             8,
     paddingHorizontal: 20,
     paddingVertical: 14,
-  },
-  talkBtn: {
-    backgroundColor: C.parchDark,
-    borderRadius:    4,
-    paddingHorizontal: 10,
-    paddingVertical:   6,
-  },
-  talkBtnText: {
-    color:      C.ink,
-    fontFamily: 'Cinzel_600SemiBold',
-    fontSize:   10,
-    letterSpacing: 1.5,
   },
   title: {
     color:      C.parchment,

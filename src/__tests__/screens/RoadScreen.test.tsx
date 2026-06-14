@@ -529,6 +529,66 @@ describe('RoadScreen', () => {
     });
   });
 
+  it('resets the journal after a same-location day-pass action like forage', async () => {
+    const onToast = jest.fn();
+    const forageNarrative = 'You spend the day foraging. Net food gain: 1.5.';
+
+    const gameState1 = makeGameState({
+      currentLocationId: 3,
+      dayNumber: 1,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      turnHistory: [],
+    });
+
+    const engine = new TurnEngine(gameState1, () => undefined, () => undefined, () => undefined);
+    const { rerender, queryByText, getByText } = render(
+      <RoadScreen
+        gameState={gameState1}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText(/You have arrived at Osiran Fields\./)).toBeTruthy();
+    });
+    expect(queryByText('PREVIOUS DAY')).toBeNull();
+
+    const gameState2 = {
+      ...gameState1,
+      dayNumber: 2,
+      turnHistory: [
+        {
+          dayNumber: 1,
+          locationBefore: 3,
+          locationAfter: 3,
+          action: PlayerAction.Hunt,
+          weather: WeatherType.Neutral,
+          eventsTriggered: [],
+          deltas: [{ source: 'hunt', food: 1.5, narrative: forageNarrative }],
+          levelUpOccurred: false,
+          narrativeSummary: forageNarrative,
+        },
+      ],
+    };
+
+    rerender(
+      <RoadScreen
+        gameState={gameState2}
+        engine={engine}
+        onToast={onToast}
+        textInterval={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getByText('PREVIOUS DAY')).toBeTruthy();
+      expect(getByText(forageNarrative)).toBeTruthy();
+      expect(queryByText(/You have arrived at Osiran Fields\./)).toBeTruthy();
+    });
+  });
+
   it('shows event-driven town dialogue as an NPC button instead of auto-opening', async () => {
     const onToast = jest.fn();
     const onOpenNpc = jest.fn();

@@ -25,7 +25,7 @@ describe('MerchantScreen', () => {
     });
   });
 
-  it('renders merchant entry narrative and ROAD back button', () => {
+  it('renders merchant entry narrative and close button', () => {
     const onBackToRoad = jest.fn();
     const { getByText } = render(
       <MerchantScreen
@@ -36,7 +36,7 @@ describe('MerchantScreen', () => {
     );
 
     expect(getByText('The merchant greets you warmly.')).toBeTruthy();
-    fireEvent.press(getByText('ROAD'));
+    fireEvent.press(getByText('✕'));
     expect(onBackToRoad).toHaveBeenCalled();
   });
 });

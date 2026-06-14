@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
-import { GameState, PlayerAction, WeatherType, CompanionArchetype, GameEvent } from '@engine/types';
+import { GameState, PlayerAction, TurnRecord, WeatherType, CompanionArchetype, GameEvent } from '@engine/types';
 import { TurnEngine, ActionParams } from '@engine/TurnEngine';
 import { getLocation } from '@data/locations';
 import { pickLocationText, pickLocationRandomText } from '@engine/GameState';
@@ -103,6 +103,26 @@ function renderArrivalText(displayed: string) {
       <Text style={ARRIVAL_NAME_STYLE}>{namePart}</Text>
     </Text>
   );
+}
+
+function isSameLocationDayPassAction(lastTurn: TurnRecord): boolean {
+  if (lastTurn.locationAfter !== lastTurn.locationBefore) return false;
+  return lastTurn.action === PlayerAction.Camp
+    || lastTurn.action === PlayerAction.Rally
+    || lastTurn.action === PlayerAction.Hunt;
+}
+
+function buildJournalAnchorKey(currentLocationId: number, lastTurn?: TurnRecord): string {
+  if (
+    lastTurn
+    && (
+      lastTurn.locationAfter !== lastTurn.locationBefore
+      || isSameLocationDayPassAction(lastTurn)
+    )
+  ) {
+    return `turn-${lastTurn.dayNumber}-${lastTurn.action}-${lastTurn.locationAfter}`;
+  }
+  return `loc-${currentLocationId}`;
 }
 
 function buildLocationDetailsText(
@@ -314,9 +334,10 @@ export function RoadScreen({
     : null;
   const lastTurnKey = lastTurn ? `${lastTurn.dayNumber}_${lastTurn.action}` : null;
   const prevTurnKeyRef = useRef<string | null>(lastTurnKey);
+  const journalAnchorKey = buildJournalAnchorKey(gameState.currentLocationId, lastTurn);
   const hasMerchant = hasMerchantAtLocation(gameState.currentLocationId, gameState.runLayout);
 
-  // Effect A — reset journal panel on location arrival
+  // Effect A — reset journal panel on arrival or same-location day-pass actions
   useEffect(() => {
     const segs: JournalSegment[] = [];
 
@@ -370,12 +391,13 @@ export function RoadScreen({
     setCompletedKeys(new Set());
     setForceComplete(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.currentLocationId]); // snapshot lastTurn/deltas at arrival only; same-location actions handled by Effect B
+  }, [journalAnchorKey]); // snapshot lastTurn/deltas at reset only; other same-location actions handled by Effect B
 
-  // Effect B — append result for same-location actions
+  // Effect B — append result for same-location actions that do not pass a day
   useEffect(() => {
     if (!lastTurnKey || !lastTurn) return;
     if (lastTurn.locationAfter !== lastTurn.locationBefore) return; // movement handled by Effect A
+    if (isSameLocationDayPassAction(lastTurn)) return; // forage/camp/rally handled by Effect A
 
     const narrativeText = lastTurn.narrativeSummary || 'The day continued.';
     const text = lastTurn.action === PlayerAction.Trade
@@ -786,9 +808,7 @@ export function RoadScreen({
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
-              <View
-                style={{ borderWidth: 1, borderColor: Colors.gold, borderRadius: 3, padding: 12, marginBottom: 12, backgroundColor: '#EDE4CF' }}
-              >
+              <View style={{ marginBottom: 12 }}>
                 {journalSegments.map((seg, i) => (
                   <JournalSegmentView
                     key={seg.key}
