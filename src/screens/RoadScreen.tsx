@@ -462,6 +462,13 @@ export function RoadScreen({
   const showAlertBadges = dangerNearby || dialogueNearby || bossNearby;
 
   function finishJournalTyping() {
+    const pendingIntroSegments = segments.filter(
+      seg =>
+        !seg.instant &&
+        !completedKeys.has(seg.key) &&
+        (seg.type === 'trade_intro' || seg.type === 'combat_intro'),
+    );
+
     setCompletedKeys(prev => {
       const next = new Set(prev);
       for (const segment of segments) {
@@ -470,6 +477,15 @@ export function RoadScreen({
       return next;
     });
     setForceComplete(true);
+
+    for (const seg of pendingIntroSegments) {
+      if (seg.type === 'trade_intro') {
+        setTimeout(() => onOpenShop?.(merchantName, pendingShopNarrative), 0);
+      }
+      if (seg.type === 'combat_intro') {
+        setTimeout(() => onOpenCombat?.(), 0);
+      }
+    }
   }
 
   function runWhenJournalReady(action: () => void) {
@@ -871,7 +887,7 @@ export function RoadScreen({
       {isTyping && !forceComplete && (
         <TouchableOpacity
           activeOpacity={1}
-          onPress={() => setForceComplete(true)}
+          onPress={finishJournalTyping}
           style={StyleSheet.absoluteFillObject}
         />
       )}

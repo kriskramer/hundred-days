@@ -32,7 +32,7 @@
       "name": "Skies Clear",
       "description": "The clouds part and warm sunlight breaks through.",
       "conditions": {
-        "probability": 0.3,
+        "probability": 0.5,
         "requiredStatusEffects": [
           "in_storm"
         ]

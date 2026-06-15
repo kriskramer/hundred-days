@@ -59,6 +59,45 @@ describe('RoadScreen', () => {
     );
   });
 
+  it('completes all journal segments when the screen is tapped during typing', async () => {
+    const onToast = jest.fn();
+    const gameState = makeGameState({
+      currentLocationId: 27,
+      resources: { food: 5, gold: 25, items: [], maxSlots: 8, equippedItems: {} },
+      turnHistory: [],
+    });
+    const engine = new TurnEngine(gameState, () => undefined, () => undefined, () => undefined);
+
+    const { UNSAFE_getAllByType, queryByText } = render(
+      <RoadScreen
+        gameState={gameState}
+        engine={engine}
+        onToast={onToast}
+        textInterval={100}
+      />
+    );
+
+    await waitFor(() => {
+      expect(queryByText(/You have arrived at Sdrakam\./)).toBeNull();
+      expect(queryByText(/You have/)).toBeTruthy();
+    });
+
+    expect(queryByText('The last Qanisi settlement on the East Senin Road.')).toBeNull();
+    expect(queryByText(/There is a TOWN here, and a SHOP\./)).toBeNull();
+
+    const skipOverlay = UNSAFE_getAllByType(TouchableOpacity).find(
+      candidate => candidate.props.activeOpacity === 1 && candidate.props.onPress,
+    );
+    expect(skipOverlay).toBeDefined();
+    fireEvent.press(skipOverlay!);
+
+    await waitFor(() => {
+      expect(queryByText(/You have arrived at Sdrakam\./)).toBeTruthy();
+      expect(queryByText(/There is a TOWN here, and a SHOP\./)).toBeTruthy();
+      expect(queryByText('The last Qanisi settlement on the East Senin Road.')).toBeTruthy();
+    });
+  });
+
   it('opens the inn screen from Visit Inn even while journal text is still typing at Zilam', async () => {
     const onToast = jest.fn();
     const onOpenInn = jest.fn();
